@@ -1,0 +1,171 @@
+{
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "durationInFrames": 13286
+  },
+  "brand": {
+    "name": "the Platform",
+    "tagline": "Intelligence at Scale. Decisions Made Simple.",
+    "subTagline": "Enterprise-Grade Operations Platform",
+    "ctaText": "Transform Operations with the Platform",
+    "ctaSubtext": "Schedule a live demo today"
+  },
+  "scenes": {
+    "intro": {
+      "startFrame": 0,
+      "durationInFrames": 900
+    },
+    "problem": {
+      "startFrame": 900,
+      "durationInFrames": 1200
+    },
+    "solution": {
+      "startFrame": 2100,
+      "durationInFrames": 1200
+    },
+    "productDemo": {
+      "startFrame": 3300,
+      "durationInFrames": 5786
+    },
+    "features": {
+      "startFrame": 9086,
+      "durationInFrames": 1200
+    },
+    "metrics": {
+      "startFrame": 10286,
+      "durationInFrames": 1200
+    },
+    "customerExperience": {
+      "startFrame": 11486,
+      "durationInFrames": 900
+    },
+    "closing": {
+      "startFrame": 12386,
+      "durationInFrames": 900
+    }
+  },
+  "problems": [
+    {
+      "icon": "⚠️",
+      "title": "Manual Processes",
+      "description": "Teams spending hours on repetitive maintenance scheduling and reporting tasks"
+    },
+    {
+      "icon": "⏱️",
+      "title": "Slow Response Times",
+      "description": "Critical equipment failures go undetected, causing costly unplanned downtime"
+    },
+    {
+      "icon": "🔗",
+      "title": "Fragmented Systems",
+      "description": "Disconnected tools create data silos and operational blind spots across facilities"
+    },
+    {
+      "icon": "📉",
+      "title": "Operational Inefficiency",
+      "description": "Lack of predictive maintenance drives repair costs up by 40% annually"
+    },
+    {
+      "icon": "👁️",
+      "title": "Poor Visibility",
+      "description": "No real-time insight into equipment performance across distributed portfolios"
+    }
+  ],
+  "features": [
+    {
+      "icon": "⚡",
+      "title": "Smart Automation",
+      "description": "AI-powered scheduling and predictive maintenance workflows",
+      "accent": "blue"
+    },
+    {
+      "icon": "📡",
+      "title": "Real-Time Monitoring",
+      "description": "Live equipment telemetry across all facilities in one dashboard",
+      "accent": "orange"
+    },
+    {
+      "icon": "🎯",
+      "title": "Centralized Dashboard",
+      "description": "Unified command center for your entire HVAC and water fleet",
+      "accent": "blue"
+    },
+    {
+      "icon": "📊",
+      "title": "Analytics & Insights",
+      "description": "Deep performance analytics with actionable AI recommendations",
+      "accent": "orange"
+    },
+    {
+      "icon": "🔄",
+      "title": "Workflow Optimization",
+      "description": "Streamlined service dispatch and field technician management",
+      "accent": "blue"
+    },
+    {
+      "icon": "🏢",
+      "title": "Enterprise Scalable",
+      "description": "Built to manage thousands of units across global portfolios",
+      "accent": "orange"
+    }
+  ],
+  "metrics": [
+    {
+      "value": 60,
+      "suffix": "%",
+      "label": "Faster Resolution",
+      "description": "Reduction in service ticket resolution time",
+      "accent": "blue"
+    },
+    {
+      "value": 40,
+      "suffix": "%",
+      "label": "Less Manual Effort",
+      "description": "Fewer manual data entry tasks per technician",
+      "accent": "orange"
+    },
+    {
+      "value": 99.9,
+      "suffix": "%",
+      "label": "System Uptime",
+      "description": "Equipment availability with predictive maintenance",
+      "accent": "blue"
+    },
+    {
+      "value": 3.2,
+      "suffix": "x",
+      "label": "ROI Improvement",
+      "description": "Return on investment within first year",
+      "accent": "orange"
+    }
+  ],
+  "customerJourney": [
+    {
+      "step": "01",
+      "title": "Connect",
+      "description": "Integrate Rheem IoT sensors across your facility fleet"
+    },
+    {
+      "step": "02",
+      "title": "Monitor",
+      "description": "Real-time telemetry streams to your unified dashboard"
+    },
+    {
+      "step": "03",
+      "title": "Analyze",
+      "description": "AI surfaces anomalies and maintenance predictions"
+    },
+    {
+      "step": "04",
+      "title": "Act",
+      "description": "Automated work orders dispatched to field technicians"
+    },
+    {
+      "step": "05",
+      "title": "Optimize",
+      "description": "Continuous learning improves efficiency over time"
+    }
+  ]
+}

@@ -1,0 +1,413 @@
+{
+  "generatedAt": "2026-06-11T12:32:44.746Z",
+  "fps": 60,
+  "clips": [
+    {
+      "id": "dashboard",
+      "file": "projects/rheem/recordings/dashboard.mp4",
+      "duration": 10.219615885416667,
+      "durationInFrames": 614,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:43.944Z"
+    },
+    {
+      "id": "rheem-totalview",
+      "file": "projects/rheem/recordings/rheem-totalview.mp4",
+      "duration": 9.105729166666666,
+      "durationInFrames": 547,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.297Z"
+    },
+    {
+      "id": "sites",
+      "file": "projects/rheem/recordings/sites.mp4",
+      "duration": 5.239345703125,
+      "durationInFrames": 315,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.653Z"
+    },
+    {
+      "id": "site-detail",
+      "file": "projects/rheem/recordings/site-detail.mp4",
+      "duration": 14.882047526041667,
+      "durationInFrames": 893,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.561Z"
+    },
+    {
+      "id": "alarms",
+      "file": "projects/rheem/recordings/alarms.mp4",
+      "duration": 6.105322265625,
+      "durationInFrames": 367,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:43.857Z"
+    },
+    {
+      "id": "devices",
+      "file": "projects/rheem/recordings/devices.mp4",
+      "duration": 7.427666015625,
+      "durationInFrames": 446,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.118Z"
+    },
+    {
+      "id": "device-detail",
+      "file": "projects/rheem/recordings/device-detail.mp4",
+      "duration": 15.434684244791667,
+      "durationInFrames": 927,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.033Z"
+    },
+    {
+      "id": "insights",
+      "file": "projects/rheem/recordings/insights.mp4",
+      "duration": 4.02443359375,
+      "durationInFrames": 242,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.208Z"
+    },
+    {
+      "id": "ai-predict",
+      "file": "projects/rheem/recordings/ai-predict.mp4",
+      "duration": 7.447923177083333,
+      "durationInFrames": 447,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:43.769Z"
+    },
+    {
+      "id": "simulator",
+      "file": "projects/rheem/recordings/simulator.mp4",
+      "duration": 7.591057942708333,
+      "durationInFrames": 456,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.469Z"
+    },
+    {
+      "id": "users",
+      "file": "projects/rheem/recordings/users.mp4",
+      "duration": 4.966429036458333,
+      "durationInFrames": 298,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.745Z"
+    },
+    {
+      "id": "settings",
+      "file": "projects/rheem/recordings/settings.mp4",
+      "duration": 3.8850325520833335,
+      "durationInFrames": 234,
+      "width": 1920,
+      "height": 1080,
+      "source": "auto",
+      "capturedAt": "2026-06-11T12:32:44.384Z"
+    }
+  ],
+  "segments": [
+    {
+      "id": "dashboard",
+      "sceneId": "productDemo",
+      "label": "Dashboard",
+      "subtitle": "Real-time operational command center",
+      "accent": "blue",
+      "keywords": [
+        "dashboard",
+        "home",
+        "overview"
+      ],
+      "resolvedClip": {
+        "id": "dashboard",
+        "file": "projects/rheem/recordings/dashboard.mp4",
+        "duration": 10.219615885416667,
+        "durationInFrames": 614,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:43.944Z"
+      },
+      "startFrame": 0,
+      "durationInFrames": 614
+    },
+    {
+      "id": "rheem-totalview",
+      "sceneId": "productDemo",
+      "label": "Rheem TotalView",
+      "subtitle": "Enterprise-wide equipment visibility platform",
+      "accent": "orange",
+      "keywords": [
+        "totalview",
+        "rheem-total"
+      ],
+      "resolvedClip": {
+        "id": "rheem-totalview",
+        "file": "projects/rheem/recordings/rheem-totalview.mp4",
+        "duration": 9.105729166666666,
+        "durationInFrames": 547,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.297Z"
+      },
+      "startFrame": 614,
+      "durationInFrames": 547
+    },
+    {
+      "id": "sites",
+      "sceneId": "productDemo",
+      "label": "Enterprise Sites",
+      "subtitle": "Manage deployments across your entire portfolio",
+      "accent": "orange",
+      "keywords": [
+        "sites",
+        "site",
+        "location"
+      ],
+      "resolvedClip": {
+        "id": "sites",
+        "file": "projects/rheem/recordings/sites.mp4",
+        "duration": 5.239345703125,
+        "durationInFrames": 315,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.653Z"
+      },
+      "startFrame": 1161,
+      "durationInFrames": 315
+    },
+    {
+      "id": "site-detail",
+      "sceneId": "productDemo",
+      "label": "Enterprise Sites",
+      "subtitle": "Manage deployments across your entire portfolio",
+      "accent": "orange",
+      "keywords": [
+        "sites",
+        "site",
+        "location"
+      ],
+      "resolvedClip": {
+        "id": "site-detail",
+        "file": "projects/rheem/recordings/site-detail.mp4",
+        "duration": 14.882047526041667,
+        "durationInFrames": 893,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.561Z"
+      },
+      "startFrame": 1476,
+      "durationInFrames": 893
+    },
+    {
+      "id": "alarms",
+      "sceneId": "productDemo",
+      "label": "Alarms & Fault Detection",
+      "subtitle": "Real-time critical alerts with severity triage",
+      "accent": "orange",
+      "keywords": [
+        "alarms",
+        "alerts",
+        "faults"
+      ],
+      "resolvedClip": {
+        "id": "alarms",
+        "file": "projects/rheem/recordings/alarms.mp4",
+        "duration": 6.105322265625,
+        "durationInFrames": 367,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:43.857Z"
+      },
+      "startFrame": 2369,
+      "durationInFrames": 367
+    },
+    {
+      "id": "devices",
+      "sceneId": "productDemo",
+      "label": "Device Fleet",
+      "subtitle": "27 connected units monitored live across all sites",
+      "accent": "blue",
+      "keywords": [
+        "devices",
+        "equipment",
+        "fleet"
+      ],
+      "resolvedClip": {
+        "id": "devices",
+        "file": "projects/rheem/recordings/devices.mp4",
+        "duration": 7.427666015625,
+        "durationInFrames": 446,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.118Z"
+      },
+      "startFrame": 2736,
+      "durationInFrames": 446
+    },
+    {
+      "id": "device-detail",
+      "sceneId": "productDemo",
+      "label": "Device Intelligence",
+      "subtitle": "Live telemetry, predictive insights, and remote control",
+      "accent": "orange",
+      "keywords": [
+        "device-detail",
+        "rtu",
+        "unit"
+      ],
+      "resolvedClip": {
+        "id": "device-detail",
+        "file": "projects/rheem/recordings/device-detail.mp4",
+        "duration": 15.434684244791667,
+        "durationInFrames": 927,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.033Z"
+      },
+      "startFrame": 3182,
+      "durationInFrames": 927
+    },
+    {
+      "id": "insights",
+      "sceneId": "productDemo",
+      "label": "Insights & Analytics",
+      "subtitle": "Operational intelligence and performance trending",
+      "accent": "blue",
+      "keywords": [
+        "insights",
+        "analytics",
+        "reports"
+      ],
+      "resolvedClip": {
+        "id": "insights",
+        "file": "projects/rheem/recordings/insights.mp4",
+        "duration": 4.02443359375,
+        "durationInFrames": 242,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.208Z"
+      },
+      "startFrame": 4109,
+      "durationInFrames": 242
+    },
+    {
+      "id": "ai-predict",
+      "sceneId": "productDemo",
+      "label": "AI Predictions",
+      "subtitle": "Predictive fault detection before failures occur",
+      "accent": "orange",
+      "keywords": [
+        "ai-predict",
+        "ai",
+        "predictive"
+      ],
+      "resolvedClip": {
+        "id": "ai-predict",
+        "file": "projects/rheem/recordings/ai-predict.mp4",
+        "duration": 7.447923177083333,
+        "durationInFrames": 447,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:43.769Z"
+      },
+      "startFrame": 4351,
+      "durationInFrames": 447
+    },
+    {
+      "id": "simulator",
+      "sceneId": "productDemo",
+      "label": "Simulator",
+      "subtitle": "Model equipment behavior and test scenarios safely",
+      "accent": "blue",
+      "keywords": [
+        "simulator",
+        "simulate"
+      ],
+      "resolvedClip": {
+        "id": "simulator",
+        "file": "projects/rheem/recordings/simulator.mp4",
+        "duration": 7.591057942708333,
+        "durationInFrames": 456,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.469Z"
+      },
+      "startFrame": 4798,
+      "durationInFrames": 456
+    },
+    {
+      "id": "users",
+      "sceneId": "productDemo",
+      "label": "User Management",
+      "subtitle": "Role-based access control across your enterprise",
+      "accent": "orange",
+      "keywords": [
+        "users",
+        "user",
+        "admin"
+      ],
+      "resolvedClip": {
+        "id": "users",
+        "file": "projects/rheem/recordings/users.mp4",
+        "duration": 4.966429036458333,
+        "durationInFrames": 298,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.745Z"
+      },
+      "startFrame": 5254,
+      "durationInFrames": 298
+    },
+    {
+      "id": "settings",
+      "sceneId": "productDemo",
+      "label": "Settings",
+      "subtitle": "System configuration, integrations, and preferences",
+      "accent": "blue",
+      "keywords": [
+        "settings",
+        "config"
+      ],
+      "resolvedClip": {
+        "id": "settings",
+        "file": "projects/rheem/recordings/settings.mp4",
+        "duration": 3.8850325520833335,
+        "durationInFrames": 234,
+        "width": 1920,
+        "height": 1080,
+        "source": "auto",
+        "capturedAt": "2026-06-11T12:32:44.384Z"
+      },
+      "startFrame": 5552,
+      "durationInFrames": 234
+    }
+  ]
+}

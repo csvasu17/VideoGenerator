@@ -1,0 +1,55 @@
+{
+  "name": "rheem-demo-video",
+  "version": "1.0.0",
+  "description": "Cinematic enterprise product demo video for Rheem",
+  "scripts": {
+    "test":        "jest",
+    "test:watch":  "jest --watch",
+    "test:cover":  "jest --coverage",
+    "start": "remotion studio --public-dir=out/localhost",
+    "render": "remotion render RheemDemo out/rheem-demo.mp4 --codec=h264",
+    "render:hq": "remotion render RheemDemo out/rheem-demo-hq.mp4 --codec=h264 --crf=18",
+    "render:final": "remotion render RheemDemo out/rheem-final.mp4 --codec=h264 --crf=18",
+    "render:preview": "remotion render RheemDemo out/preview.mp4 --codec=h264 --scale=0.5",
+    "render:gif": "remotion render RheemDemo out/preview.gif --codec=gif --scale=0.3 --every-nth-frame=2",
+    "render:demo": "ts-node --project tsconfig.scripts.json automation/render-demo.ts",
+    "render:demo:preview": "ts-node --project tsconfig.scripts.json automation/render-demo.ts --scale 0.5 --crf 28",
+    "voice": "ts-node --project tsconfig.scripts.json automation/generate-voice.ts",
+    "voice:only": "ts-node --project tsconfig.scripts.json automation/generate-voice.ts --no-merge",
+    "render:demo:voice": "npm run render:demo && npm run voice",
+    "record": "ts-node --project tsconfig.scripts.json automation/record.ts --mode workflows",
+    "record:explore": "ts-node --project tsconfig.scripts.json automation/record.ts --mode explore",
+    "sync": "ts-node --project tsconfig.scripts.json automation/sync.ts",
+    "validate": "ts-node --project tsconfig.scripts.json render/validate.ts",
+    "pipeline": "ts-node --project tsconfig.scripts.json render/pipeline.ts",
+    "e2e-test": "ts-node --project tsconfig.scripts.json automation/e2e-test.ts",
+    "playwright:install": "playwright install chromium",
+    "record:rheem": "npm run record -- --project rheem",
+    "sync:rheem": "npm run sync -- rheem",
+    "record:enterprise": "ts-node --project tsconfig.scripts.json automation/record-enterprise-clips.ts",
+    "record:enterprise:render": "npm run record:enterprise && npm run render:demo && npm run voice"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.257",
+    "edge-tts": "^1.0.1",
+    "openai": "^6.42.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.257"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "dotenv": "^16.4.0",
+    "jest": "^30.4.2",
+    "playwright": "^1.44.0",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  },
+  "remotion": {
+    "entryPoint": "src/index.tsx"
+  }
+}

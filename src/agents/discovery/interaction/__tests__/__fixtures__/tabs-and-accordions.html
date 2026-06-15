@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MVID Test Fixture — ARIA Tabs and Accordions</title>
+  <style>
+    body { font-family: sans-serif; padding: 24px; background: #fff; }
+    [role="tabpanel"][hidden] { display: none; }
+    [role="tabpanel"] { padding: 16px; border: 1px solid #ccc; margin-top: -1px; }
+    [role="tab"] {
+      padding: 8px 20px; cursor: pointer; border: 1px solid #ccc;
+      background: #f0f0f0; margin-right: 4px; border-bottom: none;
+    }
+    [role="tab"][aria-selected="true"] {
+      background: #fff; border-bottom-color: #fff; font-weight: bold;
+    }
+    .accordion-btn {
+      display: block; width: 100%; text-align: left;
+      padding: 10px 16px; cursor: pointer; background: #f5f5f5;
+      border: 1px solid #ccc; margin-top: 8px; font-size: 14px;
+    }
+    .accordion-panel { padding: 12px; border: 1px solid #ccc; border-top: none; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #ccc; padding: 6px 10px; }
+    th { background: #eee; }
+    form { display: flex; flex-direction: column; gap: 8px; max-width: 300px; }
+    input[type="text"], input[type="email"] { padding: 6px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+
+  <h1>Test Dashboard</h1>
+
+  <!-- ── ARIA Tab group ──────────────────────────────────────────────────── -->
+  <div role="tablist" aria-label="Dashboard sections">
+    <button role="tab" id="tab-1" aria-selected="true"  aria-controls="panel-1">Overview</button>
+    <button role="tab" id="tab-2" aria-selected="false" aria-controls="panel-2">Analytics</button>
+    <button role="tab" id="tab-3" aria-selected="false" aria-controls="panel-3">Settings</button>
+  </div>
+
+  <div id="panel-1" role="tabpanel" aria-labelledby="tab-1">
+    <h2>Overview Panel</h2>
+    <table>
+      <thead><tr><th>Device</th><th>Status</th><th>Last Seen</th></tr></thead>
+      <tbody>
+        <tr><td>Unit A</td><td>Online</td><td>2 min ago</td></tr>
+        <tr><td>Unit B</td><td>Warning</td><td>5 min ago</td></tr>
+        <tr><td>Unit C</td><td>Offline</td><td>1 hr ago</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="panel-2" role="tabpanel" aria-labelledby="tab-2" hidden>
+    <h2>Analytics Panel</h2>
+    <p>Energy consumption trends for the current period.</p>
+    <canvas id="chart-1" width="400" height="200" aria-label="Energy chart"></canvas>
+    <h3>Summary</h3>
+    <p>Peak usage recorded at 14:00.</p>
+  </div>
+
+  <div id="panel-3" role="tabpanel" aria-labelledby="tab-3" hidden>
+    <h2>Settings Panel</h2>
+    <form id="settings-form">
+      <label for="api-endpoint">API Endpoint</label>
+      <input type="text" id="api-endpoint" placeholder="https://api.example.com">
+      <label for="notify-email">Notification Email</label>
+      <input type="email" id="notify-email" placeholder="admin@example.com">
+      <button type="submit">Save Settings</button>
+    </form>
+  </div>
+
+  <!-- ── Accordion 1 ─────────────────────────────────────────────────────── -->
+  <button class="accordion-btn" id="acc-btn-1"
+          aria-expanded="false" aria-controls="acc-panel-1">
+    Device Details
+  </button>
+  <div id="acc-panel-1" class="accordion-panel" hidden>
+    <h3>Device Information</h3>
+    <ul>
+      <li>Model: HVAC-X100</li>
+      <li>Firmware: v3.4.2</li>
+      <li>Location: Building A, Floor 2</li>
+      <li>Install Date: 2023-06-15</li>
+      <li>Last Service: 2024-01-10</li>
+    </ul>
+  </div>
+
+  <!-- ── Accordion 2 ─────────────────────────────────────────────────────── -->
+  <button class="accordion-btn" id="acc-btn-2"
+          aria-expanded="false" aria-controls="acc-panel-2">
+    Alert History
+  </button>
+  <div id="acc-panel-2" class="accordion-panel" hidden>
+    <h3>Recent Alerts</h3>
+    <table>
+      <thead><tr><th>Time</th><th>Type</th><th>Severity</th></tr></thead>
+      <tbody>
+        <tr><td>09:12</td><td>Temperature</td><td>High</td></tr>
+        <tr><td>08:45</td><td>Pressure</td><td>Medium</td></tr>
+        <tr><td>07:30</td><td>Connectivity</td><td>Low</td></tr>
+        <tr><td>06:15</td><td>Temperature</td><td>High</td></tr>
+        <tr><td>05:00</td><td>Flow Rate</td><td>Medium</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // ── Tab switching ─────────────────────────────────────────────────────────
+    const tabs = document.querySelectorAll('[role="tab"]');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => {
+          t.setAttribute('aria-selected', 'false');
+          const panelId = t.getAttribute('aria-controls');
+          if (panelId) document.getElementById(panelId).hidden = true;
+        });
+        tab.setAttribute('aria-selected', 'true');
+        const panelId = tab.getAttribute('aria-controls');
+        if (panelId) document.getElementById(panelId).hidden = false;
+      });
+    });
+
+    // ── Accordion toggling ────────────────────────────────────────────────────
+    document.querySelectorAll('[aria-expanded]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', String(!expanded));
+        const panelId = btn.getAttribute('aria-controls');
+        if (panelId) document.getElementById(panelId).hidden = expanded;
+      });
+    });
+  </script>
+
+</body>
+</html>

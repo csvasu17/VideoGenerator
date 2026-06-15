@@ -1,0 +1,189 @@
+{
+  "schemaVersion": "1.0",
+  "id": "67d11790-ea9b-4d2b-b98b-bec5b479315c",
+  "meta": {
+    "productName": "OrangeHRM",
+    "targetAudience": "HR leaders and people managers",
+    "primaryBenefit": "streamline workforce management and HR operations",
+    "totalDurationSec": 68,
+    "totalScenes": 7,
+    "narrativeArc": "unknown",
+    "generatedAt": "2026-06-09T05:30:28.071Z",
+    "journeyId": "45af1c8b-251b-409e-bd32-583bf1f9097e",
+    "storyboardId": "f56f1e16-7806-404d-870f-dadfa8b441f0"
+  },
+  "composition": {
+    "id": "DemoVideo",
+    "fps": 30,
+    "width": 1920,
+    "height": 1080,
+    "durationInFrames": 2280
+  },
+  "openingCard": {
+    "from": 0,
+    "durationInFrames": 90,
+    "title": "OrangeHRM — everything HR leaders and people managers need to streamline workforce management and HR operations.",
+    "subtitle": "streamline workforce management and HR operations",
+    "backgroundColor": "#1a1a2e"
+  },
+  "scenes": [
+    {
+      "id": "scene-1",
+      "from": 90,
+      "durationInFrames": 360,
+      "pageId": "e1c6b952-9ac6-47b0-9459-330e05980441",
+      "title": "OrangeHRM",
+      "narration": "Welcome to OrangeHRM. In the next few minutes, you'll see exactly why HR leaders and people managers choose us to streamline workforce management and HR operations. Let's start with OrangeHRM.",
+      "salesHook": "Full visibility. Zero guesswork.",
+      "description": "OrangeHRM highlights Quick Launch HR Actions. Provides immediate access to leave applications, timesheets, and leave assignment features, enhancing workflow efficiency for HR staff and employees..",
+      "screenshotPath": "captures\\e1c6b952-9ac6-47b0-9459-330e05980441\\viewport.png",
+      "fullScreenshotPath": "captures\\e1c6b952-9ac6-47b0-9459-330e05980441\\full.png",
+      "highlightTarget": {
+        "elementType": "button",
+        "region": "top-right",
+        "description": "Quick Launch HR Actions action button"
+      },
+      "transition": {
+        "type": "zoom-out",
+        "durationInFrames": 18
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-2",
+      "from": 450,
+      "durationInFrames": 360,
+      "pageId": "ab1eac56-b7c7-4427-bef5-fd5be6aed3dc",
+      "title": "OrangeHRM",
+      "narration": "OrangeHRM: monitor My Actions Panel automatically. Shows pending tasks for the user, such as self-review and candidate interviews, improving workflow efficiency and task awareness.. Everything your team needs, right here.",
+      "salesHook": "Full visibility. Zero guesswork.",
+      "description": "OrangeHRM highlights My Actions Panel, Time at Work Widget. Shows pending tasks for the user, such as self-review and candidate interviews, improving workflow efficiency and task awareness..",
+      "screenshotPath": "captures\\ab1eac56-b7c7-4427-bef5-fd5be6aed3dc\\viewport.png",
+      "fullScreenshotPath": "captures\\ab1eac56-b7c7-4427-bef5-fd5be6aed3dc\\full.png",
+      "highlightTarget": {
+        "elementType": "button",
+        "region": "top-right",
+        "description": "My Actions Panel action button"
+      },
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-3",
+      "from": 810,
+      "durationInFrames": 270,
+      "pageId": "05ac7790-48c3-4b8a-891a-831feeb0afa2",
+      "title": "OrangeHRM",
+      "narration": "OrangeHRM: create Directory Results Table/List in real time. Displays matching employee records, allowing HR staff or managers to find contact or role details efficiently.. Everything your team needs, right here.",
+      "salesHook": "New workflows, launched in seconds.",
+      "description": "OrangeHRM highlights Directory Results Table/List, Employee Search and Filter. Displays matching employee records, allowing HR staff or managers to find contact or role details efficiently..",
+      "screenshotPath": "captures\\05ac7790-48c3-4b8a-891a-831feeb0afa2\\viewport.png",
+      "fullScreenshotPath": "captures\\05ac7790-48c3-4b8a-891a-831feeb0afa2\\full.png",
+      "highlightTarget": {
+        "elementType": "table",
+        "region": "center",
+        "description": "Directory Results Table/List data table"
+      },
+      "transition": {
+        "type": "zoom-in",
+        "durationInFrames": 18
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-4",
+      "from": 1080,
+      "durationInFrames": 240,
+      "pageId": "549fc79b-cc54-4717-bbef-8e919160e3ab",
+      "title": "OrangeHRM",
+      "narration": "OrangeHRM: review Employee Personal Details Form seamlessly. Allows viewing and editing of employee identification and personal information, crucial for HR records and compliance.. Everything your team needs, right here.",
+      "salesHook": "Go deep without getting lost.",
+      "description": "OrangeHRM highlights Employee Personal Details Form. Allows viewing and editing of employee identification and personal information, crucial for HR records and compliance..",
+      "screenshotPath": "captures\\549fc79b-cc54-4717-bbef-8e919160e3ab\\viewport.png",
+      "fullScreenshotPath": "captures\\549fc79b-cc54-4717-bbef-8e919160e3ab\\full.png",
+      "highlightTarget": {
+        "elementType": "form",
+        "region": "center",
+        "description": "Employee Personal Details Form input form"
+      },
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-5",
+      "from": 1320,
+      "durationInFrames": 270,
+      "pageId": "0403f743-5f2a-4bb8-9adb-99d9c2e93e8f",
+      "title": "OrangeHRM",
+      "narration": "OrangeHRM: create Employee List Table instantly. Displays core employee data including name, ID, employment status, job title, supervisor, allowing quick overview and access.. Everything your team needs, right here.",
+      "salesHook": "New workflows, launched in seconds.",
+      "description": "OrangeHRM highlights Employee List Table, Search and Filtering. Displays core employee data including name, ID, employment status, job title, supervisor, allowing quick overview and access..",
+      "screenshotPath": "captures\\0403f743-5f2a-4bb8-9adb-99d9c2e93e8f\\viewport.png",
+      "fullScreenshotPath": "captures\\0403f743-5f2a-4bb8-9adb-99d9c2e93e8f\\full.png",
+      "highlightTarget": {
+        "elementType": "table",
+        "region": "center",
+        "description": "Employee List Table data table"
+      },
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-6",
+      "from": 1590,
+      "durationInFrames": 270,
+      "pageId": "6ef87ed6-d0ec-49b9-9e4a-8666911d121f",
+      "title": "OrangeHRM",
+      "narration": "OrangeHRM: create User List Table with zero manual effort. Provides administrators with a structured overview of existing users, their roles, statuses, and associated employee names. Enables organized access and potential bulk actions.. Everything your team needs, right here.",
+      "salesHook": "New workflows, launched in seconds.",
+      "description": "OrangeHRM highlights User List Table, Search and Filter Functionality. Provides administrators with a structured overview of existing users, their roles, statuses, and associated employee names. Enables organized access and potential bulk actions..",
+      "screenshotPath": "captures\\6ef87ed6-d0ec-49b9-9e4a-8666911d121f\\viewport.png",
+      "fullScreenshotPath": "captures\\6ef87ed6-d0ec-49b9-9e4a-8666911d121f\\full.png",
+      "highlightTarget": {
+        "elementType": "table",
+        "region": "center",
+        "description": "User List Table data table"
+      },
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-7",
+      "from": 1860,
+      "durationInFrames": 270,
+      "pageId": "02f5972b-4ccf-4617-8c4d-61192f365629",
+      "title": "OrangeHRM",
+      "narration": "And that's OrangeHRM — giving HR leaders and people managers the visibility, control, and speed to act on what matters most. OrangeHRM is just one piece of a platform built to transform how your business operates. Schedule a live demo today and see what we can unlock together.",
+      "salesHook": "New workflows, launched in seconds.",
+      "description": "OrangeHRM highlights OrangeHRM. streamline workforce management and HR operations.",
+      "screenshotPath": "captures\\02f5972b-4ccf-4617-8c4d-61192f365629\\viewport.png",
+      "fullScreenshotPath": "captures\\02f5972b-4ccf-4617-8c4d-61192f365629\\full.png",
+      "highlightTarget": {
+        "elementType": "form",
+        "region": "center",
+        "description": "OrangeHRM input form"
+      },
+      "transition": null,
+      "nodeType": ""
+    }
+  ],
+  "closingCard": {
+    "from": 2130,
+    "durationInFrames": 150,
+    "callToAction": "Schedule a live demo today",
+    "productName": "OrangeHRM",
+    "backgroundColor": "#1a1a2e"
+  }
+}

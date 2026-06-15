@@ -1,0 +1,255 @@
+{
+  "schemaVersion": "1.0",
+  "id": "03d47f4b-499c-4b16-bc00-cffd2bcd82f6",
+  "meta": {
+    "productName": "Rheem TotalView",
+    "targetAudience": "your team",
+    "primaryBenefit": "save time and make better decisions",
+    "totalDurationSec": 112.30687500000002,
+    "totalScenes": 7,
+    "narrativeArc": "unknown",
+    "generatedAt": "2026-06-15T09:30:56.505Z",
+    "journeyId": "b6b69c41-f75e-4946-a11b-4fd681d89863",
+    "storyboardId": "a7a66726-e8f6-4ca4-b936-8bd8509531c6",
+    "templateId": "enterprise"
+  },
+  "composition": {
+    "id": "EnterpriseVideo",
+    "fps": 30,
+    "width": 1920,
+    "height": 1080,
+    "durationInFrames": 4800
+  },
+  "openingCard": {
+    "from": 0,
+    "durationInFrames": 90,
+    "title": "Keeping track of user access across departments eats up hours and often leads to outdated",
+    "subtitle": "save time and make better decisions",
+    "backgroundColor": "#1a1a2e"
+  },
+  "scenes": [
+    {
+      "id": "scene-1",
+      "pageId": "home",
+      "title": "IoT Device Dashboard",
+      "salesHook": "Monitor diverse device fleets and alerts in real-time",
+      "narration": "This dashboard consolidates insights from multiple IoT devices, displaying device status, alerts, and types at a glance. Gain instant visibility into issues, locations, and utilization—enabling proactive maintenance and improved asset management.",
+      "description": "This dashboard consolidates insights from multiple IoT devices, displaying device status, alerts, and types at a glance. Gain instant visibility into issues, locations, and utilization—enabling proactive maintenance and improved asset management.",
+      "screenshotPath": "recordings/home-frame.png",
+      "recordingPath": "recordings/home.mp4",
+      "from": 540,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-2",
+      "pageId": "dashboard",
+      "title": "Device Status Overview",
+      "salesHook": "Instantly view real-time fleet and device health statistics",
+      "narration": "This dashboard provides a snapshot of your entire device fleet, highlighting the total number of devices, those with issues, and device types on a single screen. Visual graphs and an interactive map help you quickly pinpoint problem areas and prioritize maintenance, streamlining device management for operational efficiency.",
+      "description": "This dashboard provides a snapshot of your entire device fleet, highlighting the total number of devices, those with issues, and device types on a single screen. Visual graphs and an interactive map help you quickly pinpoint problem areas and prioritize maintenance, streamlining device management for operational efficiency.",
+      "screenshotPath": "recordings/dashboard-frame.png",
+      "recordingPath": "recordings/dashboard.mp4",
+      "from": 900,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-3",
+      "pageId": "devices",
+      "title": "Device Management Dashboard",
+      "salesHook": "Quickly view and configure all connected devices in one place",
+      "narration": "This dashboard offers an organized overview of all devices in your fleet, letting you filter, search, and sort device cards by location, status, and more. Instantly access device details, track connectivity, and configure devices directly, boosting operational efficiency and reducing downtime.",
+      "description": "This dashboard offers an organized overview of all devices in your fleet, letting you filter, search, and sort device cards by location, status, and more. Instantly access device details, track connectivity, and configure devices directly, boosting operational efficiency and reducing downtime.",
+      "screenshotPath": "recordings/devices-frame.png",
+      "recordingPath": "recordings/devices.mp4",
+      "from": 1260,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-4",
+      "pageId": "sites",
+      "title": "Site Directory Dashboard",
+      "salesHook": "Centralize all company sites for streamlined oversight",
+      "narration": "Easily view and manage multiple company locations from one intuitive dashboard. Instantly access site details, activities, and buildings to accelerate decision-making and improve operational visibility.",
+      "description": "Easily view and manage multiple company locations from one intuitive dashboard. Instantly access site details, activities, and buildings to accelerate decision-making and improve operational visibility.",
+      "screenshotPath": "recordings/sites-frame.png",
+      "recordingPath": "recordings/sites.mp4",
+      "from": 1620,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-5",
+      "pageId": "alarms",
+      "title": "Alarm Dashboard",
+      "salesHook": "Centralizes all device alarms by urgency and status",
+      "narration": "Monitor, categorize, and resolve critical, warning, and maintenance issues from a single, color-coded dashboard. Easily filter alarms by type or status to prioritize troubleshooting and streamline device management across your fleet.",
+      "description": "Monitor, categorize, and resolve critical, warning, and maintenance issues from a single, color-coded dashboard. Easily filter alarms by type or status to prioritize troubleshooting and streamline device management across your fleet.",
+      "screenshotPath": "recordings/alarms-frame.png",
+      "recordingPath": "recordings/alarms.mp4",
+      "from": 1980,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-6",
+      "pageId": "insights",
+      "title": "Sensor Environment Insights",
+      "salesHook": "Monitor sensor data trends and content quality instantly",
+      "narration": "Quickly view key sensor statistics like temperature, return air temp, and content score trends over time. The visual chart helps teams identify performance variations, ensuring optimal system health and efficient troubleshooting.",
+      "description": "Quickly view key sensor statistics like temperature, return air temp, and content score trends over time. The visual chart helps teams identify performance variations, ensuring optimal system health and efficient troubleshooting.",
+      "screenshotPath": "recordings/insights-frame.png",
+      "recordingPath": "recordings/insights.mp4",
+      "from": 2340,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-7",
+      "pageId": "ai-predict",
+      "title": "Predictive Maintenance Alerts",
+      "salesHook": "Instantly spot and prioritize critical equipment issues",
+      "narration": "This dashboard uses AI to flag impending equipment failures and maintenance needs, sorted by severity and business impact. It enables fast approval and work order assignment, helping you prevent downtime and avoid costly repairs.",
+      "description": "This dashboard uses AI to flag impending equipment failures and maintenance needs, sorted by severity and business impact. It enables fast approval and work order assignment, helping you prevent downtime and avoid costly repairs.",
+      "screenshotPath": "recordings/ai-predict-frame.png",
+      "recordingPath": "recordings/ai-predict.mp4",
+      "from": 2700,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-8",
+      "pageId": "users",
+      "title": "User Management Dashboard",
+      "salesHook": "Instantly track user activity and manage access levels",
+      "narration": "View all users at a glance, including their roles, status, and last login details. Effortlessly manage user access, streamline onboarding, and quickly identify inactive or pending members.",
+      "description": "View all users at a glance, including their roles, status, and last login details. Effortlessly manage user access, streamline onboarding, and quickly identify inactive or pending members.",
+      "screenshotPath": "recordings/users-frame.png",
+      "recordingPath": "recordings/users.mp4",
+      "from": 3060,
+      "durationInFrames": 360,
+      "transition": {
+        "type": "slide-left",
+        "durationInFrames": 12
+      },
+      "nodeType": ""
+    },
+    {
+      "id": "scene-9",
+      "pageId": "simulator",
+      "title": "Real-Time Pump Monitoring",
+      "salesHook": "Instantly track and manage pump health and performance metrics",
+      "narration": "This dashboard provides live telemetry on pump speed, local usage, and operational health, enabling proactive issue detection and immediate adjustments to set points. This helps maximize uptime and optimize energy usage for industrial operations.",
+      "description": "This dashboard provides live telemetry on pump speed, local usage, and operational health, enabling proactive issue detection and immediate adjustments to set points. This helps maximize uptime and optimize energy usage for industrial operations.",
+      "screenshotPath": "recordings/simulator-frame.png",
+      "recordingPath": "recordings/simulator.mp4",
+      "from": 3420,
+      "durationInFrames": 360,
+      "transition": null,
+      "nodeType": ""
+    }
+  ],
+  "closingCard": {
+    "from": 3420,
+    "durationInFrames": 150,
+    "callToAction": "Schedule a live demo today",
+    "productName": "Rheem TotalView",
+    "backgroundColor": "#1a1a2e"
+  },
+  "brollScenes": [
+    {
+      "id": "broll-0",
+      "from": 0,
+      "durationInFrames": 180,
+      "subtitle": "Unplanned failures drain budgets and teams",
+      "category": "finance"
+    },
+    {
+      "id": "broll-1",
+      "from": 180,
+      "durationInFrames": 180,
+      "subtitle": "Keeping track of user access across departments eats up hours",
+      "category": "finance"
+    },
+    {
+      "id": "broll-2",
+      "from": 360,
+      "durationInFrames": 180,
+      "subtitle": "Manual ai failure predictions grid processes take hours, every day",
+      "category": "finance"
+    }
+  ],
+  "benefitSlide": {
+    "from": 3780,
+    "durationInFrames": 540,
+    "title": "Rheem TotalView — Value Adds",
+    "bullets": [
+      {
+        "icon": "speed",
+        "label": "User Directory Table",
+        "description": "With User Directory Table, your team can quickly find, review, and update any user's access in seconds."
+      },
+      {
+        "icon": "accuracy",
+        "label": "Real-Time Alert Panel",
+        "description": "With Real-Time Alert Panel, your team can spot and act on every critical incident the moment it appears."
+      },
+      {
+        "icon": "oversight",
+        "label": "Quick User Onboarding",
+        "description": "With Quick User Onboarding, your team can add new hires in seconds."
+      },
+      {
+        "icon": "revenue",
+        "label": "Energy and Cost KPIs",
+        "description": "With Energy and Cost KPIs, your team can see exactly where energy and money go."
+      },
+      {
+        "icon": "compliance",
+        "label": "Energy and Cost Metrics",
+        "description": "With Energy and Cost Metrics, your team can see which devices use the most power — and which cost you extra."
+      }
+    ]
+  },
+  "presenterClose": {
+    "from": 4320,
+    "durationInFrames": 480,
+    "tagline": "Platform turns every data point into a prevention",
+    "presenterSrc": "assets/presenter/presenter-default.png"
+  },
+  "presenterConfig": {
+    "src": "assets/presenter/presenter-default.png",
+    "widthFraction": 0.15,
+    "position": "bottom-left"
+  }
+}

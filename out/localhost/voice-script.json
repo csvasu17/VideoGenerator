@@ -1,0 +1,121 @@
+{
+  "voice": "onyx",
+  "model": "tts-hd",
+  "speed": 0.95,
+  "fps": 30,
+  "totalDurationSec": 160,
+  "segments": [
+    {
+      "id": "broll-0",
+      "label": "B-roll 1 — Unplanned failures drain budgets and tea",
+      "startSec": 1.5,
+      "durationSec": 4.5,
+      "enabled": true,
+      "text": "Unplanned failures drain budgets and teams."
+    },
+    {
+      "id": "broll-1",
+      "label": "B-roll 2 — Keeping track of user access across depa",
+      "startSec": 7.5,
+      "durationSec": 4.5,
+      "enabled": true,
+      "text": "Keeping track of user access across departments eats up hours."
+    },
+    {
+      "id": "broll-2",
+      "label": "B-roll 3 — Manual ai failure predictions grid proce",
+      "startSec": 13.5,
+      "durationSec": 4.5,
+      "enabled": true,
+      "text": "Manual ai failure predictions grid processes take hours, every day."
+    },
+    {
+      "id": "scene-1",
+      "label": "Scene 1 — Real-Time Device Monitoring",
+      "startSec": 19,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "Monitor your entire IoT fleet at a glance, with color-coded status indicators and real-time data visualizations."
+    },
+    {
+      "id": "scene-2",
+      "label": "Scene 2 — Device Fleet Dashboard",
+      "startSec": 31,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "This dashboard presents a real-time overview of device health, breakouts by type, and geolocated alerts on a dynamic map."
+    },
+    {
+      "id": "scene-3",
+      "label": "Scene 3 — Device Management Grid",
+      "startSec": 43,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "This grid view displays all your connected devices with key details like status, ID, and usage statistics, making bulk monitoring and management effortless."
+    },
+    {
+      "id": "scene-4",
+      "label": "Scene 4 — Site Directory Overview",
+      "startSec": 55,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "This feature provides a visual directory of all enterprise sites, allowing users to quickly see site names, locations, and available action items."
+    },
+    {
+      "id": "scene-5",
+      "label": "Scene 5 — Alarm Management Dashboard",
+      "startSec": 67,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "This dashboard centralizes all active and resolved alarms for your hardware fleet, categorizing them by urgency and type for rapid action."
+    },
+    {
+      "id": "scene-6",
+      "label": "Scene 6 — Content Report Analytics",
+      "startSec": 79,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "The Content Report feature charts multiple quality scores like comprehensiveness, accuracy, and freshness over time, providing a clear historical perspective on content performance."
+    },
+    {
+      "id": "scene-7",
+      "label": "Scene 7 — AI Predictive Analysis",
+      "startSec": 91,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "This feature delivers an AI-driven dashboard that highlights predictive equipment issues like connectivity, temperature, and part failures."
+    },
+    {
+      "id": "scene-8",
+      "label": "Scene 8 — User Management Dashboard",
+      "startSec": 103,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "The dashboard provides a consolidated list of all users, displaying their roles, account status, assigned organizations, and access levels."
+    },
+    {
+      "id": "scene-9",
+      "label": "Scene 9 — Air Analytics Model",
+      "startSec": 115,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "This feature visualizes air flow, temperature, and efficiency using live modeled data, helping users monitor and adjust system parameters instantly to prevent downtime and maximize operational effectiveness."
+    },
+    {
+      "id": "benefit-slide",
+      "label": "Benefit Slide — Value Adds",
+      "startSec": 127,
+      "durationSec": 17,
+      "enabled": true,
+      "text": "User Directory Table: With User Directory Table, your team can quickly find, review, and update any user's access in seconds. Real-Time Alert Panel: With Real-Time Alert Panel, your team can spot and act on every critical incident the moment it appears. Quick User Onboarding: With Quick User Onboarding, your team can add new hires in seconds. Energy and Cost KPIs: With Energy and Cost KPIs, your team can see exactly where energy and money go. Energy and Cost Metrics: With Energy and Cost Metrics, your team can see which devices use the most power — and which cost you extra."
+    },
+    {
+      "id": "presenter-close",
+      "label": "Presenter Close",
+      "startSec": 146,
+      "durationSec": 14,
+      "enabled": true,
+      "text": "Platform turns every data point into a prevention Rheem TotalView — contact us to arrange your live demonstration."
+    }
+  ]
+}

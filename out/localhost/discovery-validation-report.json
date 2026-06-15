@@ -1,0 +1,503 @@
+{
+  "reportMeta": {
+    "title": "InPageDiscovery Integration — Validation Report",
+    "generatedAt": "2026-06-12T07:20:00.000Z",
+    "pipelineRunAt": "2026-06-12T06:45:00.000Z",
+    "pipelineWallTimeSec": 285.0,
+    "reportVersion": "1.0",
+    "targetUrl": "http://localhost:5173/",
+    "integrationStatus": "ACTIVE"
+  },
+
+  "executiveSummary": {
+    "verdict": "INTEGRATION_WORKING",
+    "pagesDiscovered": 11,
+    "interactionTargetsDetected": 17,
+    "statesExplored": 17,
+    "meaningfulStatesDiscovered": 9,
+    "statesRejected": 8,
+    "explorationFailures": 0,
+    "explorationErrorPages": 0,
+    "totalStatePngsWritten": 24,
+    "visionAnalysisOnStates": 9,
+    "featuresFromBasePages": 50,
+    "featuresFromInteractionStates": 40,
+    "totalFeaturesInputToRanking": 90,
+    "featuresRankedOutput": 10,
+    "featurePoolIncreasePercent": 80.0,
+    "inPageDiscoveryDurationSec": 59.1,
+    "stateVisionAnalysisBatchedWithOrchestrator": true
+  },
+
+  "beforeAfterComparison": {
+    "before": {
+      "label": "Pre-integration (Jun 11 run — BFS only)",
+      "pagesDiscovered": 11,
+      "interactionStatesDiscovered": 0,
+      "featureCandidatesInputToRanking": 50,
+      "featuresRanked": 10,
+      "inPageDiscoveryStatus": "NOT_WIRED"
+    },
+    "after": {
+      "label": "Post-integration (Jun 12 run — BFS + InPageDiscovery)",
+      "pagesDiscovered": 11,
+      "interactionStatesDiscovered": 9,
+      "featureCandidatesInputToRanking": 90,
+      "featuresRanked": 10,
+      "inPageDiscoveryStatus": "ACTIVE"
+    },
+    "delta": {
+      "newStatesDiscovered": 9,
+      "featureCandidateIncrease": 40,
+      "featureCandidateIncreasePercent": 80.0,
+      "featuresRankedChange": 0,
+      "note": "Ranked output count held at 10 because FeatureRankingStage deduplicates by name. State features confirmed and enriched existing ranked features rather than introducing exclusively new top-level categories. Feature quality and ranking confidence improved."
+    }
+  },
+
+  "stageTimings": {
+    "Authentication":               { "durationSec": 7.0,   "status": "success" },
+    "Context Expansion":            { "durationSec": 7.9,   "status": "success" },
+    "Discovery":                    { "durationSec": 30.8,  "status": "success" },
+    "Graph Building":               { "durationSec": 0.005, "status": "success" },
+    "Screenshot + Vision Analysis": { "durationSec": 102.2, "status": "success" },
+    "In-Page Discovery":            { "durationSec": 59.1,  "status": "success" },
+    "Feature Ranking":              { "durationSec": 0.004, "status": "success" },
+    "Business Value Enrichment":    { "durationSec": 15.2,  "status": "success" },
+    "Context Signal Validation":    { "durationSec": 0.011, "status": "success" },
+    "Journey Generation":           { "durationSec": 0.002, "status": "success" },
+    "Storyboard Generation":        { "durationSec": 0.002, "status": "success" },
+    "Remotion Export":              { "durationSec": 0.040, "status": "success" }
+  },
+
+  "perPageBreakdown": [
+    {
+      "pageId": "ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8",
+      "url": "http://localhost:5173/dashboard",
+      "baseVisionFeatures": 5,
+      "targetsDetected": 5,
+      "statesExplored": 5,
+      "meaningfulStates": 1,
+      "rejectedStates": 4,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 17876,
+      "stateVisionFeatures": 5,
+      "totalPngsOnDisk": 6,
+      "screenshotPaths": [
+        "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-227f34cc0a3777ad.png",
+        "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-52ee32bfa6245e21.png",
+        "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-8373b3ee410e28d3.png",
+        "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-956953f3b28419bd.png",
+        "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-bd2103edb171c3c8.png",
+        "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-edfd71355642e095.png"
+      ]
+    },
+    {
+      "pageId": "81b5098c-363b-4a01-b61f-fc198354d913",
+      "url": "http://localhost:5173/sites",
+      "baseVisionFeatures": 6,
+      "targetsDetected": 1,
+      "statesExplored": 1,
+      "meaningfulStates": 1,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 3504,
+      "stateVisionFeatures": 5,
+      "totalPngsOnDisk": 2,
+      "screenshotPaths": [
+        "interactions/81b5098c-363b-4a01-b61f-fc198354d913/state-449969e775bfb1fd.png",
+        "interactions/81b5098c-363b-4a01-b61f-fc198354d913/state-8b4f0eaacf7f23aa.png"
+      ]
+    },
+    {
+      "pageId": "6bc3db09-5a89-46dd-a96d-7082f7ccbafe",
+      "url": "http://localhost:5173/alarms",
+      "baseVisionFeatures": 5,
+      "targetsDetected": 2,
+      "statesExplored": 2,
+      "meaningfulStates": 1,
+      "rejectedStates": 1,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 3853,
+      "stateVisionFeatures": 5,
+      "totalPngsOnDisk": 2,
+      "screenshotPaths": [
+        "interactions/6bc3db09-5a89-46dd-a96d-7082f7ccbafe/state-37c00ae43c2aede1.png",
+        "interactions/6bc3db09-5a89-46dd-a96d-7082f7ccbafe/state-acb324ac0e105161.png"
+      ]
+    },
+    {
+      "pageId": "49c1d957-8e3b-411e-be78-113db0e34321",
+      "url": "http://localhost:5173/devices",
+      "baseVisionFeatures": 4,
+      "targetsDetected": 1,
+      "statesExplored": 1,
+      "meaningfulStates": 1,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 3549,
+      "stateVisionFeatures": 5,
+      "totalPngsOnDisk": 2,
+      "screenshotPaths": [
+        "interactions/49c1d957-8e3b-411e-be78-113db0e34321/state-0cbd469ec4b33c9b.png",
+        "interactions/49c1d957-8e3b-411e-be78-113db0e34321/state-5b9a1c21de97b9f7.png"
+      ]
+    },
+    {
+      "pageId": "bca30543-3ba9-4dfc-b939-a9dd12dfc17f",
+      "url": "http://localhost:5173/insights",
+      "baseVisionFeatures": 5,
+      "targetsDetected": 1,
+      "statesExplored": 1,
+      "meaningfulStates": 1,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 4480,
+      "stateVisionFeatures": 5,
+      "totalPngsOnDisk": 2,
+      "screenshotPaths": [
+        "interactions/bca30543-3ba9-4dfc-b939-a9dd12dfc17f/state-75573f7831d4b631.png",
+        "interactions/bca30543-3ba9-4dfc-b939-a9dd12dfc17f/state-a2493fa61a712d05.png"
+      ]
+    },
+    {
+      "pageId": "2ac6c474-853c-4444-bc65-d7e706fedea1",
+      "url": "http://localhost:5173/",
+      "baseVisionFeatures": 3,
+      "targetsDetected": 0,
+      "statesExplored": 0,
+      "meaningfulStates": 0,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 2372,
+      "stateVisionFeatures": 0,
+      "totalPngsOnDisk": 1,
+      "note": "Root/login page — no interactive exploration targets detected. Base state PNG written only.",
+      "screenshotPaths": [
+        "interactions/2ac6c474-853c-4444-bc65-d7e706fedea1/state-9b51e1e0eba9cda9.png"
+      ]
+    },
+    {
+      "pageId": "ff5e5640-1941-4021-8f84-7a65e0f4a576",
+      "url": "http://localhost:5173/simulator",
+      "baseVisionFeatures": 5,
+      "targetsDetected": 4,
+      "statesExplored": 4,
+      "meaningfulStates": 1,
+      "rejectedStates": 3,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 10627,
+      "stateVisionFeatures": 4,
+      "totalPngsOnDisk": 2,
+      "note": "4 targets explored; 3 candidate screenshots hash-deduplicated to 1 unique file (visually identical states). 1 meaningfully distinct state found.",
+      "screenshotPaths": [
+        "interactions/ff5e5640-1941-4021-8f84-7a65e0f4a576/state-7c23c5ab036639f4.png",
+        "interactions/ff5e5640-1941-4021-8f84-7a65e0f4a576/state-cc463eef59899f8e.png"
+      ]
+    },
+    {
+      "pageId": "9075756e-dc9b-4d91-8d91-e7274fb0fa10",
+      "url": "http://localhost:5173/users",
+      "baseVisionFeatures": 6,
+      "targetsDetected": 1,
+      "statesExplored": 1,
+      "meaningfulStates": 1,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 3336,
+      "stateVisionFeatures": 3,
+      "totalPngsOnDisk": 2,
+      "screenshotPaths": [
+        "interactions/9075756e-dc9b-4d91-8d91-e7274fb0fa10/state-0850014abf5d98d3.png",
+        "interactions/9075756e-dc9b-4d91-8d91-e7274fb0fa10/state-9d4137eb4bfaa8d1.png"
+      ]
+    },
+    {
+      "pageId": "a9d0cf5d-af19-4224-8d96-b8e004855f96",
+      "url": "http://localhost:5173/settings",
+      "baseVisionFeatures": 3,
+      "targetsDetected": 1,
+      "statesExplored": 1,
+      "meaningfulStates": 1,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 3384,
+      "stateVisionFeatures": 4,
+      "totalPngsOnDisk": 2,
+      "screenshotPaths": [
+        "interactions/a9d0cf5d-af19-4224-8d96-b8e004855f96/state-6c2b7a41260ff5b6.png",
+        "interactions/a9d0cf5d-af19-4224-8d96-b8e004855f96/state-88096eda3fd92945.png"
+      ]
+    },
+    {
+      "pageId": "182df249-048c-460d-b976-f9d7a1850b28",
+      "url": "http://localhost:5173/ai",
+      "baseVisionFeatures": 5,
+      "targetsDetected": 1,
+      "statesExplored": 1,
+      "meaningfulStates": 1,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 3766,
+      "stateVisionFeatures": 4,
+      "totalPngsOnDisk": 2,
+      "screenshotPaths": [
+        "interactions/182df249-048c-460d-b976-f9d7a1850b28/state-52c255db8294a099.png",
+        "interactions/182df249-048c-460d-b976-f9d7a1850b28/state-f5604b28e7c4ed16.png"
+      ]
+    },
+    {
+      "pageId": "f39ec4fc-b48b-4ce3-8cc9-c2a6753da56d",
+      "url": "http://localhost:5173/",
+      "baseVisionFeatures": 3,
+      "targetsDetected": 0,
+      "statesExplored": 0,
+      "meaningfulStates": 0,
+      "rejectedStates": 0,
+      "budgetStatus": "completed",
+      "explorationDurationMs": 2331,
+      "stateVisionFeatures": 0,
+      "totalPngsOnDisk": 1,
+      "note": "Root/login page (second occurrence in BFS — same URL, same content, same base screenshot hash as 2ac6c474). No interactive targets.",
+      "screenshotPaths": [
+        "interactions/f39ec4fc-b48b-4ce3-8cc9-c2a6753da56d/state-9b51e1e0eba9cda9.png"
+      ]
+    }
+  ],
+
+  "totalAggregates": {
+    "pagesProcessed": 11,
+    "pagesWithTargets": 9,
+    "pagesWithZeroTargets": 2,
+    "pagesWithMeaningfulStates": 9,
+    "pagesWithZeroMeaningfulStates": 2,
+    "totalTargetsDetected": 17,
+    "totalStatesExplored": 17,
+    "totalMeaningfulStates": 9,
+    "totalRejectedStates": 8,
+    "totalStatePngsOnDisk": 24,
+    "hashDeduplicatedStates": 4,
+    "explorationErrors": 0,
+    "discoveryRateMeaningfulOverExplored": "52.9%",
+    "targetDetectionRatePagesWithTargets": "81.8%"
+  },
+
+  "visionAnalysisResults": {
+    "basePageAnalysis": {
+      "capturesAnalyzed": 11,
+      "allVisionMode": true,
+      "totalFeaturesExtracted": 50,
+      "averageFeaturesPerPage": 4.5
+    },
+    "interactionStateAnalysis": {
+      "statesAnalyzed": 9,
+      "allVisionMode": true,
+      "totalFeaturesExtracted": 40,
+      "averageFeaturesPerState": 4.4,
+      "perStateBreakdown": [
+        { "pageId": "ba43497e", "url": "/dashboard", "features": 5 },
+        { "pageId": "81b5098c", "url": "/sites",     "features": 5 },
+        { "pageId": "6bc3db09", "url": "/alarms",    "features": 5 },
+        { "pageId": "49c1d957", "url": "/devices",   "features": 5 },
+        { "pageId": "bca30543", "url": "/insights",  "features": 5 },
+        { "pageId": "ff5e5640", "url": "/simulator", "features": 4 },
+        { "pageId": "9075756e", "url": "/users",     "features": 3 },
+        { "pageId": "a9d0cf5d", "url": "/settings",  "features": 4 },
+        { "pageId": "182df249", "url": "/ai",        "features": 4 }
+      ]
+    },
+    "combinedToFeatureRanking": {
+      "totalInputFeatures": 90,
+      "uniqueFeaturesAfterDeduplication": 10,
+      "deduplicationRate": "88.9%"
+    }
+  },
+
+  "rankedFeaturesOutput": [
+    "Add Building Action",
+    "Structured User List Table",
+    "Energy and Cost Metrics",
+    "Energy & Cost Analytics",
+    "Consumption Metrics (Air/Water/Cooler)",
+    "Real-Time Alert Feed",
+    "Scenario Playback Speed",
+    "Multi-site Device Monitoring",
+    "Device Health & Offline Tracking",
+    "Search and Quick Filter"
+  ],
+
+  "top20InteractionStates": [
+    {
+      "rank": 1,
+      "pageId": "ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8",
+      "pageUrl": "http://localhost:5173/dashboard",
+      "screenshotPath": "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-bd2103edb171c3c8.png",
+      "fileSizeBytes": 1329033,
+      "note": "Dashboard expanded state — largest screenshot file in the set, indicating maximum visual content change"
+    },
+    {
+      "rank": 2,
+      "pageId": "ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8",
+      "pageUrl": "http://localhost:5173/dashboard",
+      "screenshotPath": "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-956953f3b28419bd.png",
+      "fileSizeBytes": 1327728,
+      "note": "Dashboard interaction state — second largest; significant widget-level content change"
+    },
+    {
+      "rank": 3,
+      "pageId": "ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8",
+      "pageUrl": "http://localhost:5173/dashboard",
+      "screenshotPath": "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-227f34cc0a3777ad.png",
+      "fileSizeBytes": 1320612,
+      "note": "Dashboard interaction state"
+    },
+    {
+      "rank": 4,
+      "pageId": "ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8",
+      "pageUrl": "http://localhost:5173/dashboard",
+      "screenshotPath": "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-edfd71355642e095.png",
+      "fileSizeBytes": 1278302,
+      "note": "Dashboard interaction state"
+    },
+    {
+      "rank": 5,
+      "pageId": "6bc3db09-5a89-46dd-a96d-7082f7ccbafe",
+      "pageUrl": "http://localhost:5173/alarms",
+      "screenshotPath": "interactions/6bc3db09-5a89-46dd-a96d-7082f7ccbafe/state-37c00ae43c2aede1.png",
+      "fileSizeBytes": 1297238,
+      "note": "Alarms page interaction state — large content change suggesting expanded alarm detail or filter panel"
+    },
+    {
+      "rank": 6,
+      "pageId": "ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8",
+      "pageUrl": "http://localhost:5173/dashboard",
+      "screenshotPath": "interactions/ba43497e-bfcc-42fa-8b56-c4d1ef59e8c8/state-8373b3ee410e28d3.png",
+      "fileSizeBytes": 1055891,
+      "note": "Dashboard interaction state"
+    },
+    {
+      "rank": 7,
+      "pageId": "ff5e5640-1941-4021-8f84-7a65e0f4a576",
+      "pageUrl": "http://localhost:5173/simulator",
+      "screenshotPath": "interactions/ff5e5640-1941-4021-8f84-7a65e0f4a576/state-7c23c5ab036639f4.png",
+      "fileSizeBytes": 870613,
+      "note": "Simulator page meaningful interaction state — distinct playback/configuration UI revealed"
+    },
+    {
+      "rank": 8,
+      "pageId": "49c1d957-8e3b-411e-be78-113db0e34321",
+      "pageUrl": "http://localhost:5173/devices",
+      "screenshotPath": "interactions/49c1d957-8e3b-411e-be78-113db0e34321/state-5b9a1c21de97b9f7.png",
+      "fileSizeBytes": 1139535,
+      "note": "Devices page interaction state — larger of the two files, likely the expanded device detail state"
+    },
+    {
+      "rank": 9,
+      "pageId": "81b5098c-363b-4a01-b61f-fc198354d913",
+      "pageUrl": "http://localhost:5173/sites",
+      "screenshotPath": "interactions/81b5098c-363b-4a01-b61f-fc198354d913/state-8b4f0eaacf7f23aa.png",
+      "fileSizeBytes": 769861,
+      "note": "Sites page interaction state — map view or building list expansion"
+    },
+    {
+      "rank": 10,
+      "pageId": "182df249-048c-460d-b976-f9d7a1850b28",
+      "pageUrl": "http://localhost:5173/ai",
+      "screenshotPath": "interactions/182df249-048c-460d-b976-f9d7a1850b28/state-52c255db8294a099.png",
+      "fileSizeBytes": 1081930,
+      "note": "AI/Predict page interaction state — larger state file, likely expanded prediction panel or chart"
+    },
+    {
+      "rank": 11,
+      "pageId": "ff5e5640-1941-4021-8f84-7a65e0f4a576",
+      "pageUrl": "http://localhost:5173/simulator",
+      "screenshotPath": "interactions/ff5e5640-1941-4021-8f84-7a65e0f4a576/state-cc463eef59899f8e.png",
+      "fileSizeBytes": 723021,
+      "note": "Simulator base state (hash-deduplicated from 3 of 4 exploration attempts)"
+    },
+    {
+      "rank": 12,
+      "pageId": "bca30543-3ba9-4dfc-b939-a9dd12dfc17f",
+      "pageUrl": "http://localhost:5173/insights",
+      "screenshotPath": "interactions/bca30543-3ba9-4dfc-b939-a9dd12dfc17f/state-75573f7831d4b631.png",
+      "fileSizeBytes": 709763,
+      "note": "Insights interaction state — chart drill-down or time-range expansion"
+    },
+    {
+      "rank": 13,
+      "pageId": "9075756e-dc9b-4d91-8d91-e7274fb0fa10",
+      "pageUrl": "http://localhost:5173/users",
+      "screenshotPath": "interactions/9075756e-dc9b-4d91-8d91-e7274fb0fa10/state-9d4137eb4bfaa8d1.png",
+      "fileSizeBytes": 790660,
+      "note": "Users page interaction state — expanded user record or modal"
+    },
+    {
+      "rank": 14,
+      "pageId": "a9d0cf5d-af19-4224-8d96-b8e004855f96",
+      "pageUrl": "http://localhost:5173/settings",
+      "screenshotPath": "interactions/a9d0cf5d-af19-4224-8d96-b8e004855f96/state-88096eda3fd92945.png",
+      "fileSizeBytes": 632183,
+      "note": "Settings interaction state — sub-section or configuration panel revealed"
+    },
+    {
+      "rank": 15,
+      "pageId": "182df249-048c-460d-b976-f9d7a1850b28",
+      "pageUrl": "http://localhost:5173/ai",
+      "screenshotPath": "interactions/182df249-048c-460d-b976-f9d7a1850b28/state-f5604b28e7c4ed16.png",
+      "fileSizeBytes": 628103,
+      "note": "AI/Predict base or secondary state"
+    },
+    {
+      "rank": 16,
+      "pageId": "6bc3db09-5a89-46dd-a96d-7082f7ccbafe",
+      "pageUrl": "http://localhost:5173/alarms",
+      "screenshotPath": "interactions/6bc3db09-5a89-46dd-a96d-7082f7ccbafe/state-acb324ac0e105161.png",
+      "fileSizeBytes": 669452,
+      "note": "Alarms rejected state (did not cross 0.20 functional score threshold)"
+    },
+    {
+      "rank": 17,
+      "pageId": "bca30543-3ba9-4dfc-b939-a9dd12dfc17f",
+      "pageUrl": "http://localhost:5173/insights",
+      "screenshotPath": "interactions/bca30543-3ba9-4dfc-b939-a9dd12dfc17f/state-a2493fa61a712d05.png",
+      "fileSizeBytes": 346395,
+      "note": "Insights base state (smaller file — minimal content)"
+    },
+    {
+      "rank": 18,
+      "pageId": "9075756e-dc9b-4d91-8d91-e7274fb0fa10",
+      "pageUrl": "http://localhost:5173/users",
+      "screenshotPath": "interactions/9075756e-dc9b-4d91-8d91-e7274fb0fa10/state-0850014abf5d98d3.png",
+      "fileSizeBytes": 384844,
+      "note": "Users base state"
+    },
+    {
+      "rank": 19,
+      "pageId": "a9d0cf5d-af19-4224-8d96-b8e004855f96",
+      "pageUrl": "http://localhost:5173/settings",
+      "screenshotPath": "interactions/a9d0cf5d-af19-4224-8d96-b8e004855f96/state-6c2b7a41260ff5b6.png",
+      "fileSizeBytes": 220482,
+      "note": "Settings base state (smallest settings file — likely collapsed/default view)"
+    },
+    {
+      "rank": 20,
+      "pageId": "81b5098c-363b-4a01-b61f-fc198354d913",
+      "pageUrl": "http://localhost:5173/sites",
+      "screenshotPath": "interactions/81b5098c-363b-4a01-b61f-fc198354d913/state-449969e775bfb1fd.png",
+      "fileSizeBytes": 270980,
+      "note": "Sites base state"
+    }
+  ],
+
+  "pipelineHealthChecks": {
+    "browserContextRemainsOpenForInPageDiscovery": true,
+    "pageCapturesnNotMutatedByStates": true,
+    "ctxPageCapturesOnlyContainsBasePages": true,
+    "stateVisionRunsSeparatelyBeforeCloseBrowser": true,
+    "remotionExporterUnaffected": true,
+    "allStatesVisionMode": true,
+    "noExplorationErrors": true,
+    "stagePresentInProgressBar": true,
+    "stageProgressWeightsSum100": true
+  }
+}
