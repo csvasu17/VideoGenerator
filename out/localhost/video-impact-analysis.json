@@ -1,0 +1,446 @@
+{
+  "reportMeta": {
+    "title": "Video Impact Analysis — Pre vs. Post InPageDiscovery",
+    "generatedAt": "2026-06-12",
+    "runA": {
+      "label": "Run A — Pre-InPageDiscovery",
+      "pipelineRunAt": "2026-06-11T14:04:53.544Z",
+      "targetUrl": "http://localhost",
+      "demoPackageWrittenAt": "2026-06-12T09:16:52Z",
+      "videoRenderedAt": "2026-06-12T09:16:52Z",
+      "videoMergedAt": "2026-06-12T09:25:25Z",
+      "videoFile": "demo-video-with-voice.mp4",
+      "videoSizeMB": 21.2,
+      "voiceScriptWrittenAt": "2026-06-12T09:07:45Z",
+      "narrationSource": "manually_crafted",
+      "inPageDiscoveryStatus": "NOT_WIRED",
+      "note": "Run A's demo-package.json was overwritten by Run B. Data reconstructed from discovery-coverage-report.json, voice-script.json, and session analysis."
+    },
+    "runB": {
+      "label": "Run B — Post-InPageDiscovery",
+      "pipelineRunAt": "2026-06-12T07:04:13.319Z",
+      "targetUrl": "http://localhost:5173",
+      "demoPackageWrittenAt": "2026-06-12T12:34:13Z",
+      "videoRenderedAt": null,
+      "videoMergedAt": null,
+      "videoFile": null,
+      "inPageDiscoveryStatus": "ACTIVE",
+      "note": "Run B wrote a new demo-package.json but the video was NOT re-rendered. The demo-video-with-voice.mp4 on disk is from Run A. Run B's output exists only as a JSON manifest."
+    }
+  },
+
+  "criticalFindings": [
+    {
+      "id": "CF-001",
+      "severity": "CRITICAL",
+      "title": "Run B video was never rendered",
+      "detail": "Run B's pipeline completed at 12:34. The demo-video-with-voice.mp4 on disk was last written at 11:25 — 69 minutes BEFORE Run B ran. The current physical video is from Run A. Every comparison below is between Run A's actual rendered video and Run B's unrendered demo-package.json manifest.",
+      "impact": "All InPageDiscovery improvements in Run B are invisible in the current video output. The rendered video does not reflect any post-integration work."
+    },
+    {
+      "id": "CF-002",
+      "severity": "CRITICAL",
+      "title": "Journey Generator routed through the login page twice",
+      "detail": "Run B's journey places pages 2ac6c474 (/) and f39ec4fc (/) as scenes 9 and 10. Both are the root/login screen with 0 interaction targets, 3 base features (lowest in the pipeline), and visually identical screenshots (same SHA-256 hash). These two scenes consume 37.5 seconds (39%) of the 90-second main content window.",
+      "impact": "17% of total video runtime wasted on a login screen that has no feature to demonstrate. This is the single largest quality regression from Run A to Run B."
+    },
+    {
+      "id": "CF-003",
+      "severity": "HIGH",
+      "title": "55% of Run B storyboard scenes are generic fallback",
+      "detail": "6 of 11 scenes in Run B have title='Rheem TotalView' and narration='Rheem TotalView: manage Rheem TotalView...' — the StoryboardGenerator's fallback template when no specific ranked feature is mapped to the scene's page. This despite features #6 (Real-Time Alert Feed) and #8-9 (Device Monitoring, Device Health) being in the top-10 and directly corresponding to the pages of those scenes.",
+      "impact": "Scenes 6–11 produce uninformative, repetitive narration that cannot be used in a customer-facing video. Run A had 0 generic fallback scenes."
+    },
+    {
+      "id": "CF-004",
+      "severity": "HIGH",
+      "title": "No interaction state screenshots appear in any scene",
+      "detail": "All 11 Run B scenes use captures/{pageId}/viewport.png (base screenshots). Zero scenes use interactions/ screenshots. The 9 meaningful interaction states discovered by InPageDiscovery are completely invisible to the video renderer. The INVARIANT (states never enter ctx.pageCaptures) means Remotion will never see them under the current architecture.",
+      "impact": "The richer visual content discovered via interaction (expanded panels, opened drawers, active configuration states) is unreachable by the video layer. Users only ever see the static base view."
+    },
+    {
+      "id": "CF-005",
+      "severity": "MEDIUM",
+      "title": "Voice narration mismatches Run B scene content",
+      "detail": "voice-script.json (written at 11:07, before Run B) describes Run A's journey. Scene 5 voice says 'Device Status & Connectivity' but Run B scene 5 shows /simulator with 'Scenario Playback Speed'. Scene 9 voice says 'The built-in simulator lets you test failure scenarios' but Run B scene 9 shows the login page. The voice-script.json has never been updated to reflect Run B.",
+      "impact": "If Run B were rendered, the audio narration would be completely wrong for scenes 5–11."
+    }
+  ],
+
+  "featureComparison": {
+    "runA": {
+      "rawFeaturesInput": "33–55 (11 base pages × 3–5 each)",
+      "interactionStateFeatures": 0,
+      "totalInput": "33–55",
+      "rankedOutput": 10,
+      "deduplicationRate": "~72–82%",
+      "rankedFeatures": [
+        { "rank": 1, "name": "Dashboard KPI (Energy & Cost Tracking, Device Health)",  "sourcePageUrl": "/dashboard",  "appearsInScene": "scene-1" },
+        { "rank": 2, "name": "Energy & Cost Analytics",                                  "sourcePageUrl": "/insights",   "appearsInScene": "scene-2" },
+        { "rank": 3, "name": "Team Assignment & Tagging",                                "sourcePageUrl": "/alarms",     "appearsInScene": "scene-3" },
+        { "rank": 4, "name": "Failure Prediction Cards",                                 "sourcePageUrl": "/ai-predict", "appearsInScene": "scene-4" },
+        { "rank": 5, "name": "Device Status & Connectivity",                             "sourcePageUrl": "/devices",    "appearsInScene": "scene-5" },
+        { "rank": 6, "name": "Filtering and Search",                                     "sourcePageUrl": "/users",      "appearsInScene": "scene-6" },
+        { "rank": 7, "name": "KPI Summary Widgets",                                      "sourcePageUrl": "/insights",   "appearsInScene": "scene-7" },
+        { "rank": 8, "name": "Fleet Alarms Dashboard",                                   "sourcePageUrl": "/alarms",     "appearsInScene": "scene-8" },
+        { "rank": 9, "name": "Simulator Configuration",                                  "sourcePageUrl": "/simulator",  "appearsInScene": "scene-9" },
+        { "rank": 10, "name": "Site Onboarding / Add Building",                          "sourcePageUrl": "/sites",      "appearsInScene": "scene-10" }
+      ],
+      "featureToSceneAssignmentRate": "10/11 scenes (91%)",
+      "genericFallbackScenes": 0
+    },
+    "runB": {
+      "rawFeaturesInput": 90,
+      "basePageFeatures": 50,
+      "interactionStateFeatures": 40,
+      "totalInput": 90,
+      "rankedOutput": 10,
+      "deduplicationRate": "88.9%",
+      "rankedFeatures": [
+        { "rank": 1, "name": "Add Building Action",                    "sourcePageUrl": "/sites",      "discoveredVia": "base+state", "appearsInScene": "scene-4", "assignedCorrectly": true },
+        { "rank": 2, "name": "Structured User List Table",             "sourcePageUrl": "/users",      "discoveredVia": "base+state", "appearsInScene": "scene-3", "assignedCorrectly": true },
+        { "rank": 3, "name": "Energy and Cost Metrics",                "sourcePageUrl": "/dashboard",  "discoveredVia": "base+state", "appearsInScene": "scene-1", "assignedCorrectly": true },
+        { "rank": 4, "name": "Energy & Cost Analytics",                "sourcePageUrl": "/insights",   "discoveredVia": "base+state", "appearsInScene": "scene-2", "assignedCorrectly": true },
+        { "rank": 5, "name": "Consumption Metrics (Air/Water/Cooler)", "sourcePageUrl": "/dashboard",  "discoveredVia": "base+state", "appearsInScene": "scene-1", "assignedCorrectly": true, "note": "Merged into scene-1 with feature #3" },
+        { "rank": 6, "name": "Real-Time Alert Feed",                   "sourcePageUrl": "/alarms",     "discoveredVia": "base+state", "appearsInScene": null,      "assignedCorrectly": false, "note": "BOTTLENECK: not assigned to scene-6 (alarms page)" },
+        { "rank": 7, "name": "Scenario Playback Speed",                "sourcePageUrl": "/simulator",  "discoveredVia": "state_only", "appearsInScene": "scene-5", "assignedCorrectly": true,  "note": "★ NEW from InPageDiscovery — only feature exclusively from interaction state" },
+        { "rank": 8, "name": "Multi-site Device Monitoring",           "sourcePageUrl": "/sites",      "discoveredVia": "base+state", "appearsInScene": null,      "assignedCorrectly": false, "note": "BOTTLENECK: not assigned despite device page in journey" },
+        { "rank": 9, "name": "Device Health & Offline Tracking",       "sourcePageUrl": "/devices",    "discoveredVia": "base+state", "appearsInScene": "scene-1", "assignedCorrectly": false, "note": "BOTTLENECK: appears only in scene-1 description as secondary; devices scene (scene-7) is generic" },
+        { "rank": 10, "name": "Search and Quick Filter",               "sourcePageUrl": "/users",      "discoveredVia": "base+state", "appearsInScene": "scene-3", "assignedCorrectly": true, "note": "Merged into scene-3 with feature #2" }
+      ],
+      "featureToSceneAssignmentRate": "5/11 scenes (45%)",
+      "genericFallbackScenes": 6
+    },
+    "delta": {
+      "newFeaturesFromInPageDiscovery": [
+        { "name": "Scenario Playback Speed", "sourcePageUrl": "/simulator", "reachedVideo": true, "scene": "scene-5" }
+      ],
+      "featuresInRunAMissingFromRunB": [
+        { "name": "Team Assignment & Tagging",  "note": "Not in Run B top-10; alarms page (scene-6) now shows generic fallback" },
+        { "name": "Failure Prediction Cards",   "note": "Not in Run B top-10; AI page (scene-8) shows generic fallback" },
+        { "name": "KPI Summary Widgets",        "note": "Not in Run B top-10; subsumed by broader Energy/Cost Metrics features" },
+        { "name": "Fleet Alarms Dashboard",     "note": "Partially replaced by 'Real-Time Alert Feed' but that feature wasn't assigned to a scene" },
+        { "name": "Device Status & Connectivity", "note": "Partially replaced by 'Device Health & Offline Tracking' but not assigned to devices scene" }
+      ],
+      "featureRankingQualityChange": "DEGRADED",
+      "note": "InPageDiscovery's +40 features strengthened high-scoring dashboard/energy metrics (already well-represented) and pushed 5 specific page-level features out of the top-10. The one net gain was Scenario Playback Speed (simulator only)."
+    }
+  },
+
+  "journeyComparison": {
+    "runA": {
+      "totalScenes": 11,
+      "targetSteps": 12,
+      "beamSearchYielded": "<11 steps (sparse graph)",
+      "topNSupplementUsed": true,
+      "loginPageInJourney": false,
+      "duplicatePages": 0,
+      "journeyPath": [
+        { "scene": 1,  "page": "/dashboard",   "pageId": "bef1fd5b", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 2,  "page": "/insights",    "pageId": "f99ad2a1", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 3,  "page": "/alarms",      "pageId": "12124971", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 4,  "page": "/ai-predict",  "pageId": "e8d1e408", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 5,  "page": "/devices",     "pageId": "bd852008", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 6,  "page": "/users",       "pageId": "cf114607", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 7,  "page": "/insights",    "pageId": "875a5aee", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 8,  "page": "/alarms",      "pageId": "79dcd624", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 9,  "page": "/simulator",   "pageId": "06048567", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 10, "page": "/sites",       "pageId": "4deca044", "type": "content_page", "beamOrSupplement": "supplement" },
+        { "scene": 11, "page": "navigation",   "pageId": "1c00ffab", "type": "content_page", "beamOrSupplement": "supplement" }
+      ],
+      "contentPageRatio": "11/11 (100%)",
+      "nonContentPageRatio": "0/11 (0%)"
+    },
+    "runB": {
+      "totalScenes": 11,
+      "targetSteps": 12,
+      "beamSearchYielded": "<11 steps (sparse graph)",
+      "topNSupplementUsed": true,
+      "loginPageInJourney": true,
+      "loginPageCount": 2,
+      "duplicatePages": 2,
+      "journeyPath": [
+        { "scene": 1,  "page": "/dashboard",  "pageId": "ba43497e", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": true  },
+        { "scene": 2,  "page": "/insights",   "pageId": "bca30543", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": true  },
+        { "scene": 3,  "page": "/users",      "pageId": "9075756e", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": true  },
+        { "scene": 4,  "page": "/sites",      "pageId": "81b5098c", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": true  },
+        { "scene": 5,  "page": "/simulator",  "pageId": "ff5e5640", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": true  },
+        { "scene": 6,  "page": "/alarms",     "pageId": "6bc3db09", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": false, "fallbackTitle": "Rheem TotalView" },
+        { "scene": 7,  "page": "/devices",    "pageId": "49c1d957", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": false, "fallbackTitle": "Rheem TotalView" },
+        { "scene": 8,  "page": "/ai",         "pageId": "182df249", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": false, "fallbackTitle": "Rheem TotalView" },
+        { "scene": 9,  "page": "/",           "pageId": "2ac6c474", "type": "LOGIN_PAGE",    "beamOrSupplement": "supplement", "hasSpecificFeature": false, "fallbackTitle": "Rheem TotalView input", "ANOMALY": "Login/root page — 0 features, 0 interaction targets" },
+        { "scene": 10, "page": "/",           "pageId": "f39ec4fc", "type": "LOGIN_PAGE",    "beamOrSupplement": "supplement", "hasSpecificFeature": false, "fallbackTitle": "Rheem TotalView input", "ANOMALY": "DUPLICATE — same URL and same screenshot as scene-9" },
+        { "scene": 11, "page": "/settings",   "pageId": "a9d0cf5d", "type": "content_page",  "beamOrSupplement": "supplement", "hasSpecificFeature": false, "fallbackTitle": "Rheem TotalView navigation" }
+      ],
+      "contentPageRatio": "9/11 (82%)",
+      "loginPageRatio": "2/11 (18%)",
+      "specificFeatureRatio": "5/11 (45%)",
+      "genericFallbackRatio": "6/11 (55%)"
+    },
+    "delta": {
+      "journeyQualityChange": "DEGRADED",
+      "loginPageIntroduced": true,
+      "loginPageOccurrences": 2,
+      "loginPageFramesWasted": "540 frames (18 seconds at 30fps) — scenes 9+10 each 270 frames",
+      "loginPagePercentOfMainContent": "20% of 90-second content window",
+      "rootCause": "JourneyGenerator's TopN supplement fills missing steps by appending discovered pages in order. Root (/) appears twice in ctx.discoveredPages because BFS reached it via two different crawl paths. The supplement does not deduplicate by URL, only by pageId — and both occurrences have distinct pageIds (2ac6c474 and f39ec4fc).",
+      "recommendation": "JourneyGenerator TopN supplement must deduplicate by URL before appending pages. Login/unauthenticated pages should be excluded from supplement candidates (heuristic: pages with 0 interaction targets or 0 ranked features)."
+    }
+  },
+
+  "storyboardComparison": {
+    "runA": {
+      "totalScenes": 11,
+      "scenesWithSpecificFeature": 11,
+      "scenesWithGenericFallback": 0,
+      "genericFallbackRate": "0%",
+      "sceneBreakdown": [
+        { "scene": 1,  "title": "Dashboard Overview",          "elementType": "kpi",        "featureUsed": "Dashboard KPI metric card",              "quality": "specific" },
+        { "scene": 2,  "title": "Energy & Cost Tracking",      "elementType": "chart",      "featureUsed": "Energy & Cost Tracking analytics chart",  "quality": "specific" },
+        { "scene": 3,  "title": "Team Assignment & Tagging",   "elementType": "table",      "featureUsed": "Team Assignment & Tagging data table",    "quality": "specific" },
+        { "scene": 4,  "title": "Failure Prediction Cards",    "elementType": "table",      "featureUsed": "Failure Prediction Cards data table",     "quality": "specific" },
+        { "scene": 5,  "title": "Device Status & Connectivity","elementType": "kpi",        "featureUsed": "Device Status & Connectivity KPI card",   "quality": "specific" },
+        { "scene": 6,  "title": "Filtering and Search",        "elementType": "table",      "featureUsed": "Filtering and Search data table",         "quality": "specific" },
+        { "scene": 7,  "title": "KPI Summary Widgets",         "elementType": "kpi",        "featureUsed": "KPI Summary Widgets KPI card",            "quality": "specific" },
+        { "scene": 8,  "title": "Fleet Alarms Dashboard",      "elementType": "table",      "featureUsed": "Fleet Alarms data table",                 "quality": "specific" },
+        { "scene": 9,  "title": "Simulator",                   "elementType": "form",       "featureUsed": "Simulator configuration form",            "quality": "specific" },
+        { "scene": 10, "title": "Add New Site",                "elementType": "form",       "featureUsed": "Site setup input form",                   "quality": "specific" },
+        { "scene": 11, "title": "Platform Navigation",         "elementType": "navigation", "featureUsed": "Platform navigation panel",               "quality": "specific" }
+      ]
+    },
+    "runB": {
+      "totalScenes": 11,
+      "scenesWithSpecificFeature": 5,
+      "scenesWithGenericFallback": 6,
+      "genericFallbackRate": "55%",
+      "scenesUsingStateDiscoveredFeature": 1,
+      "sceneBreakdown": [
+        { "scene": 1,  "title": "Consumption Metrics (Air/Water/Cooler)", "elementType": "kpi_card",   "featureUsed": "Consumption Metrics (Air/Water/Cooler)", "quality": "specific",         "fromState": false, "spotlightPriority": 0.74 },
+        { "scene": 2,  "title": "Energy and Cost",                         "elementType": "kpi_card",   "featureUsed": "Energy and Cost Metrics",                 "quality": "specific",         "fromState": false, "spotlightPriority": 0.87 },
+        { "scene": 3,  "title": "Structured User List",                    "elementType": "table",      "featureUsed": "Structured User List Table",              "quality": "specific",         "fromState": false, "spotlightPriority": 0.86 },
+        { "scene": 4,  "title": "Add Building Action",                     "elementType": "button",     "featureUsed": "Add Building Action",                     "quality": "specific",         "fromState": false, "spotlightPriority": 0.87 },
+        { "scene": 5,  "title": "Scenario Playback Speed",                 "elementType": "table",      "featureUsed": "Scenario Playback Speed",                 "quality": "specific",         "fromState": true,  "spotlightPriority": 0.90, "note": "★ NEW — InPageDiscovery contribution" },
+        { "scene": 6,  "title": "Rheem TotalView",                         "elementType": "table",      "featureUsed": null,                                      "quality": "generic_fallback", "fromState": false, "spotlightPriority": 0.82, "expected": "Real-Time Alert Feed" },
+        { "scene": 7,  "title": "Rheem TotalView",                         "elementType": "table",      "featureUsed": null,                                      "quality": "generic_fallback", "fromState": false, "spotlightPriority": 0.87, "expected": "Device Health & Offline Tracking OR Multi-site Device Monitoring" },
+        { "scene": 8,  "title": "Rheem TotalView",                         "elementType": "table",      "featureUsed": null,                                      "quality": "generic_fallback", "fromState": false, "spotlightPriority": 0.74, "expected": "AI prediction feature (not in top-10 — deeper bottleneck)" },
+        { "scene": 9,  "title": "Rheem TotalView input",                   "elementType": "form",       "featureUsed": null,                                      "quality": "generic_fallback", "fromState": false, "spotlightPriority": 0.83, "expected": "NONE — login page should not appear in journey" },
+        { "scene": 10, "title": "Rheem TotalView input",                   "elementType": "form",       "featureUsed": null,                                      "quality": "generic_fallback", "fromState": false, "spotlightPriority": 0.74, "expected": "NONE — duplicate login page, must be removed" },
+        { "scene": 11, "title": "Rheem TotalView navigation",              "elementType": "navigation", "featureUsed": null,                                      "quality": "generic_fallback", "fromState": false, "spotlightPriority": 0.74, "expected": "Settings/Configuration feature (not in top-10)" }
+      ]
+    },
+    "delta": {
+      "storyboardQualityChange": "DEGRADED",
+      "specificScenesChange": "11 → 5 (-6)",
+      "genericFallbackChange": "0 → 6 (+6)",
+      "newSpecificScenesFromInPageDiscovery": 1,
+      "netSceneQualityLoss": 5
+    }
+  },
+
+  "videoComparison": {
+    "runA": {
+      "videoFile": "demo-video-with-voice.mp4",
+      "videoSizeMB": 21.2,
+      "videoRendered": true,
+      "totalDurationSec": 95,
+      "totalFrames": 2850,
+      "fps": 30,
+      "openingCardDurationSec": 3,
+      "closingCardDurationSec": 5,
+      "mainContentDurationSec": 87,
+      "screenshotsInVideo": {
+        "source": "captures/{pageId}/viewport.png",
+        "interactionStateScreenshots": 0,
+        "basePageScreenshots": 11
+      },
+      "narration": {
+        "source": "voice-script.json (manually crafted)",
+        "totalSegments": 13,
+        "specificSceneNarrations": 11,
+        "genericFallbackNarrations": 0,
+        "narrationMatchesSceneContent": true
+      },
+      "sceneUtilization": {
+        "scenesWithMeaningfulContent": 11,
+        "scenesWastedOnLoginPage": 0,
+        "contentUtilizationRate": "100%"
+      }
+    },
+    "runB": {
+      "videoFile": null,
+      "videoRendered": false,
+      "note": "Run B's demo-package.json was written at 12:34, 69 minutes after the physical video was last rendered. No re-render has been performed. All Run B analysis is from the unrendered manifest only.",
+      "projectedIfRendered": {
+        "totalDurationSec": 95,
+        "totalFrames": 2850,
+        "fps": 30,
+        "openingCardDurationSec": 3,
+        "closingCardDurationSec": 5,
+        "mainContentDurationSec": 87,
+        "screenshotsInVideo": {
+          "source": "captures/{pageId}/viewport.png",
+          "interactionStateScreenshots": 0,
+          "basePageScreenshots": 11,
+          "note": "Same screenshot source as Run A. InPageDiscovery state screenshots are inaccessible to renderer by design."
+        },
+        "narration": {
+          "source": "demo-package.json auto-generated (voice-script.json not updated for Run B)",
+          "specificSceneNarrations": 5,
+          "genericFallbackNarrations": 6,
+          "narrationMatchesSceneContent": false,
+          "mismatchDetails": [
+            "Scene 5 auto-narration says 'Scenario Playback Speed' but current voice-script.json says 'Device Status'",
+            "Scene 9 voice says 'the built-in simulator' but scene shows login page"
+          ]
+        },
+        "sceneUtilization": {
+          "scenesWithMeaningfulContent": 5,
+          "scenesWastedOnLoginPage": 2,
+          "scenesWithGenericFallback": 6,
+          "contentUtilizationRate": "45%"
+        }
+      }
+    },
+    "interactionStatesInVideo": {
+      "reachedVideo": 0,
+      "reachedVideoViaFeature": 1,
+      "reachedVideoViaScreenshot": 0,
+      "totalMeaningfulStates": 9,
+      "conversionRate": "1/9 states influenced final video (11%)",
+      "detail": [
+        { "pageId": "ff5e5640", "page": "/simulator", "state": "playback controls state", "reachedVideoViaFeature": true,  "reachedVideoViaScreenshot": false, "scene": "scene-5", "note": "★ 'Scenario Playback Speed' derived from state vision analysis" },
+        { "pageId": "ba43497e", "page": "/dashboard", "state": "expanded widget state",    "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "State features merged into existing ranked features; no new scene content" },
+        { "pageId": "81b5098c", "page": "/sites",     "state": "sites interaction state",  "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "'Add Building Action' was in Run A features; state reinforced existing feature, no net gain" },
+        { "pageId": "6bc3db09", "page": "/alarms",    "state": "alarms interaction state", "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "'Real-Time Alert Feed' reached top-10 but Storyboard didn't assign it to the alarms scene" },
+        { "pageId": "49c1d957", "page": "/devices",   "state": "device list state",        "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "'Device Health' reached top-10 but Storyboard assigned it as secondary in scene-1 description only" },
+        { "pageId": "bca30543", "page": "/insights",  "state": "insights state",           "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "Energy & Cost features reinforced but already covered in scene-2" },
+        { "pageId": "9075756e", "page": "/users",     "state": "user list state",          "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "Features merged into scene-3" },
+        { "pageId": "a9d0cf5d", "page": "/settings",  "state": "settings state",           "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "No settings-specific feature entered top-10; scene-11 is generic fallback" },
+        { "pageId": "182df249", "page": "/ai",        "state": "AI page state",            "reachedVideoViaFeature": false, "reachedVideoViaScreenshot": false, "note": "No AI-specific feature entered top-10; scene-8 is generic fallback" }
+      ]
+    }
+  },
+
+  "bottleneckAnalysis": {
+    "primaryBottleneck": {
+      "stage": "Journey Generation",
+      "severity": "CRITICAL",
+      "specificIssue": "TopN supplement does not deduplicate by URL or filter out zero-value pages",
+      "evidence": [
+        "Root/login page (/) appears twice in Run B journey (scenes 9 and 10)",
+        "Both root page instances have 0 interaction targets, 3 features (lowest in pipeline), and visually identical base screenshots (same SHA-256 hash)",
+        "These two scenes consume 540 frames (18 seconds) = 20% of the 90-second main content window",
+        "Run A had 0 login page occurrences in its journey"
+      ],
+      "fix": "JourneyGenerator.TopNSupplement must: (1) deduplicate candidate pages by URL before selection, (2) exclude pages with featureCount < threshold or interactionTargets == 0 from supplement pool"
+    },
+    "secondaryBottleneck": {
+      "stage": "Storyboard Generation",
+      "severity": "HIGH",
+      "specificIssue": "Feature-to-page assignment fails for 6 of 11 scenes despite ranked features covering those pages",
+      "evidence": [
+        "Scene 6 (alarms page): 'Real-Time Alert Feed' is ranked #6 globally but not assigned → generic fallback",
+        "Scene 7 (devices page): 'Device Health & Offline Tracking' is ranked #9 but assigned as secondary in scene-1, not scene-7",
+        "Scene 8 (ai page): No AI-specific feature reached top-10 — InPageDiscovery found 4 features on /ai state but none broke into ranked output",
+        "Scenes 9-10 (login page): No feature exists for login page — downstream of Journey bottleneck"
+      ],
+      "fix": "StoryboardGenerator must: (1) assign each ranked feature to its SOURCE page's scene when that page appears in the journey, (2) prevent a feature from being used as a secondary mention in scene X when its primary page has its own scene in the journey"
+    },
+    "tertiaryBottleneck": {
+      "stage": "Feature Ranking (deduplication aggressiveness)",
+      "severity": "MEDIUM",
+      "specificIssue": "88.9% deduplication rate collapsed 90 → 10. Specific page-level features (Failure Prediction Cards, Team Assignment) were outranked by broader dashboard metrics boosted by state analysis",
+      "evidence": [
+        "Run A had 'Failure Prediction Cards' as a ranked feature → scene-4 was specific and informative",
+        "Run B top-10 has no AI/prediction-specific feature → /ai page (scene-8) is generic fallback",
+        "Run A had 'Team Assignment & Tagging' as a ranked feature → scene-3 was specific",
+        "Run B replaces it with broader 'Structured User List Table' which is less differentiated"
+      ],
+      "fix": "Ensure at least one unique feature per discovered page enters the ranked output (page-diversity constraint). Consider increasing topN from 10 to 15-20 to reduce the tail cutoff."
+    },
+    "quaternaryBottleneck": {
+      "stage": "Video Rendering (interaction state screenshots)",
+      "severity": "MEDIUM",
+      "specificIssue": "Interaction state screenshots are architecturally blocked from reaching the video renderer",
+      "evidence": [
+        "All 11 Run B scenes use captures/{pageId}/viewport.png (base screenshots)",
+        "0 scenes use interactions/ screenshots",
+        "9 meaningful interaction states with richer visual content are invisible to Remotion",
+        "Scenario Playback Speed scene (scene-5) shows the static /simulator base screenshot, not the interaction state that revealed the playback controls"
+      ],
+      "fix": "StoryboardScene schema needs a new optional field: interactionStatePath. When a scene's feature was discovered exclusively via interaction state, the storyboard should reference the state screenshot rather than the base viewport. Requires coordination between InPageDiscoveryStage (which knows which states are meaningful) and StoryboardGenerator.",
+      "architecturalNote": "The current INVARIANT (states never enter ctx.pageCaptures) is correct and should be preserved. The fix is to pass interactionStatePaths from PageExplorationSummary into StoryboardGenerator's scene assembly, not to break the base/state separation."
+    },
+    "notABottleneck": [
+      {
+        "stage": "BFS Discovery",
+        "reason": "All 11 BFS-reachable pages appear in both runs. No pages are being lost at this stage."
+      },
+      {
+        "stage": "Screenshot + Vision Analysis",
+        "reason": "All 11 base pages and all 9 interaction states were analyzed in vision mode. No analysis failures."
+      },
+      {
+        "stage": "InPageDiscovery (the stage itself)",
+        "reason": "The stage worked correctly. 17 targets explored, 9 meaningful states found, 9 state vision analyses completed, 1 unique feature reached the final video. The bottleneck is downstream (ranking + storyboard + rendering), not within the discovery stage."
+      }
+    ],
+    "videoNotRerenderedBottleneck": {
+      "stage": "Deployment / Re-render step",
+      "severity": "IMMEDIATE",
+      "specificIssue": "Run B's demo-package.json was never rendered into a physical video",
+      "evidence": [
+        "demo-package.json last written: 12-06-2026 12:34:13",
+        "demo-video.mp4 last written: 12-06-2026 11:16:52 (69 minutes earlier)",
+        "demo-video-with-voice.mp4 last written: 12-06-2026 11:25:25 (69 minutes earlier)",
+        "The current physical video on disk is from Run A's pipeline output"
+      ],
+      "fix": "Run `npm run render:demo` (or equivalent) to produce demo-video.mp4 from Run B's demo-package.json. Then update voice-script.json to reflect Run B's scene ordering and re-run `npm run voice` to regenerate narration."
+    }
+  },
+
+  "prioritisedActionPlan": [
+    {
+      "priority": 1,
+      "action": "Fix JourneyGenerator TopN supplement: deduplicate by URL + filter zero-value pages",
+      "stage": "Journey Generation",
+      "expectedImpact": "Removes 2 login page scenes (180+ frames freed), allowing /alarms, /devices, /ai to get properly utilized scenes. Projected improvement: 9-11 specific scenes vs current 5.",
+      "effort": "Low — single filter condition in supplement logic"
+    },
+    {
+      "priority": 2,
+      "action": "Fix StoryboardGenerator feature-to-page assignment: each ranked feature must bind to its source page's scene",
+      "stage": "Storyboard Generation",
+      "expectedImpact": "Eliminates generic fallback for /alarms (Real-Time Alert Feed), /devices (Device Health), and potentially /settings. Projected improvement: 8-9 specific scenes.",
+      "effort": "Medium — requires feature→pageId mapping to flow through to storyboard scene builder"
+    },
+    {
+      "priority": 3,
+      "action": "Re-render video from Run B demo-package.json",
+      "stage": "Deployment",
+      "expectedImpact": "Produces a video that actually reflects Run B's improvements (including Scenario Playback Speed scene). Currently the on-disk video shows no InPageDiscovery benefit at all.",
+      "effort": "None — run `npm run render:demo`"
+    },
+    {
+      "priority": 4,
+      "action": "Update voice-script.json for Run B scene ordering, regenerate TTS",
+      "stage": "Narration",
+      "expectedImpact": "Aligns audio narration with the actual scenes in Run B. Scene 5 (Scenario Playback Speed) and scene ordering must be re-described.",
+      "effort": "Low — manual edit of voice-script.json then `npm run voice`"
+    },
+    {
+      "priority": 5,
+      "action": "Increase feature topN from 10 to 15-20, add page-diversity constraint",
+      "stage": "Feature Ranking",
+      "expectedImpact": "Restores specific features for /ai and /settings that were pushed out of the top-10. Prevents broad dashboard features from crowding out page-specific features.",
+      "effort": "Low — configuration change in FeaturePrioritizationEngine"
+    },
+    {
+      "priority": 6,
+      "action": "Pass interactionStatePaths into StoryboardGenerator scene assembly",
+      "stage": "Video Rendering (interaction state screenshots)",
+      "expectedImpact": "Enables scenes to show the richer interaction state screenshot instead of static base view. Scenario Playback Speed scene would show the actual playback controls UI discovered via InPageDiscovery, not the static simulator landing screen.",
+      "effort": "Medium — requires schema change in StoryboardScene + assembly logic"
+    }
+  ]
+}

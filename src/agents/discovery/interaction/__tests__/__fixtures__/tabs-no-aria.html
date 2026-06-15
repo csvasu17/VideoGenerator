@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MVID Test Fixture — Visual Tabs (No ARIA)</title>
+  <style>
+    body { font-family: sans-serif; padding: 24px; background: #fff; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #ccc; padding: 6px 10px; }
+    form { display: flex; flex-direction: column; gap: 8px; max-width: 300px; }
+    input[type="text"], input[type="email"] { padding: 6px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+
+  <h1>Custom Component Dashboard</h1>
+  <p>This page uses a proprietary tab component with no ARIA attributes.</p>
+
+  <!--
+    Three sibling divs acting as tabs.
+    No role, no aria-selected, no aria-controls.
+    Active state is communicated via inline background-color only.
+    The VisualGroupDetector should detect this group by style differentiation.
+
+    Inline styles are intentional: they make getComputedStyle() deterministic
+    across environments without requiring a CSS stylesheet.
+  -->
+  <div id="vtab-container" style="display:flex; gap:0; margin-bottom: 0;">
+    <div id="vtab-1"
+         style="background-color:rgb(59,130,246);color:white;padding:8px 24px;cursor:pointer;font-weight:600;user-select:none;">
+      First
+    </div>
+    <div id="vtab-2"
+         style="background-color:rgb(229,231,235);color:black;padding:8px 24px;cursor:pointer;font-weight:400;user-select:none;">
+      Second
+    </div>
+    <div id="vtab-3"
+         style="background-color:rgb(229,231,235);color:black;padding:8px 24px;cursor:pointer;font-weight:400;user-select:none;">
+      Third
+    </div>
+  </div>
+
+  <!-- Content panels — switched on tab click -->
+  <div id="vcontent-1" style="padding:16px;border:1px solid #ccc;margin-top:0;">
+    <h2>First Panel</h2>
+    <table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Alpha</td><td>100</td></tr>
+        <tr><td>Beta</td><td>200</td></tr>
+        <tr><td>Gamma</td><td>300</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="vcontent-2" style="display:none;padding:16px;border:1px solid #ccc;margin-top:0;">
+    <h2>Second Panel</h2>
+    <canvas id="vchart" width="300" height="150" aria-label="Visual chart"></canvas>
+    <h3>Chart Summary</h3>
+    <p>Trend data for the selected period.</p>
+  </div>
+
+  <div id="vcontent-3" style="display:none;padding:16px;border:1px solid #ccc;margin-top:0;">
+    <h2>Third Panel</h2>
+    <form id="vform">
+      <label for="vsearch">Search</label>
+      <input type="text" id="vsearch" placeholder="Enter keyword">
+      <label for="vemail">Email</label>
+      <input type="email" id="vemail" placeholder="user@example.com">
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+
+  <script>
+    // Inline style constants — match exactly what is set above
+    const ACTIVE_STYLE   = 'background-color:rgb(59,130,246);color:white;padding:8px 24px;cursor:pointer;font-weight:600;user-select:none;';
+    const INACTIVE_STYLE = 'background-color:rgb(229,231,235);color:black;padding:8px 24px;cursor:pointer;font-weight:400;user-select:none;';
+
+    const tabData = [
+      { tabId: 'vtab-1', contentId: 'vcontent-1' },
+      { tabId: 'vtab-2', contentId: 'vcontent-2' },
+      { tabId: 'vtab-3', contentId: 'vcontent-3' },
+    ];
+
+    tabData.forEach(({ tabId, contentId }) => {
+      document.getElementById(tabId).addEventListener('click', () => {
+        // Deactivate all
+        tabData.forEach(({ tabId: tid, contentId: cid }) => {
+          document.getElementById(tid).style.cssText = INACTIVE_STYLE;
+          document.getElementById(cid).style.display = 'none';
+        });
+        // Activate clicked
+        document.getElementById(tabId).style.cssText = ACTIVE_STYLE;
+        document.getElementById(contentId).style.display = 'block';
+      });
+    });
+  </script>
+
+</body>
+</html>

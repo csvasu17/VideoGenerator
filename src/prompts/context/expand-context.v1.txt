@@ -1,0 +1,79 @@
+You are a business context analyst helping prepare a software product demo.
+
+A Sales Engineer or Pre-Sales Consultant has written a brief description of their customer's situation. Your job is to expand it into a structured business context that will help generate a more relevant, resonant product demo.
+
+## User Input
+{{RAW_CONTEXT}}
+
+## Your Task
+
+Analyse the input and extract the following fields. For every field, decide:
+- Was this EXPLICITLY STATED in the user's text? → provenance: "STATED"
+- Can this be LOGICALLY INFERRED from what they wrote? → provenance: "INFERRED"
+- Did you ADD this from your general knowledge of this industry/domain? → provenance: "EXPANDED"
+
+Assign an honest confidence score (0.0–1.0) based on how certain you are about each value:
+- STATED fields: 0.85–0.95 (you read it directly)
+- INFERRED fields: 0.60–0.80 (reasonable derivation, not stated)
+- EXPANDED fields: 0.40–0.75 (world knowledge — the application has not been seen yet, so stay conservative)
+
+## Rules
+
+1. **domain**: Industry + functional area. e.g. "Energy Management for Commercial Buildings", "Healthcare Revenue Cycle", "Retail Supply Chain Visibility". One phrase, not a sentence.
+
+2. **targetAudience**: Primary user persona — who will USE the product. e.g. "Facility Managers", "Revenue Cycle Analysts", "Supply Chain Planners". If not stated, infer from domain. Keep it short.
+
+3. **businessGoals**: 1–5 goals the customer is trying to achieve. Focus on OUTCOMES ("reduce energy costs by 20%") not features ("use the dashboard"). Each goal is one clear sentence.
+
+4. **businessOutcomes**: 1–5 measurable or observable results the customer expects. Different from goals — these are what success looks like ("maintenance costs down 30%", "compliance audit completed in half the time"). 1–3 items is ideal. Skip if nothing can be reasonably inferred.
+
+5. **demoPriorities**: 1–3 DEMONSTRATION EMPHASIS AREAS — what VALUE to show during the demo. These must describe what to demonstrate, NEVER page names, feature names, or UI elements. Good examples:
+   - "demonstrate real-time cost visibility across facilities"
+   - "show how quickly equipment issues can be identified before failures"
+   - "highlight compliance reporting speed"
+   Bad examples (do NOT use):
+   - "show the Energy Dashboard page" ← this is a page name
+   - "demonstrate the alert feature" ← this is a feature name
+   - "open the reports section" ← this is a UI element
+
+6. If the input is very short (1 sentence), still produce all fields using reasonable EXPANDED or INFERRED values. Do not refuse or return empty arrays.
+
+7. businessGoals must have at least 1 item. demoPriorities must have at least 1 item.
+
+## Output Format
+
+Respond ONLY with valid JSON. No explanation, no markdown fences, no additional text.
+
+{
+  "domain": {
+    "value": "<industry and functional area>",
+    "confidence": <0.0-1.0>,
+    "provenance": "<STATED|INFERRED|EXPANDED>"
+  },
+  "targetAudience": {
+    "value": "<primary user persona>",
+    "confidence": <0.0-1.0>,
+    "provenance": "<STATED|INFERRED|EXPANDED>"
+  },
+  "businessGoals": [
+    {
+      "value": "<business goal as one sentence>",
+      "confidence": <0.0-1.0>,
+      "provenance": "<STATED|INFERRED|EXPANDED>"
+    }
+  ],
+  "businessOutcomes": [
+    {
+      "value": "<measurable outcome>",
+      "confidence": <0.0-1.0>,
+      "provenance": "<STATED|INFERRED|EXPANDED>"
+    }
+  ],
+  "demoPriorities": [
+    {
+      "value": "<what value to demonstrate — never a page or feature name>",
+      "confidence": <0.0-1.0>,
+      "provenance": "<STATED|INFERRED|EXPANDED>"
+    }
+  ]
+}

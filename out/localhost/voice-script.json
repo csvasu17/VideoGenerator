@@ -1,0 +1,153 @@
+{
+  "voice": "onyx",
+  "model": "tts-hd",
+  "speed": 0.95,
+  "fps": 30,
+  "totalDurationSec": 182,
+  "segments": [
+    {
+      "id": "broll-0",
+      "label": "B-roll 1 — Unplanned failures drain budgets and tea",
+      "startSec": 1.5,
+      "durationSec": 4.5,
+      "enabled": true,
+      "text": "Unplanned failures drain budgets and teams."
+    },
+    {
+      "id": "broll-1",
+      "label": "B-roll 2 — Keeping track of user access across depa",
+      "startSec": 7.5,
+      "durationSec": 4.5,
+      "enabled": true,
+      "text": "Keeping track of user access across departments eats up hours."
+    },
+    {
+      "id": "broll-2",
+      "label": "B-roll 3 — Manual ai failure predictions grid proce",
+      "startSec": 13.5,
+      "durationSec": 4.5,
+      "enabled": true,
+      "text": "Manual ai failure predictions grid processes take hours, every day."
+    },
+    {
+      "id": "scene-1",
+      "label": "Scene 1 — Digital Twin Cockpit",
+      "startSec": 19,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "Monitor and manage asset health using real-time KPIs, charts, and diagnostics from a unified cockpit."
+    },
+    {
+      "id": "scene-2",
+      "label": "Scene 2 — Digital Twin Cockpit",
+      "startSec": 29,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This cockpit dashboard provides a live overview of crucial equipment metrics like RPM, compressor status, and fault predictions."
+    },
+    {
+      "id": "scene-3",
+      "label": "Scene 3 — Air Handling Control",
+      "startSec": 39,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This dashboard feature empowers facility managers to monitor and adjust air handling unit parameters in real time, significantly improving energy efficiency and occupant comfort."
+    },
+    {
+      "id": "scene-4",
+      "label": "Scene 4 — Device Status Dashboard",
+      "startSec": 49,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This dashboard provides a real-time overview of connected device health, highlighting device issues by type and severity."
+    },
+    {
+      "id": "scene-5",
+      "label": "Scene 5 — Rheem TotalView",
+      "startSec": 59,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "Welcome to ACL Digital Platform."
+    },
+    {
+      "id": "scene-6",
+      "label": "Scene 6 — Device Status Dashboard",
+      "startSec": 69,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "Quickly view real-time health and status of water, cooler, and ice devices across multiple sites."
+    },
+    {
+      "id": "scene-7",
+      "label": "Scene 7 — Device Monitoring Dashboard",
+      "startSec": 79,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "Quickly assess the operational status of all your field devices with this unified dashboard."
+    },
+    {
+      "id": "scene-8",
+      "label": "Scene 8 — Equipment Overview Dashboard",
+      "startSec": 89,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This dashboard provides a comprehensive snapshot of critical equipment metrics, including total runtime, weather, alerts, and maintenance status."
+    },
+    {
+      "id": "scene-9",
+      "label": "Scene 9 — Fault Prediction Panel",
+      "startSec": 99,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "The Fault Prediction panel lets you select equipment and fault types to instantly view predicted failures, helping your teams preemptively address issues before costly downtime occurs."
+    },
+    {
+      "id": "scene-10",
+      "label": "Scene 10 — Alarm Management Board",
+      "startSec": 109,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This dashboard displays real-time alarms categorized by severity and type, allowing teams to swiftly identify and address maintenance, connectivity, and system health issues, minimizing downtime and operational risks."
+    },
+    {
+      "id": "scene-11",
+      "label": "Scene 11 — Digital Twin Cockpit",
+      "startSec": 119,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This cockpit view provides live insights into equipment health, pressures, cycles, and RPM."
+    },
+    {
+      "id": "scene-12",
+      "label": "Scene 12 — Predictive Issue Cards",
+      "startSec": 129,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This dashboard highlights AI-predicted equipment issues, detailing causes, impact severity, and recommended actions."
+    },
+    {
+      "id": "scene-13",
+      "label": "Scene 13 — Device Management Grid",
+      "startSec": 139,
+      "durationSec": 9,
+      "enabled": true,
+      "text": "This device management grid enables users to quickly assess the status, connectivity, and last seen times for every device in their network."
+    },
+    {
+      "id": "benefit-slide",
+      "label": "Benefit Slide — Value Adds",
+      "startSec": 149,
+      "durationSec": 17,
+      "enabled": true,
+      "text": "User Directory Table: With User Directory Table, your team can quickly find, review, and update any user's access in seconds. Real-Time Alert Panel: With Real-Time Alert Panel, your team can spot and act on every critical incident the moment it appears. Quick User Onboarding: With Quick User Onboarding, your team can add new hires in seconds. Energy and Cost KPIs: With Energy and Cost KPIs, your team can see exactly where energy and money go. Energy and Cost Metrics: With Energy and Cost Metrics, your team can see which devices use the most power — and which cost you extra."
+    },
+    {
+      "id": "presenter-close",
+      "label": "Presenter Close",
+      "startSec": 168,
+      "durationSec": 14,
+      "enabled": true,
+      "text": "Platform turns every data point into a prevention Rheem TotalView — contact us to arrange your live demonstration."
+    }
+  ]
+}

@@ -1,0 +1,666 @@
+{
+  "_reportMetadata": {
+    "title": "Discovery Coverage Report",
+    "generatedAt": "2026-06-12",
+    "pipelineRunTimestamp": "2026-06-11T14:04:53.544Z",
+    "targetUrl": "http://localhost",
+    "outputDir": "out/localhost",
+    "purpose": "Determine whether hidden functionality is being filtered out or not discovered at all",
+    "dataSourcesUsed": [
+      "demo-package.json (latest pipeline run)",
+      "capture directory timestamps (Jun 11 19:34 = latest run)",
+      "Source code: DiscoveryAgent.ts, InPageDiscovery.ts, InteractionDetector.ts, StateComparator.ts, FeatureRankingStage.ts, JourneyGenerator.ts, WorkflowOrchestrator.ts",
+      "e2e-test.ts (pipeline configuration)"
+    ],
+    "dataQualityNotes": [
+      "DiscoveredPage.interactiveElements and PageIntelligence are in-memory only — not persisted to disk. Per-page BFS element counts and feature scores are NOT available from disk.",
+      "InteractionDetector (MVID module) has never run in production. Interaction target counts are estimated from code logic and page types.",
+      "Capture timestamps confirm the latest run produced exactly 11 page directories, matching demo-package.json totalScenes=11."
+    ]
+  },
+
+  "executiveSummary": {
+    "verdict": "NOT_DISCOVERED",
+    "verdictExplanation": "Hidden functionality exists but is not being discovered at all. The InPageDiscovery module (MVID — Multi-View Interaction Discovery) is fully implemented and tested, but is NOT wired into the production pipeline. Every in-page state that requires a click to reveal — tab panels, accordion sections, expand toggles, modal dialogs — is completely unexplored on all 11 pages.",
+    "bfsPageCoverage": {
+      "pagesDiscoveredByBFS": 11,
+      "maxPagesConfigured": 20,
+      "pagesSelectedForVideo": 11,
+      "bfsCoverageRatio": 1.0,
+      "note": "BFS found exactly 11 unique routes. All were selected for the video (TopN supplement was triggered in JourneyGenerator, confirming the BeamSearch path was shorter than targetSteps=12). 100% of BFS-reachable pages appear in the video — the filtering bottleneck is NOT at the video selection layer."
+    },
+    "inPageStateExploration": {
+      "totalPagesExplored": 0,
+      "totalInteractionTargetsDetected": 0,
+      "totalStatesAttempted": 0,
+      "totalMeaningfulStatesFound": 0,
+      "totalStatesRejected": 0,
+      "status": "NEVER_RUN",
+      "estimatedMeaningfulStatesIfRun": "55–88 (across 11 pages × estimated 5–8 meaningful states each)"
+    },
+    "keyFindings": [
+      "InPageDiscovery.explorePage() is never called in WorkflowOrchestrator.ts or any pipeline stage. The module exists only in src/agents/discovery/interaction/ and its tests.",
+      "All 11 BFS-discovered pages entered the video — the Journey/Storyboard filtering is not discarding pages.",
+      "The FeaturePrioritizationEngine has topN=10, but features are extracted from ~11 pages with ~3-5 features each (~33-55 raw). With all 11 pages in the video, even features outside the top-10 reach the storyboard via the page context.",
+      "BeamSearch alone produced fewer than 12 steps (targetSteps). The Top-N supplement in JourneyGenerator was invoked to fill remaining slots, confirming the graph is sparse (few cross-page navigation edges detected by BFS).",
+      "The interactive element CAP in DiscoveryAgent is 100 per page (els.slice(0,100)). For rich dashboard pages, some navigation links may be silently truncated. This is a minor secondary gap."
+    ]
+  },
+
+  "pipelineConfiguration": {
+    "bfsDiscovery": {
+      "maxPages": 20,
+      "maxDepth": 3,
+      "waitUntil": "load",
+      "seedUrls": [
+        "/dashboard",
+        "/sites",
+        "/alarms",
+        "/devices",
+        "/insights",
+        "/ai-predict",
+        "/simulator",
+        "/users",
+        "/settings"
+      ],
+      "excludePatterns": [
+        "/logout", "/signout", "/delete", "/destroy", "*.pdf", "*.csv", "*.xlsx", "image extensions", "mailto:", "tel:", "javascript:"
+      ],
+      "interactiveElementCapPerPage": 100
+    },
+    "inPageDiscovery": {
+      "status": "NOT_INTEGRATED",
+      "moduleExists": true,
+      "modulePath": "src/agents/discovery/interaction/InPageDiscovery.ts",
+      "defaults_if_run": {
+        "maxStates": 10,
+        "maxDepth": 2,
+        "maxAttempts": 30,
+        "maxTimeMs": 30000,
+        "meaningfulThreshold": 0.20,
+        "visualDetection": true,
+        "maxVisualGroups": 5
+      }
+    },
+    "featureRanking": {
+      "topN": 10,
+      "scoringWeights": {
+        "businessValue": 0.35,
+        "visualAppeal": 0.20,
+        "userImportance": 0.25,
+        "revenueImpact": 0.20
+      }
+    },
+    "journeyGeneration": {
+      "targetSteps": 12,
+      "minSteps": 4,
+      "maxSteps": 12,
+      "beamWidth": 8,
+      "topNSupplementEnabled": true
+    }
+  },
+
+  "discoveryFunnel": {
+    "stage1_bfs": {
+      "stageName": "BFS URL Discovery",
+      "input": "startUrl=http://localhost + 9 seed routes",
+      "pagesQueued": "≥10 (9 seeds + landing page + BFS-found links)",
+      "pagesSuccessfullyVisited": 11,
+      "pagesFailed_or_excluded": "unknown (not persisted)",
+      "cappedByMaxPages": false,
+      "note": "BFS did not hit the maxPages=20 cap — the app has exactly 11 BFS-reachable unique routes under these parameters."
+    },
+    "stage2_screenshotAndVision": {
+      "stageName": "Screenshot + Vision Analysis",
+      "pagesSubmitted": 11,
+      "pagesAnalyzed": 11,
+      "analysisMode": "vision (screenshot + DOM)",
+      "estimatedRawFeatures": "33–55 (11 pages × 3–5 features each)",
+      "note": "PageIntelligence data is in-memory only. Exact per-page feature counts are not persisted."
+    },
+    "stage3_featureRanking": {
+      "stageName": "Feature Ranking",
+      "rawFeaturesInput": "33–55 estimated",
+      "deduplicatedFeatures": "~25–40 estimated (cross-page dedup by normalized name)",
+      "topNReturned": 10,
+      "featuresDropped_by_topN": "~15–30 estimated",
+      "note": "Features outside the top-10 are dropped here. However, the journey builder uses ALL 11 page nodes — each node brings its top-5 features via NodeScorer. So even features ranked 11-40 can influence narration via their parent page."
+    },
+    "stage4_journeyGeneration": {
+      "stageName": "Journey Generation",
+      "availableNodes": 11,
+      "targetSteps": 12,
+      "beamSearchResult": "<11 steps (BeamSearch found sparse path)",
+      "topNSupplementUsed": true,
+      "supplementedTo": 11,
+      "finalSceneCount": 11,
+      "pagesNotSelectedForVideo": 0,
+      "note": "All 11 discovered pages appear in the final video. No pages were filtered by the Journey or Storyboard stage."
+    }
+  },
+
+  "inPageDiscoveryModule": {
+    "integrationStatus": "NOT_WIRED_INTO_PIPELINE",
+    "sourceFile": "src/agents/discovery/interaction/InPageDiscovery.ts",
+    "detectionPasses": {
+      "pass1_aria": {
+        "targets": ["TAB_TRIGGER (role=tab in role=tablist)", "ACCORDION_HEADER (button[aria-expanded])", "ACCORDION_HEADER (<details>/<summary>)", "EXPAND_TOGGLE (aria-controls + hidden panel)"],
+        "confidenceLevel": "high",
+        "priority": "0.65–0.90 for unexplored; 0.12–0.40 for active/expanded"
+      },
+      "pass2_structural": {
+        "targets": ["<details>/<summary> (not already in Pass 1)"],
+        "confidenceLevel": "medium",
+        "note": "Minimal in current implementation — reserved for future patterns"
+      },
+      "pass3_visual": {
+        "targets": ["VISUAL_TAB_CANDIDATE (sibling groups where one member appears visually selected)"],
+        "confidenceLevel": "low (validated at click time)",
+        "differentiationThreshold": 0.30,
+        "maxGroupsPerPage": 5
+      }
+    },
+    "explorationBudget_if_run": {
+      "maxStatesPerPage": 10,
+      "maxAttemptsPerPage": 30,
+      "maxTimeMsPerPage": 30000,
+      "explorationFilter": "only targets with estimatedPriority > 0.20"
+    }
+  },
+
+  "stateComparatorThresholds": {
+    "meaningfulThreshold": 0.20,
+    "scoringWeights": {
+      "widgetDelta": 0.40,
+      "headingDelta": 0.25,
+      "interactiveCountDelta": 0.20,
+      "textTokenDelta": 0.15
+    },
+    "scoringExamples": [
+      { "scenario": "Tab switch reveals a data table", "widgetScore": 0.50, "estimatedFunctionalScore": 0.20, "isMeaningful": true },
+      { "scenario": "Tab switch reveals chart + 2 headings", "widgetScore": 0.50, "headingScore": 0.67, "estimatedFunctionalScore": 0.37, "isMeaningful": true },
+      { "scenario": "Accordion expands — text only (~25 new tokens)", "textScore": 0.075, "estimatedFunctionalScore": 0.011, "isMeaningful": false, "note": "Text alone cannot cross threshold" },
+      { "scenario": "Expand toggle reveals form with 5 new inputs", "interactiveScore": 1.0, "estimatedFunctionalScore": 0.20, "isMeaningful": true },
+      { "scenario": "Modal with form + heading + table", "widgetScore": 0.75, "headingScore": 0.33, "interactiveScore": 0.60, "estimatedFunctionalScore": 0.52, "isMeaningful": true }
+    ]
+  },
+
+  "pages": [
+    {
+      "pageId": "bef1fd5b-47ce-4700-98ad-8ca7cd6bed76",
+      "sceneId": "scene-1",
+      "pageTitle": "Dashboard Overview",
+      "url": "http://localhost/dashboard",
+      "inVideoSequence": 1,
+      "featureHighlighted": "Dashboard KPI metric card (Energy & Cost Tracking, real-time device health)",
+      "elementTypeInVideo": "kpi",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk by DiscoveryAgent",
+        "estimatedTotal": "40–65",
+        "estimatedBreakdown": { "links": "15–20", "buttons": "10–15", "inputs": "5–8", "tabs": "5–10", "menuItems": "5–12" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "4–8 (date-range selector, metric category switcher, chart period tabs)",
+          "pass1_aria_ACCORDION_HEADER": "2–4 (expandable KPI sections)",
+          "pass1_aria_EXPAND_TOGGLE": "1–2 (detail panels)",
+          "pass3_visual_TAB_CANDIDATE": "3–5 (visual nav rail, chart view switches)",
+          "totalExplorationTargets": "10–19",
+          "explorationTargets_above_priority_threshold": "7–15"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "5–8",
+        "estimatedHiddenContent": ["Energy breakdown tab panel", "Alarms panel tab", "Device health detail expand", "KPI drill-down chart", "Date range picker → fresh data"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "f99ad2a1-1498-4bad-97a0-3575854edacf",
+      "sceneId": "scene-2",
+      "pageTitle": "Energy & Cost Tracking",
+      "url": "http://localhost (estimated: /insights or /dashboard subview)",
+      "inVideoSequence": 2,
+      "featureHighlighted": "Energy & Cost Tracking analytics chart",
+      "elementTypeInVideo": "chart",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "25–45",
+        "estimatedBreakdown": { "links": "10–15", "buttons": "8–12", "inputs": "4–6", "tabs": "3–6", "selects": "2–4" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "3–5 (time granularity: daily/weekly/monthly, cost vs energy toggle)",
+          "pass1_aria_ACCORDION_HEADER": "1–2",
+          "pass3_visual_TAB_CANDIDATE": "2–3",
+          "totalExplorationTargets": "6–10"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "3–5",
+        "estimatedHiddenContent": ["Weekly/monthly aggregation view", "Cost vs energy toggle panel", "Site-specific breakdown filter"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "12124971-4fbe-425e-9331-bd3e76fed21d",
+      "sceneId": "scene-3",
+      "pageTitle": "Team Assignment & Tagging",
+      "url": "http://localhost (estimated: /alarms subview)",
+      "inVideoSequence": 3,
+      "featureHighlighted": "Team Assignment & Tagging data table",
+      "elementTypeInVideo": "table",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "20–40",
+        "estimatedBreakdown": { "links": "8–12", "buttons": "6–10", "inputs": "3–5", "tabs": "2–4" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "2–4 (team/individual filter, status filter)",
+          "pass1_aria_ACCORDION_HEADER": "2–3 (assignment detail rows)",
+          "totalExplorationTargets": "4–7"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "2–4",
+        "estimatedHiddenContent": ["Assignment detail expand", "Team filter panel", "Tag management drawer"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "e8d1e408-fc49-43a6-a760-4e9b911ddcc1",
+      "sceneId": "scene-4",
+      "pageTitle": "Failure Prediction Cards",
+      "url": "http://localhost/ai-predict",
+      "inVideoSequence": 4,
+      "featureHighlighted": "Failure Prediction Cards data table",
+      "elementTypeInVideo": "table",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "20–35",
+        "estimatedBreakdown": { "links": "5–8", "buttons": "8–12", "inputs": "3–5", "tabs": "2–4" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "2–4 (prediction severity, equipment type)",
+          "pass1_aria_EXPAND_TOGGLE": "3–5 (prediction card expand → detail + recommendations)",
+          "totalExplorationTargets": "5–9"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "3–5",
+        "estimatedHiddenContent": ["Prediction card detail expand (recommendations + timeline)", "Equipment type filter panel", "Action workflow drawer"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "bd852008-da28-4edc-b5fb-2cd64f1bea66",
+      "sceneId": "scene-5",
+      "pageTitle": "Device Status & Connectivity",
+      "url": "http://localhost/devices",
+      "inVideoSequence": 5,
+      "featureHighlighted": "Device Status & Connectivity KPI metric card",
+      "elementTypeInVideo": "kpi",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "30–50",
+        "estimatedBreakdown": { "links": "10–15", "buttons": "8–12", "inputs": "4–6", "tabs": "3–6", "selects": "2–3" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "3–5 (online / offline / pending / unconfigured status tabs)",
+          "pass3_visual_TAB_CANDIDATE": "2–4 (device list view switch: list/map/grid)",
+          "totalExplorationTargets": "5–9"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "3–5",
+        "estimatedHiddenContent": ["Offline devices filtered view", "Unconfigured devices panel", "Device map view", "Live telemetry detail drawer"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "cf114607-c520-43b1-8bbd-00b9726c1579",
+      "sceneId": "scene-6",
+      "pageTitle": "Filtering and Search",
+      "url": "http://localhost/users",
+      "inVideoSequence": 6,
+      "featureHighlighted": "Filtering and Search data table",
+      "elementTypeInVideo": "table",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "25–40",
+        "estimatedBreakdown": { "links": "8–12", "buttons": "6–10", "inputs": "5–8", "tabs": "2–4", "selects": "2–4" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "2–4 (users / groups / roles tabs)",
+          "pass1_aria_ACCORDION_HEADER": "1–2 (filter panel expand)",
+          "totalExplorationTargets": "3–6"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "2–4",
+        "estimatedHiddenContent": ["Groups tab (role management table)", "Roles/permissions tab", "Advanced filter panel"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "875a5aee-176d-484e-8f52-3d74372082fb",
+      "sceneId": "scene-7",
+      "pageTitle": "KPI Summary Widgets",
+      "url": "http://localhost (estimated: /insights or dashboard subview)",
+      "inVideoSequence": 7,
+      "featureHighlighted": "KPI Summary Widgets KPI metric card",
+      "elementTypeInVideo": "kpi",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "20–35",
+        "estimatedBreakdown": { "links": "6–10", "buttons": "6–10", "inputs": "3–5", "tabs": "2–5" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "3–5 (KPI category tabs: operational / financial / predictive)",
+          "pass1_aria_EXPAND_TOGGLE": "2–3 (widget drill-down)",
+          "totalExplorationTargets": "5–8"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "3–5",
+        "estimatedHiddenContent": ["Financial KPI tab", "Predictive KPI tab", "Widget drill-down chart"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "79dcd624-69d5-4031-bb1a-048b80c8fcb4",
+      "sceneId": "scene-8",
+      "pageTitle": "Fleet Alarms Dashboard",
+      "url": "http://localhost/alarms",
+      "inVideoSequence": 8,
+      "featureHighlighted": "Fleet Alarms data table",
+      "elementTypeInVideo": "table",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "25–45",
+        "estimatedBreakdown": { "links": "8–12", "buttons": "8–12", "inputs": "4–6", "tabs": "3–6", "selects": "2–4" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "3–5 (severity tabs: critical/high/medium/low, site filter tabs)",
+          "pass1_aria_ACCORDION_HEADER": "2–3 (alarm detail rows)",
+          "pass3_visual_TAB_CANDIDATE": "2–3",
+          "totalExplorationTargets": "7–11"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "3–6",
+        "estimatedHiddenContent": ["Critical alarms filtered view", "Alarm detail expand panel", "Site-specific alarm filter", "Alarm history tab"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "06048567-4162-46b2-b0b6-4ebf93998149",
+      "sceneId": "scene-9",
+      "pageTitle": "Simulator",
+      "url": "http://localhost/simulator",
+      "inVideoSequence": 9,
+      "featureHighlighted": "Simulator configuration form",
+      "elementTypeInVideo": "form",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "15–30",
+        "estimatedBreakdown": { "buttons": "5–8", "inputs": "6–10", "selects": "3–5", "tabs": "2–3" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "2–4 (fault type selector: thermal/connectivity/mechanical)",
+          "pass1_aria_ACCORDION_HEADER": "1–2 (advanced options)",
+          "totalExplorationTargets": "3–6"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "2–4",
+        "estimatedHiddenContent": ["Fault type changed → different form fields revealed", "Advanced scenario configuration panel", "Simulation results panel"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "4deca044-091e-451c-8e99-92ab9adef6e4",
+      "sceneId": "scene-10",
+      "pageTitle": "Add New Site",
+      "url": "http://localhost/sites (add form)",
+      "inVideoSequence": 10,
+      "featureHighlighted": "Site setup input form",
+      "elementTypeInVideo": "form",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "20–40",
+        "estimatedBreakdown": { "buttons": "6–10", "inputs": "8–14", "selects": "3–6", "tabs": "2–4" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "3–5 (wizard steps: Site Info / Buildings / Devices / Team)",
+          "pass1_aria_ACCORDION_HEADER": "1–2 (optional configuration sections)",
+          "totalExplorationTargets": "4–7"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "3–5",
+        "estimatedHiddenContent": ["Buildings configuration step (different form fields)", "Devices onboarding step", "Team invitation step — new form section"]
+      },
+
+      "topRankedStates": []
+    },
+    {
+      "pageId": "1c00ffab-b160-40e9-a955-b5206a6e041d",
+      "sceneId": "scene-11",
+      "pageTitle": "Platform Navigation",
+      "url": "http://localhost (navigation overview)",
+      "inVideoSequence": 11,
+      "featureHighlighted": "Platform navigation panel",
+      "elementTypeInVideo": "navigation",
+
+      "bfsInteractiveElements": {
+        "dataAvailable": false,
+        "reason": "Not persisted to disk",
+        "estimatedTotal": "30–55",
+        "estimatedBreakdown": { "links": "15–20", "buttons": "8–12", "tabs": "5–10", "menuItems": "3–8" }
+      },
+
+      "mvid_interactionTargets": {
+        "dataAvailable": false,
+        "status": "NEVER_RUN",
+        "estimatedByDetectionPass": {
+          "pass1_aria_TAB_TRIGGER": "6–9 (module nav items: Dashboard, Devices, Alarms, Insights, AI, Sites, Simulator, Users, Settings)",
+          "pass3_visual_TAB_CANDIDATE": "4–6 (visually styled nav rail items without explicit ARIA tabs)",
+          "totalExplorationTargets": "10–15"
+        }
+      },
+
+      "stateExploration": {
+        "statesAttempted": 0,
+        "statesMeaningful": 0,
+        "statesRejected": 0,
+        "budgetStatus": "NEVER_RUN",
+        "estimatedMeaningfulIfRun": "6–9",
+        "note": "This page may be the navigation rail/menu visible across all pages rather than a standalone page. If so, exploration targets here overlap with other pages.",
+        "estimatedHiddenContent": ["Each module selected → content panel changes → different table/chart visible"]
+      },
+
+      "topRankedStates": []
+    }
+  ],
+
+  "coverageGaps": [
+    {
+      "gapId": "GAP-001",
+      "severity": "CRITICAL",
+      "category": "In-Page State Discovery",
+      "title": "InPageDiscovery module built but not wired into pipeline",
+      "description": "src/agents/discovery/interaction/InPageDiscovery.ts is fully implemented with 3-pass detection (ARIA, structural, visual), click-and-capture loop, state comparison via FunctionalFingerprint, and reset strategies. It is NOT called anywhere in WorkflowOrchestrator.ts or any PipelineStage. All ARIA tabs, accordions, expand toggles, and visual tab candidates across all 11 pages are completely unexplored.",
+      "affectedPages": "all 11",
+      "estimatedMissedStates": "55–88",
+      "isFilteringProblem": false,
+      "isDiscoveryProblem": true,
+      "rootCause": "Missing integration — InPageDiscovery.explorePage() is never called after each page is loaded"
+    },
+    {
+      "gapId": "GAP-002",
+      "severity": "MEDIUM",
+      "category": "BFS Route Discovery",
+      "title": "BFS found exactly 11 unique routes — possible JS-hidden routes not seeded",
+      "description": "The app has 9 explicit seed routes + the landing page. BFS found 11 unique routes total. If any major module is accessible only via JS-driven navigation that is not a seed URL (e.g. sub-navigation items, contextual deep links), it would not be discovered. The pipeline ran two consecutive runs and both found exactly 11 pages, confirming this is the BFS ceiling for the current seed configuration.",
+      "affectedPages": "unknown — pages not yet discovered",
+      "isFilteringProblem": false,
+      "isDiscoveryProblem": true,
+      "rootCause": "Possible missing seed URLs for sub-routes (e.g. /sites/add, /devices/:id, /alarms/:id, /users/groups)"
+    },
+    {
+      "gapId": "GAP-003",
+      "severity": "LOW",
+      "category": "Feature Ranking",
+      "title": "FeaturePrioritizationEngine topN=10 drops tail features",
+      "description": "With ~33-55 raw features across 11 pages, the top-10 cutoff drops ~23-45 features. However, since ALL 11 pages appear in the video (TopN supplement), each page's features still drive its narration via NodeScorer.topFeatures(). The topN limit only affects which features are used by the journey optimizer's edge scoring — it does NOT prevent pages from appearing in the video.",
+      "affectedPages": "0 pages removed from video",
+      "isFilteringProblem": true,
+      "isDiscoveryProblem": false,
+      "rootCause": "topN=10 is conservative when pages × features per page exceed 10. Impact is LOW because all pages still enter the video.",
+      "note": "Could cause a specific page's secondary features to be underrepresented in narration if that page's primary feature ranked outside top-10."
+    },
+    {
+      "gapId": "GAP-004",
+      "severity": "LOW",
+      "category": "Interactive Element Capture",
+      "title": "BFS interactive element extraction capped at 100 per page",
+      "description": "DiscoveryAgent.extractInteractiveElements() uses els.slice(0, 100) — the first 100 matching elements by DOM order. For rich dashboard pages with many navigation links and action buttons, some elements in later DOM position may be silently dropped. This affects the interactiveElements count stored on DiscoveredPage, which flows into signals.interactiveElementCount in FeatureRankingStage.",
+      "affectedPages": "potentially high-density pages like Dashboard and Platform Navigation",
+      "isFilteringProblem": true,
+      "isDiscoveryProblem": false,
+      "rootCause": "Hardcoded slice(0,100) in DiscoveryAgent.ts line 288"
+    }
+  ],
+
+  "totalAggregates": {
+    "pagesDiscovered": 11,
+    "pagesInVideo": 11,
+    "pagesFiltered_by_journey": 0,
+    "totalBfsInteractiveElements_estimated": "275–505 (across 11 pages, estimated)",
+    "totalMvidInteractionTargets_estimated": "62–109 (across 11 pages, estimated)",
+    "totalStatesExplored_actual": 0,
+    "totalMeaningfulStates_actual": 0,
+    "totalMeaningfulStates_estimated_if_run": "33–60 (using pass threshold=0.20 and estimated target counts)",
+    "inPageDiscoveryStatus": "NOT_RUN",
+    "filteringBottleneck": "NONE — all BFS pages enter the video",
+    "discoveryBottleneck": "In-page state exploration not integrated (GAP-001)"
+  }
+}
