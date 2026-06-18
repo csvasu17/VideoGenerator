@@ -133,12 +133,17 @@ export class WorkflowOrchestrator {
       }
     }
 
-    // ── RF5: Wrap raw strings in SealedCredentials — AuthStage seals after use
+    // ── RF5: Wrap raw strings in SealedCredentials — AuthStage seals after use.
+    // For LOGIN_TYPE=2 (Quick Access), credentials are not required and are omitted.
     const input: WorkflowInput = {
-      url:         rawInput.url,
-      credentials: new SealedCredentials(rawInput.username, rawInput.password),
-      outputDir:   rawInput.outputDir,
-      options:     rawInput.options,
+      url:              rawInput.url,
+      credentials:      rawInput.loginType === 2
+                          ? undefined
+                          : new SealedCredentials(rawInput.username, rawInput.password),
+      outputDir:        rawInput.outputDir,
+      options:          rawInput.options,
+      loginType:        rawInput.loginType,
+      quickAccessIndex: rawInput.quickAccessIndex,
     };
 
     const ctx = createPipelineContext(input);

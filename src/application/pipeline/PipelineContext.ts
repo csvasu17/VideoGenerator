@@ -93,9 +93,9 @@ export interface WorkflowOptions {
 export interface RunInput {
   /** Application root URL (must be http/https, no private/metadata hosts). */
   url:      string;
-  /** Plaintext username — consumed once by AuthStage then sealed. */
+  /** Plaintext username — consumed once by AuthStage then sealed. Not used when loginType=2. */
   username: string;
-  /** Plaintext password — consumed once by AuthStage then sealed. */
+  /** Plaintext password — consumed once by AuthStage then sealed. Not used when loginType=2. */
   password: string;
   /** Absolute path where captures + demo-package.json will be written. */
   outputDir: string;
@@ -109,6 +109,14 @@ export interface RunInput {
    * When absent, the pipeline runs with zero behavioural change from default.
    */
   contextText?: string;
+  /**
+   * 1 = fill username+password into the login form (default).
+   * 2 = click a Quick Access option on the login screen; username and password
+   *     are not used and may be empty strings.
+   */
+  loginType?: 1 | 2;
+  /** Which Quick Access card to click (0-based). Only used when loginType=2. Default: 0 */
+  quickAccessIndex?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,11 +130,18 @@ export interface RunInput {
 export interface WorkflowInput {
   /** Validated application root URL. */
   url:         string;
-  /** Sealed credential holder — readable exactly once in AuthStage. */
-  credentials: SealedCredentials;
+  /**
+   * Sealed credential holder — readable exactly once in AuthStage.
+   * Absent when loginType=2 (Quick Access login — no credentials needed).
+   */
+  credentials?: SealedCredentials;
   /** Absolute path where captures + demo-package.json will be written. */
   outputDir:   string;
   options?:    WorkflowOptions;
+  /** 1 = credential login (default); 2 = Quick Access click on login screen */
+  loginType?:        1 | 2;
+  /** Which Quick Access card to click (0-based). Only used when loginType=2. Default: 0 */
+  quickAccessIndex?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -182,6 +182,17 @@ export interface EnterpriseBRollSceneData {
   subtitle:         string;
   /** Industry category hint — drives future B-roll asset selection. */
   category?:        string;
+  /**
+   * When present, uses EnterpriseAnimatedBRoll instead of the static text slide.
+   * Values: 'iot-network' | 'data-stream' | 'alert-cascade' | 'ai-prediction' | 'global-fleet'
+   */
+  animationType?:   string;
+  /**
+   * Path to a real stock video file (relative to Remotion public dir).
+   * When present, takes priority over animationType — renders EnterpriseBRollVideoScene.
+   * Example: 'recordings/broll-0.mp4'
+   */
+  videoPath?:       string;
 }
 
 /** White-background benefit slide with staggered animated bullets. */
@@ -208,9 +219,35 @@ export interface EnterprisePresenterCloseData {
 export interface EnterprisePresenterConfig {
   /** Relative path from the Remotion public dir. */
   src:           string;
+  /** Optional talking video — if provided, mouth animates instead of static image. */
+  videoSrc?:     string;
   /** Fraction of frame width (0–1). Typical: 0.15. */
   widthFraction: number;
   position:      'bottom-left' | 'bottom-right';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Voice script — loaded from voice-script.json, editable in Remotion Studio
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface VoiceSegment {
+  id:          string;
+  label?:      string;
+  startSec:    number;
+  durationSec: number;
+  /** Set to false to silence this segment in Studio preview */
+  enabled?:    boolean;
+  /** Narration text — shown in the Input Props editor for reference */
+  text:        string;
+}
+
+export interface VoiceScript {
+  voice:           string;
+  model:           string;
+  speed:           number;
+  fps:             number;
+  totalDurationSec: number;
+  segments:        VoiceSegment[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

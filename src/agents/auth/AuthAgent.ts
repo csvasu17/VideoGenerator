@@ -172,47 +172,136 @@ export class AuthAgent implements IAuthAgent {
     // ── 1. Navigate to the root URL ──────────────────────────────────────
     await page.goto(input.url, { waitUntil, timeout: cfg.navigationTimeoutMs });
 
-    // ── 2. Find login form (may already be on root or need a sub-path) ───
+    // ── 2. Find login screen ─────────────────────────────────────────────
     if (!(await this.hasLoginForm(page))) {
       const found = await this.navigateToLoginPage(page, input.url, cfg);
-      if (!found) return false; // couldn't find a login form
+      if (!found) return false;
     }
 
-    // ── 3. Fill credentials ───────────────────────────────────────────────
+    const urlBeforeSubmit = page.url();
+    const navDone = page
+      .waitForURL(url => url.href !== urlBeforeSubmit, { timeout: cfg.navigationTimeoutMs })
+      .catch(() => {});
+
+    // ── 3a. LOGIN_TYPE=2: click a Quick Access option ────────────────────
+    // Quick Access cards pre-fill credentials but do not auto-submit.
+    // After the card click, the form must be submitted explicitly.
+    if (input.loginType === 2) {
+      const clicked = await this.clickQuickAccessOption(page, input.quickAccessIndex ?? 0);
+      if (!clicked) return false;
+
+      await page.waitForTimeout(600);
+      const submitted = await this.submitForm(page);
+      if (!submitted) return false;
+
+      await Promise.race([
+        page.waitForSelector('input[type="password"]', { state: 'detached', timeout: cfg.navigationTimeoutMs }),
+        navDone,
+      ]).catch(() => page.waitForTimeout(2000));
+
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+      return this.verifyAuthenticated(page, urlBeforeSubmit);
+    }
+
+    // ── 3b. LOGIN_TYPE=1 (default): fill credentials ─────────────────────
     const userFilled = await this.fillField(page, USERNAME_SELECTORS, input.username);
     const passFilled = await this.fillField(page, PASSWORD_SELECTORS, input.password);
     if (!userFilled || !passFilled) return false;
 
     // ── 4. Submit ─────────────────────────────────────────────────────────
-    // Capture the current URL so we can wait for it to change after submit.
-    // This is more reliable than matching login path hints, which are already
-    // satisfied for SPAs whose login form lives at the root ("/") path.
-    const urlBeforeSubmit = page.url();
-
-    const navDone = page
-      .waitForURL(
-        url => url.href !== urlBeforeSubmit,
-        { timeout: cfg.navigationTimeoutMs },
-      )
-      .catch(() => { /* timeout OK — verifyAuthenticated will check the URL */ });
-
     const submitted = await this.submitForm(page);
     if (!submitted) return false;
 
     // ── 5. Wait for authentication signal ────────────────────────────────
-    // SPAs often never change the URL — wait for the password field to be
-    // DETACHED from the DOM (the most reliable post-login signal), racing
-    // against a URL change.  Mirror the recorder's approach exactly.
     await Promise.race([
       page.waitForSelector('input[type="password"]', { state: 'detached', timeout: cfg.navigationTimeoutMs }),
       navDone,
     ]).catch(() => page.waitForTimeout(2000));
 
-    // Belt-and-suspenders: let any lingering XHRs settle.
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
     // ── 6. Verify ─────────────────────────────────────────────────────────
     return this.verifyAuthenticated(page, urlBeforeSubmit);
+  }
+
+  /**
+   * Click a Quick Access option on the login screen without filling credentials.
+   * The app is responsible for fetching the credentials associated with the
+   * selected option.  Three selector strategies are tried in order.
+   */
+  private async clickQuickAccessOption(page: Page, index: number): Promise<boolean> {
+    // Strategy 1: known class / data-testid patterns (most-specific first)
+    const knownSelectors = [
+      '.quick-access-card',
+      '[class="quick-access-card"]',
+      '[data-testid*="quick-access"]',
+      '[data-testid*="quickaccess"]',
+      '[class*="QuickAccess"][class*="Card"]',
+      '[class*="quick-access-card"]',
+      '[class*="quickAccessItem"]',
+      '[class*="QuickAccessItem"]',
+      '[class*="demo-user"]',
+      '[class*="DemoUser"]',
+    ];
+    for (const sel of knownSelectors) {
+      const items = page.locator(sel);
+      const count = await items.count().catch(() => 0);
+      if (count > index) {
+        await items.nth(index).click();
+        return true;
+      }
+    }
+
+    // Strategy 2: find the container that holds "QUICK ACCESS" text, then
+    //             click the nth button / [role="button"] inside it.
+    try {
+      const section = page
+        .locator('div, section, aside, form')
+        .filter({ hasText: /quick.access/i })
+        .last();
+      const isVisible = await section.isVisible({ timeout: 2000 }).catch(() => false);
+      if (isVisible) {
+        const buttons = section
+          .locator('button, [role="button"]')
+          .filter({ hasNotText: /quick.access/i });
+        const count = await buttons.count().catch(() => 0);
+        if (count > index) {
+          await buttons.nth(index).click();
+          return true;
+        }
+      }
+    } catch {
+      // fall through
+    }
+
+    // Strategy 3: any button that appears below the "QUICK ACCESS" label
+    try {
+      const label = page.locator(':text-matches("QUICK ACCESS", "i")').first();
+      const labelVisible = await label.isVisible({ timeout: 1000 }).catch(() => false);
+      if (labelVisible) {
+        const labelBox = await label.boundingBox().catch(() => null);
+        if (labelBox) {
+          const allButtons = page.locator('button, [role="button"]');
+          const total      = await allButtons.count().catch(() => 0);
+          let   found      = 0;
+          for (let i = 0; i < total; i++) {
+            const btn = allButtons.nth(i);
+            const box = await btn.boundingBox().catch(() => null);
+            if (box && box.y > labelBox.y + labelBox.height) {
+              if (found === index) {
+                await btn.click();
+                return true;
+              }
+              found++;
+            }
+          }
+        }
+      }
+    } catch {
+      // fall through
+    }
+
+    return false;
   }
 
   private async hasLoginForm(page: Page): Promise<boolean> {

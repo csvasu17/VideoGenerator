@@ -27,7 +27,9 @@
     "record:rheem": "npm run record -- --project rheem",
     "sync:rheem": "npm run sync -- rheem",
     "record:enterprise": "ts-node --project tsconfig.scripts.json automation/record-enterprise-clips.ts",
-    "record:enterprise:render": "npm run record:enterprise && npm run render:demo && npm run voice"
+    "record:enterprise:render": "npm run record:enterprise && npm run render:demo && npm run voice",
+    "broll:download": "ts-node --project tsconfig.scripts.json automation/download-broll-videos.ts",
+    "broll:register": "ts-node --project tsconfig.scripts.json automation/register-broll-videos.ts"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.257",

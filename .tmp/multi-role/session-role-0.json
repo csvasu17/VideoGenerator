@@ -1,0 +1,22 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://10.1.9.23:9003",
+      "localStorage": [
+        {
+          "name": "role",
+          "value": "customer"
+        },
+        {
+          "name": "theme",
+          "value": "dark"
+        },
+        {
+          "name": "currentUser",
+          "value": "{\"id\":\"customer_1\",\"customerId\":\"CUST-0001\",\"role\":\"customer\",\"type\":\"individual\",\"displayName\":\"George\",\"avatarInitials\":\"G\",\"email\":\"deepaknaga2000@gmail.com\",\"phone\":null,\"firstName\":null,\"lastName\":null,\"orgName\":null,\"taxId\":null,\"department\":null,\"level\":null,\"location\":\"New York, US\",\"password\":\"Default@123\",\"createdAt\":\"2026-02-04T07:30:30.525Z\",\"updatedAt\":\"2026-02-04T07:50:35.676Z\",\"devices\":[{\"id\":\"dev_1770191043106\",\"userId\":\"customer_1\",\"product\":\"Printer\",\"productType\":\"Hardware\",\"category\":\"Industrial Printer\",\"modelNumber\":\"ZT411\",\"licenseNumber\":\"ZT411-64387\",\"licenseExpiryDate\":\"2027-03-04T00:00:00.000Z\"},{\"id\":\"dev_1770191096898\",\"userId\":\"customer_1\",\"product\":\"ACL Card Studio\",\"productType\":\"Software\",\"category\":\"Designer\",\"modelNumber\":\"v1.0\",\"licenseNumber\":\"V18562346162\",\"licenseExpiryDate\":\"2027-02-04T00:00:00.000Z\"},{\"id\":\"dev_1770191166750\",\"userId\":\"customer_1\",\"product\":\"Printer\",\"productType\":\"Hardware\",\"category\":\"Desktop Printer\",\"modelNumber\":\"ZD421\",\"licenseNumber\":\"ZD421-83692\",\"licenseExpiryDate\":\"2027-05-19T00:00:00.000Z\"},{\"id\":\"dev_1770195074840\",\"userId\":\"customer_1\",\"product\":\"Scanner\",\"productType\":\"Hardware\",\"category\":\"Barcode Scanner\",\"modelNumber\":\"DS3600\",\"licenseNumber\":\"96589655\",\"licenseExpiryDate\":null}]}"
+        }
+      ]
+    }
+  ]
+}

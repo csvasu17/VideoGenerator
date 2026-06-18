@@ -1,121 +1,177 @@
 {
-  "voice": "onyx",
-  "model": "tts-hd",
+  "voice": "shimmer",
+  "model": "tts-1-hd",
   "speed": 0.95,
   "fps": 30,
-  "totalDurationSec": 160,
+  "totalDurationSec": 262,
   "segments": [
     {
       "id": "broll-0",
-      "label": "B-roll 1 — Unplanned failures drain budgets and tea",
+      "label": "B-roll 1 — Support teams are drowning in tickets.",
       "startSec": 1.5,
-      "durationSec": 4.5,
+      "durationSec": 10.5,
       "enabled": true,
-      "text": "Unplanned failures drain budgets and teams."
+      "text": "Support teams are drowning in tickets."
     },
     {
       "id": "broll-1",
-      "label": "B-roll 2 — Keeping track of user access across depa",
-      "startSec": 7.5,
-      "durationSec": 4.5,
+      "label": "B-roll 2 — Every minute of delay costs customer tru",
+      "startSec": 13.5,
+      "durationSec": 10.5,
       "enabled": true,
-      "text": "Keeping track of user access across departments eats up hours."
+      "text": "Every minute of delay costs customer trust."
     },
     {
       "id": "broll-2",
-      "label": "B-roll 3 — Manual ai failure predictions grid proce",
-      "startSec": 13.5,
-      "durationSec": 4.5,
+      "label": "B-roll 3 — Manual triage is slow, inconsistent, and",
+      "startSec": 25.5,
+      "durationSec": 10.5,
       "enabled": true,
-      "text": "Manual ai failure predictions grid processes take hours, every day."
+      "text": "Manual triage is slow, inconsistent, and error-prone."
+    },
+    {
+      "id": "broll-3",
+      "label": "B-roll 4 — Escalations fall through the cracks.",
+      "startSec": 37.5,
+      "durationSec": 10.5,
+      "enabled": true,
+      "text": "Escalations fall through the cracks."
+    },
+    {
+      "id": "broll-4",
+      "label": "B-roll 5 — Jira, email, chat — too many disconnecte",
+      "startSec": 49.5,
+      "durationSec": 10.5,
+      "enabled": true,
+      "text": "Jira, email, chat — too many disconnected tools."
     },
     {
       "id": "scene-1",
-      "label": "Scene 1 — Real-Time Device Monitoring",
-      "startSec": 19,
+      "label": "Scene 1 — Dashboard Overview",
+      "startSec": 61,
       "durationSec": 11,
       "enabled": true,
-      "text": "Monitor your entire IoT fleet at a glance, with color-coded status indicators and real-time data visualizations."
+      "text": "This dashboard provides admins with a real-time overview of tickets, customer statistics, and AI performance metrics."
     },
     {
       "id": "scene-2",
-      "label": "Scene 2 — Device Fleet Dashboard",
-      "startSec": 31,
+      "label": "Scene 2 — Customer Management",
+      "startSec": 73,
       "durationSec": 11,
       "enabled": true,
-      "text": "This dashboard presents a real-time overview of device health, breakouts by type, and geolocated alerts on a dynamic map."
+      "text": "The Customer Management interface lists all registered users with their contact details for quick access."
     },
     {
       "id": "scene-3",
-      "label": "Scene 3 — Device Management Grid",
-      "startSec": 43,
+      "label": "Scene 3 — User Management",
+      "startSec": 85,
       "durationSec": 11,
       "enabled": true,
-      "text": "This grid view displays all your connected devices with key details like status, ID, and usage statistics, making bulk monitoring and management effortless."
+      "text": "This User Management dashboard lets admins easily view, add, edit, or deactivate system users."
     },
     {
       "id": "scene-4",
-      "label": "Scene 4 — Site Directory Overview",
-      "startSec": 55,
+      "label": "Scene 4 — SLA Policy Configuration",
+      "startSec": 97,
       "durationSec": 11,
       "enabled": true,
-      "text": "This feature provides a visual directory of all enterprise sites, allowing users to quickly see site names, locations, and available action items."
+      "text": "Quickly define and manage multiple SLA policies based on ticket priority, ensuring teams meet response and resolution times."
     },
     {
       "id": "scene-5",
-      "label": "Scene 5 — Alarm Management Dashboard",
-      "startSec": 67,
+      "label": "Scene 5 — Analytics Intelligence Dashboard",
+      "startSec": 109,
       "durationSec": 11,
       "enabled": true,
-      "text": "This dashboard centralizes all active and resolved alarms for your hardware fleet, categorizing them by urgency and type for rapid action."
+      "text": "The Analytics Intelligence dashboard provides a clear overview of ticket activity, showing total tickets, open tickets, resolved tickets, and average resolution time."
     },
     {
       "id": "scene-6",
-      "label": "Scene 6 — Content Report Analytics",
-      "startSec": 79,
+      "label": "Scene 6 — Support Dashboard Overview",
+      "startSec": 121,
       "durationSec": 11,
       "enabled": true,
-      "text": "The Content Report feature charts multiple quality scores like comprehensiveness, accuracy, and freshness over time, providing a clear historical perspective on content performance."
+      "text": "Quickly access real-time stats on tickets, active agents, and recents alerts, enabling fast response and seamless team coordination."
     },
     {
       "id": "scene-7",
-      "label": "Scene 7 — AI Predictive Analysis",
-      "startSec": 91,
+      "label": "Scene 7 — Ticket Management Table",
+      "startSec": 133,
       "durationSec": 11,
       "enabled": true,
-      "text": "This feature delivers an AI-driven dashboard that highlights predictive equipment issues like connectivity, temperature, and part failures."
+      "text": "This ticket management table displays all service requests, sorted by priority, product, and status, enabling rapid assignment and resolution."
     },
     {
       "id": "scene-8",
-      "label": "Scene 8 — User Management Dashboard",
-      "startSec": 103,
+      "label": "Scene 8 — Escalated Tickets View",
+      "startSec": 145,
       "durationSec": 11,
       "enabled": true,
-      "text": "The dashboard provides a consolidated list of all users, displaying their roles, account status, assigned organizations, and access levels."
+      "text": "This dashboard offers a focused view of escalated tickets, letting your team filter by priority, status, and assignment."
     },
     {
       "id": "scene-9",
-      "label": "Scene 9 — Air Analytics Model",
-      "startSec": 115,
+      "label": "Scene 9 — Status Overview Dashboard",
+      "startSec": 157,
       "durationSec": 11,
       "enabled": true,
-      "text": "This feature visualizes air flow, temperature, and efficiency using live modeled data, helping users monitor and adjust system parameters instantly to prevent downtime and maximize operational effectiveness."
+      "text": "The Status Overview panel provides a real-time snapshot of total, open, in-progress, and resolved support tickets."
+    },
+    {
+      "id": "scene-10",
+      "label": "Scene 10 — Customer Selection",
+      "startSec": 169,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "Easily start the ticketing process by searching and selecting an existing customer."
+    },
+    {
+      "id": "scene-11",
+      "label": "Scene 11 — Centralized Ticket Dashboard",
+      "startSec": 181,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "The main dashboard provides a clear summary of total, open, resolved, and reopened support tickets, helping managers track workload and team responsiveness at a glance."
+    },
+    {
+      "id": "scene-12",
+      "label": "Scene 12 — Ticket List Dashboard",
+      "startSec": 193,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "The My Tickets dashboard displays all submitted support tickets with real-time status updates, priorities, and assignee information."
+    },
+    {
+      "id": "scene-13",
+      "label": "Scene 13 — Product License Manager",
+      "startSec": 205,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "The My Products screen consolidates all registered hardware and software, showing details like license type, serial numbers, and expiry dates."
+    },
+    {
+      "id": "scene-14",
+      "label": "Scene 14 — Issue Type Selection",
+      "startSec": 217,
+      "durationSec": 11,
+      "enabled": true,
+      "text": "Users can immediately specify whether their problem is hardware or software-related, ensuring tickets are routed to the right experts."
     },
     {
       "id": "benefit-slide",
       "label": "Benefit Slide — Value Adds",
-      "startSec": 127,
+      "startSec": 229,
       "durationSec": 17,
       "enabled": true,
-      "text": "User Directory Table: With User Directory Table, your team can quickly find, review, and update any user's access in seconds. Real-Time Alert Panel: With Real-Time Alert Panel, your team can spot and act on every critical incident the moment it appears. Quick User Onboarding: With Quick User Onboarding, your team can add new hires in seconds. Energy and Cost KPIs: With Energy and Cost KPIs, your team can see exactly where energy and money go. Energy and Cost Metrics: With Energy and Cost Metrics, your team can see which devices use the most power — and which cost you extra."
+      "text": "TicketFlow delivers multi-role access control, real-time ticket tracking, SLA policy management, Jira integration, and analytics intelligence — everything your support team needs in one place."
     },
     {
       "id": "presenter-close",
       "label": "Presenter Close",
-      "startSec": 146,
+      "startSec": 248,
       "durationSec": 14,
       "enabled": true,
-      "text": "Platform turns every data point into a prevention Rheem TotalView — contact us to arrange your live demonstration."
+      "text": "smarter & faster ticket resolution TicketFlow — contact us to arrange your live demonstration."
     }
   ]
 }

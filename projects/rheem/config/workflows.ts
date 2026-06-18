@@ -13,8 +13,10 @@ export const rheemWorkflows: ProjectWorkflows = {
   projectId:   'rheem',
   appUrl:      process.env.RHEEM_APP_URL || process.env.APP_URL || 'https://acl-rheem.vercel.app',
   credentials: {
-    username: process.env.APP_USERNAME || '',
-    password: process.env.APP_PASSWORD || '',
+    username:         process.env.APP_USERNAME || '',
+    password:         process.env.APP_PASSWORD || '',
+    loginType:        process.env.LOGIN_TYPE === '2' ? 2 : 1,
+    quickAccessIndex: Number(process.env.APP_QUICK_ACCESS_INDEX ?? '0'),
   },
 
   clips: [
