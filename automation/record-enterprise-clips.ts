@@ -32,9 +32,11 @@ dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const APP_URL  = process.env['APP_URL']      ?? '';
-const USERNAME = process.env['APP_USERNAME'] ?? '';
-const PASSWORD = process.env['APP_PASSWORD'] ?? '';
+const APP_URL           = process.env['APP_URL']                ?? '';
+const USERNAME          = process.env['APP_USERNAME']           ?? '';
+const PASSWORD          = process.env['APP_PASSWORD']           ?? '';
+const LOGIN_TYPE        = (process.env['LOGIN_TYPE'] === '2' ? 2 : 1) as 1 | 2;
+const QUICK_ACCESS_IDX  = Number(process.env['APP_QUICK_ACCESS_INDEX'] ?? '0');
 
 const ROOT           = path.resolve(__dirname, '..');
 const OUT_DIR        = path.join(ROOT, 'out', 'localhost');
@@ -273,6 +275,75 @@ Be specific to what you see. No generic statements.`,
   }
 }
 
+// ─── Recording plan ───────────────────────────────────────────────────────────
+// Each entry maps to one screen recording clip.
+// cardIndex: 0=George(Customer), 1=Alice(SupportL1), 2=Bob(SupportL2), 3=ITAdmin
+// navItem: sidebar span text to click after login — null means stay on dashboard.
+
+interface ClipPlan {
+  cardIndex: number;
+  role:      string;
+  id:        string;
+  navItem:   string | null;
+  label:     string;
+}
+
+const RECORDING_PLAN: ClipPlan[] = [
+  // ── IT Admin ──────────────────────────────────────────────────────────────
+  { cardIndex: 3, role: 'IT Admin',   id: 'admin-dashboard',     navItem: null,              label: 'Admin Dashboard'     },
+  { cardIndex: 3, role: 'IT Admin',   id: 'admin-customers',     navItem: 'Customers',       label: 'Customer Management' },
+  { cardIndex: 3, role: 'IT Admin',   id: 'admin-users',         navItem: 'User Management', label: 'User Management'     },
+  { cardIndex: 3, role: 'IT Admin',   id: 'admin-sla',           navItem: 'SLA Config',      label: 'SLA Configuration'   },
+  { cardIndex: 3, role: 'IT Admin',   id: 'admin-analytics',     navItem: 'Analytics',       label: 'Analytics'           },
+  // ── Support L2 (Bob — broadest support access) ────────────────────────────
+  { cardIndex: 2, role: 'Support L2', id: 'support-dashboard',   navItem: null,              label: 'Support Dashboard'   },
+  { cardIndex: 2, role: 'Support L2', id: 'support-all-tickets', navItem: 'All Tickets',     label: 'All Tickets'         },
+  { cardIndex: 2, role: 'Support L2', id: 'support-my-ticket',   navItem: 'My Ticket',       label: 'My Assigned Tickets' },
+  { cardIndex: 2, role: 'Support L2', id: 'support-jira',        navItem: 'Jira Hub',        label: 'Jira Integration'    },
+  { cardIndex: 2, role: 'Support L2', id: 'support-create',      navItem: 'Create Ticket',   label: 'Create Ticket'       },
+  // ── Customer (George) ─────────────────────────────────────────────────────
+  { cardIndex: 0, role: 'Customer',   id: 'customer-dashboard',  navItem: null,              label: 'Customer Dashboard'  },
+  { cardIndex: 0, role: 'Customer',   id: 'customer-tickets',    navItem: 'My Tickets',      label: 'My Tickets'          },
+  { cardIndex: 0, role: 'Customer',   id: 'customer-products',   navItem: 'My Products',     label: 'My Products'         },
+  { cardIndex: 0, role: 'Customer',   id: 'customer-create',     navItem: 'Create Ticket',   label: 'Create Ticket'       },
+];
+
+// ─── Per-role login helper ─────────────────────────────────────────────────────
+
+const TMP_DIR_MULTI = path.resolve(__dirname, '../.tmp/multi-role');
+
+async function loginRole(
+  browser:   Browser,
+  cardIndex: number,
+): Promise<{ storageStatePath: string; postLoginUrl: string }> {
+  const storageStatePath = path.join(TMP_DIR_MULTI, `session-role-${cardIndex}.json`);
+  fs.mkdirSync(TMP_DIR_MULTI, { recursive: true });
+
+  const loginUrl = APP_URL.replace(/\/$/, '') + '/login';
+  const ctx  = await browser.newContext({ viewport: VIEWPORT, ignoreHTTPSErrors: true });
+  const page = await ctx.newPage();
+
+  await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  await page.waitForTimeout(1500);
+
+  await page.locator('.quick-access-card').nth(cardIndex).click();
+  await page.waitForTimeout(700);
+  await page.locator('button[type="submit"], .signin-btn').first().click();
+
+  await Promise.race([
+    page.waitForURL(url => !url.href.includes('login'), { timeout: 20_000 }),
+    page.waitForTimeout(6000),
+  ]).catch(() => {});
+
+  await page.waitForTimeout(2000);
+  const postLoginUrl = page.url();
+
+  await ctx.storageState({ path: storageStatePath });
+  await ctx.close();
+
+  return { storageStatePath, postLoginUrl };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 interface RecordedClip {
@@ -286,7 +357,7 @@ interface RecordedClip {
 
 async function main(): Promise<void> {
   console.log('\n═══════════════════════════════════════════════════════════════');
-  console.log('  🎬  Enterprise Screen Recording — Real App Walkthrough Clips');
+  console.log('  🎬  Enterprise Recording — Multi-Role Deep Analysis');
   console.log('═══════════════════════════════════════════════════════════════\n');
 
   if (!APP_URL) {
@@ -294,132 +365,128 @@ async function main(): Promise<void> {
   }
 
   console.log(`  App     : ${APP_URL}`);
-  console.log(`  User    : ${USERNAME || '(none)'}`);
+  console.log(`  Login   : Quick Access — 4 roles`);
+  console.log(`  Clips   : ${RECORDING_PLAN.length} screens`);
   console.log(`  Out     : ${RECORDINGS_DIR}\n`);
 
   fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
-
-  const rc: RecordingConfig = {
-    appUrl:      APP_URL,
-    viewport:    VIEWPORT,
-    credentials: USERNAME ? { username: USERNAME, password: PASSWORD } : undefined,
-  };
 
   const isHeadless = process.env['HEADLESS'] === '1' || process.env['CI'] === 'true';
   const browser: Browser = await chromium.launch({
     headless: isHeadless,
     slowMo:   isHeadless ? 30 : 50,
-    args: [
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-    ],
+    args: ['--disable-web-security', '--disable-features=VizDisplayCompositor'],
   });
 
   const clips: RecordedClip[] = [];
 
+  // ── Step 1: Login once per unique role ────────────────────────────────────
+  const roleCache = new Map<number, { storageStatePath: string; postLoginUrl: string }>();
+  const uniqueCards = [...new Set(RECORDING_PLAN.map(e => e.cardIndex))];
+
   try {
-    // ── Login ────────────────────────────────────────────────────────────────
-    const session = await ensureSession(browser, rc);
-    if (!session && USERNAME) {
-      console.error('  ✗  Login failed — check APP_USERNAME / APP_PASSWORD in .env');
-      await browser.close();
-      process.exit(1);
+    console.log('  🔐  Logging in for each role...\n');
+    for (const cardIndex of uniqueCards) {
+      const roleName = RECORDING_PLAN.find(e => e.cardIndex === cardIndex)?.role ?? String(cardIndex);
+      process.stdout.write(`     Card ${cardIndex} (${roleName}) ... `);
+      try {
+        const session = await loginRole(browser, cardIndex);
+        roleCache.set(cardIndex, session);
+        console.log(`✅  ${session.postLoginUrl}`);
+      } catch (e) {
+        console.log(`❌  ${(e as Error).message?.slice(0, 70)}`);
+      }
     }
+    console.log('');
 
-    const origin    = new URL(APP_URL).origin;
-    const startUrl  = session?.postLoginUrl ?? APP_URL;
+    // ── Step 2: Record every plan entry ──────────────────────────────────────
+    console.log('  📹  Recording clips...\n');
 
-    // Open recording context — every page opened in this context is recorded
-    const ctx: BrowserContext = session
-      ? await createAuthContext(browser, session, {
-          viewport:    VIEWPORT,
-          recordVideo: { dir: RECORDINGS_DIR, size: VIEWPORT },
-        })
-      : await browser.newContext({
-          viewport:          VIEWPORT,
-          recordVideo:       { dir: RECORDINGS_DIR, size: VIEWPORT },
-          ignoreHTTPSErrors: true,
-        });
-
-    try {
-      // ── Phase 1: Discover all pages ────────────────────────────────────────
-      console.log('  📋  Discovering app navigation...');
-      const probe = await ctx.newPage();
-      await probe.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await probe.waitForTimeout(2500);
-      await suppressPopups(probe);
-
-      const pageLinks = await discoverPageLinks(probe, origin);
-      console.log(`  Found ${pageLinks.length} unique section(s)\n`);
-      if (pageLinks.length > 0) {
-        pageLinks.forEach(l => console.log(`    • ${l.label.padEnd(32)} ${l.url}`));
-        console.log('');
+    for (let i = 0; i < RECORDING_PLAN.length; i++) {
+      const entry   = RECORDING_PLAN[i];
+      const session = roleCache.get(entry.cardIndex);
+      if (!session) {
+        console.warn(`     ⚠️  [${i + 1}/${RECORDING_PLAN.length}] Skipping ${entry.id} — no session for role ${entry.role}`);
+        continue;
       }
 
-      // ── Phase 2: Record home / dashboard ───────────────────────────────────
-      console.log('  📹  Recording: Dashboard / Home');
-      await performFullInteraction(probe);
-      const homeFramePath = path.join(RECORDINGS_DIR, 'home-frame.png');
-      await probe.screenshot({ path: homeFramePath, type: 'png' });
-      await probe.waitForTimeout(1500);
-      const homeVidRaw = await probe.video()?.path();
-      await probe.close();
+      console.log(`  [${i + 1}/${RECORDING_PLAN.length}] 📹  ${entry.role.padEnd(12)} › ${entry.label}`);
 
-      if (homeVidRaw && fs.existsSync(homeVidRaw)) {
-        const dest = path.join(RECORDINGS_DIR, 'home.mp4');
-        if (fs.existsSync(dest)) fs.unlinkSync(dest);
-        fs.renameSync(homeVidRaw, dest);
-        const info = getVideoInfo(dest);
-        clips.push({ id: 'home', label: 'Dashboard', url: startUrl, videoPath: dest, framePath: homeFramePath, duration: info.duration });
-        console.log(`     ✅  home.mp4  (${info.duration.toFixed(1)}s)\n`);
-      }
+      const ctx: BrowserContext = await browser.newContext({
+        storageState:      session.storageStatePath,
+        viewport:          VIEWPORT,
+        ignoreHTTPSErrors: true,
+        recordVideo:       { dir: RECORDINGS_DIR, size: VIEWPORT },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
+      });
 
-      // ── Phase 3: Record each discovered section ─────────────────────────────
-      for (const pg of pageLinks) {
-        console.log(`  📹  Recording: ${pg.label}  →  ${pg.url}`);
-        try {
-          const page = await ctx.newPage();
-          await page.goto(pg.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-          await page.waitForTimeout(2500);
+      // Inject notification suppressor on every page
+      await ctx.addInitScript(({ css }: { css: string }) => {
+        const s = document.createElement('style');
+        s.textContent = css;
+        (document.head || document.documentElement).appendChild(s);
+      }, { css: SUPPRESS_CSS });
 
-          // Skip login redirects
-          if (await page.$('input[type="password"]')) {
-            console.log(`     ⚠️  Redirected to login — skipping`);
-            const skipVid = await page.video()?.path();
-            await page.close();
-            if (skipVid) try { fs.unlinkSync(skipVid); } catch {}
-            continue;
-          }
+      try {
+        const page = await ctx.newPage();
 
-          await performFullInteraction(page);
+        // Navigate to the role's post-login dashboard
+        await page.goto(session.postLoginUrl, { waitUntil: 'domcontentloaded', timeout: 40_000 });
+        await page.waitForTimeout(2500);
+        await suppressPopups(page);
 
-          // Screenshot for AI analysis (taken at clean end-state)
-          const framePath = path.join(RECORDINGS_DIR, `${pg.id}-frame.png`);
-          await page.screenshot({ path: framePath, type: 'png' });
-
-          // Hold on final state so video ends on a clean frame
-          await page.waitForTimeout(1500);
-
-          const vidRaw = await page.video()?.path();
-          await page.close();
-
-          if (vidRaw && fs.existsSync(vidRaw)) {
-            const dest = path.join(RECORDINGS_DIR, `${pg.id}.mp4`);
-            if (fs.existsSync(dest)) fs.unlinkSync(dest);
-            fs.renameSync(vidRaw, dest);
-            const info = getVideoInfo(dest);
-            clips.push({ id: pg.id, label: pg.label, url: pg.url, videoPath: dest, framePath, duration: info.duration });
-            console.log(`     ✅  ${pg.id}.mp4  (${info.duration.toFixed(1)}s)\n`);
+        // If a specific nav item was requested, click it
+        if (entry.navItem) {
+          const navSpan = page.locator('nav span').filter({ hasText: new RegExp(`^${entry.navItem}$`) });
+          const found   = await navSpan.count().catch(() => 0);
+          if (found > 0) {
+            await navSpan.first().click();
+            await page.waitForTimeout(2500);
+            await suppressPopups(page);
           } else {
-            console.log(`     ⚠️  No video produced for ${pg.id}\n`);
+            console.log(`        ⚠️  Nav item "${entry.navItem}" not found — recording dashboard`);
           }
-        } catch (e) {
-          console.warn(`     ❌  ${pg.id}: ${(e as Error).message?.slice(0, 80)}\n`);
         }
-      }
 
-    } finally {
-      try { await ctx.close(); } catch {}
+        // Skip if session expired and redirected to login
+        const onLoginPage = await page.locator('input[type="password"]').isVisible({ timeout: 800 }).catch(() => false);
+        if (onLoginPage) {
+          console.log(`        ⚠️  Session expired — skipping`);
+          const skipVid = await page.video()?.path();
+          await page.close();
+          await ctx.close();
+          if (skipVid) try { fs.unlinkSync(skipVid); } catch {}
+          continue;
+        }
+
+        // Full interaction — scroll, click tabs, hover charts
+        await performFullInteraction(page);
+
+        // Screenshot for AI analysis
+        const framePath = path.join(RECORDINGS_DIR, `${entry.id}-frame.png`);
+        await page.screenshot({ path: framePath, type: 'png' });
+        await page.waitForTimeout(1500);
+
+        const vidRaw = await page.video()?.path();
+        await page.close();
+        await ctx.close();
+
+        if (vidRaw && fs.existsSync(vidRaw)) {
+          const dest = path.join(RECORDINGS_DIR, `${entry.id}.mp4`);
+          if (fs.existsSync(dest)) fs.unlinkSync(dest);
+          fs.renameSync(vidRaw, dest);
+          const info = getVideoInfo(dest);
+          clips.push({ id: entry.id, label: entry.label, url: session.postLoginUrl, videoPath: dest, framePath, duration: info.duration });
+          console.log(`        ✅  ${entry.id}.mp4  (${info.duration.toFixed(1)}s)\n`);
+        } else {
+          console.log(`        ⚠️  No video produced\n`);
+          await ctx.close().catch(() => {});
+        }
+
+      } catch (e) {
+        console.warn(`        ❌  ${(e as Error).message?.slice(0, 80)}\n`);
+        await ctx.close().catch(() => {});
+      }
     }
 
   } finally {
@@ -483,9 +550,11 @@ async function main(): Promise<void> {
   const brollScenes: any[] = existingPkg.brollScenes?.length
     ? existingPkg.brollScenes
     : [
-        { id: 'broll-0', from: 0,              durationInFrames: BROLL_SEC * FPS, subtitle: 'Managing complex systems is overwhelming', category: 'generic' },
-        { id: 'broll-1', from: BROLL_SEC * FPS, durationInFrames: BROLL_SEC * FPS, subtitle: 'Teams need real-time data to act fast',    category: 'generic' },
-        { id: 'broll-2', from: 2 * BROLL_SEC * FPS, durationInFrames: BROLL_SEC * FPS, subtitle: 'Manual processes consume hours every day', category: 'generic' },
+        { id: 'broll-0', from: 0,                   durationInFrames: BROLL_SEC * FPS, subtitle: 'Support teams are drowning in tickets',              category: 'generic' },
+        { id: 'broll-1', from: 1 * BROLL_SEC * FPS,  durationInFrames: BROLL_SEC * FPS, subtitle: 'Every minute of delay costs customer trust',         category: 'generic' },
+        { id: 'broll-2', from: 2 * BROLL_SEC * FPS, durationInFrames: BROLL_SEC * FPS, subtitle: 'Manual triage is slow, inconsistent, and error-prone', category: 'generic' },
+        { id: 'broll-3', from: 3 * BROLL_SEC * FPS, durationInFrames: BROLL_SEC * FPS, subtitle: 'Escalations fall through the cracks',                 category: 'generic' },
+        { id: 'broll-4', from: 4 * BROLL_SEC * FPS, durationInFrames: BROLL_SEC * FPS, subtitle: 'Jira, email, chat — too many disconnected tools',     category: 'generic' },
       ];
 
   const brollTotal = brollScenes.reduce((s: number, b: any) => s + (b.durationInFrames ?? 0), 0);

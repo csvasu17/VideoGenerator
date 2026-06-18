@@ -85,6 +85,10 @@ export interface ProjectWorkflows {
     passwordSelector?:   string;
     submitSelector?:     string;
     successIndicator?:   string;  // selector present after successful login
+    /** 1 = fill username+password (default); 2 = click a Quick Access option */
+    loginType?:          1 | 2;
+    /** Which Quick Access card to click (0-based). Only used when loginType=2. Default: 0 */
+    quickAccessIndex?:   number;
   };
   clips: WorkflowClip[];      // ORDERED list — defines the video sequence
 }

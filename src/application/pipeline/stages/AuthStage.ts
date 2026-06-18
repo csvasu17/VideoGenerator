@@ -18,23 +18,36 @@ export class AuthStage implements PipelineStage<WorkflowInput, AuthSession> {
   constructor(private readonly agent: AuthAgent = new AuthAgent()) {}
 
   async run(input: WorkflowInput, ctx: PipelineContext): Promise<AuthSession> {
-    // ── Read credentials before sealing ─────────────────────────────────────
-    // We extract to locals so the seal() call in finally doesn't break the
-    // login() invocation, and to ensure the strings leave scope after this
-    // method returns.
-    const username = input.credentials.username;
-    const password = input.credentials.password;
-
     let session: AuthSession;
-    try {
+
+    if (input.loginType === 2) {
+      // Quick Access login — no credentials to read or seal.
       session = await this.agent.login({
-        url: input.url,
-        username,
-        password,
+        url:              input.url,
+        username:         '',
+        password:         '',
+        loginType:        2,
+        quickAccessIndex: input.quickAccessIndex ?? 0,
       });
-    } finally {
-      // RF5: zero credentials immediately after the auth call — win or lose.
-      input.credentials.seal();
+    } else {
+      // ── Read credentials before sealing ───────────────────────────────────
+      // We extract to locals so the seal() call in finally doesn't break the
+      // login() invocation, and to ensure the strings leave scope after this
+      // method returns.
+      const username = input.credentials!.username;
+      const password = input.credentials!.password;
+
+      try {
+        session = await this.agent.login({
+          url: input.url,
+          username,
+          password,
+          loginType: 1,
+        });
+      } finally {
+        // RF5: zero credentials immediately after the auth call — win or lose.
+        input.credentials!.seal();
+      }
     }
 
     if (!session.authenticated) {

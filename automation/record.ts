@@ -33,11 +33,13 @@ function getFlag(f: string): string | undefined {
   const i = cliArgs.indexOf(f); return i !== -1 ? cliArgs[i + 1] : undefined;
 }
 
-const PROJECT_ID = getFlag('--project') || 'rheem';
-const MODE       = getFlag('--mode') || 'workflows';   // 'workflows' | 'explore'
-const APP_URL    = cliArgs.find(a => a.startsWith('http')) ?? process.env.APP_URL ?? '';
-const USERNAME   = getFlag('--user') ?? process.env.APP_USERNAME ?? '';
-const PASSWORD   = getFlag('--pass') ?? process.env.APP_PASSWORD ?? '';
+const PROJECT_ID        = getFlag('--project') || 'rheem';
+const MODE              = getFlag('--mode') || 'workflows';   // 'workflows' | 'explore'
+const APP_URL           = cliArgs.find(a => a.startsWith('http')) ?? process.env.APP_URL ?? '';
+const USERNAME          = getFlag('--user') ?? process.env.APP_USERNAME ?? '';
+const PASSWORD          = getFlag('--pass') ?? process.env.APP_PASSWORD ?? '';
+const LOGIN_TYPE        = (process.env.LOGIN_TYPE === '2' ? 2 : 1) as 1 | 2;
+const QUICK_ACCESS_IDX  = Number(process.env.APP_QUICK_ACCESS_INDEX ?? '0');
 
 const ROOT           = path.resolve(__dirname, '..');
 const RECORDINGS_DIR = path.join(ROOT, 'public', 'projects', PROJECT_ID, 'recordings');
@@ -60,11 +62,13 @@ function loadWorkflows() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
+  const loginDesc = LOGIN_TYPE === 2
+    ? `Quick Access (card index ${QUICK_ACCESS_IDX})`
+    : `credentials (${USERNAME || '(from .env)'})`;
   console.log(`\n🎬 Rheem Recorder — project: ${PROJECT_ID}  mode: ${MODE}`);
-  console.log(`   URL:  ${APP_URL || '(from .env)'}`);
-  console.log(`   User: ${USERNAME || '(from .env)'}`);
-  console.log(`   Pass: ${PASSWORD ? PASSWORD.slice(0,2) + '*'.repeat(Math.max(0, PASSWORD.length-2)) : '(from .env)'}`);
-  console.log(`   Out:  public/projects/${PROJECT_ID}/recordings/\n`);
+  console.log(`   URL:    ${APP_URL || '(from .env)'}`);
+  console.log(`   Login:  ${loginDesc}`);
+  console.log(`   Out:    public/projects/${PROJECT_ID}/recordings/\n`);
 
   fs.mkdirSync(RECORDINGS_DIR, {recursive: true});
 
@@ -85,6 +89,11 @@ async function main() {
       if (USERNAME) wfConfig.credentials = {...(wfConfig.credentials ?? {}), username: USERNAME};
       if (PASSWORD) wfConfig.credentials = {...(wfConfig.credentials ?? {}), password: PASSWORD};
       if (APP_URL)  wfConfig.appUrl = APP_URL;
+      wfConfig.credentials = {
+        ...(wfConfig.credentials ?? {username: '', password: ''}),
+        loginType:        LOGIN_TYPE,
+        quickAccessIndex: QUICK_ACCESS_IDX,
+      };
 
       clips = await recordProjectWorkflows(browser, wfConfig, RECORDINGS_DIR, FPS);
 
@@ -98,7 +107,9 @@ async function main() {
         appUrl:      APP_URL,
         viewport:    {width: 1920, height: 1080},
         autoExplore: true,
-        credentials: USERNAME ? {username: USERNAME, password: PASSWORD} : undefined,
+        credentials: (USERNAME || LOGIN_TYPE === 2)
+          ? {username: USERNAME, password: PASSWORD, loginType: LOGIN_TYPE, quickAccessIndex: QUICK_ACCESS_IDX}
+          : undefined,
       };
       clips = await autoExplore(browser, exploreConfig, RECORDINGS_DIR, FPS);
     }

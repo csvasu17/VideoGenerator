@@ -6,6 +6,7 @@ import {DemoVideo} from './compositions/DemoVideo';
 import type {DemoVideoProps} from './compositions/DemoVideo';
 import {EnterpriseVideo} from './compositions/EnterpriseVideo';
 import type {EnterpriseVideoProps} from './compositions/EnterpriseVideo';
+import type {VoiceScript} from './core/domain/entities/RemotionPackage';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fallback props — used when out/localhost/demo-package.json is absent.
@@ -166,12 +167,21 @@ export const RemotionRoot: React.FC = () => (
             fullScreenshotPath: String(s.fullScreenshotPath ?? '').replace(/\\/g, '/'),
           }));
 
+          // Also load voice-script.json so audio plays in Studio preview
+          // and the script is editable via the Input Props panel.
+          let voiceScript: VoiceScript | undefined;
+          try {
+            const vsRes = await fetch(staticFile('voice-script.json'));
+            if (vsRes.ok) voiceScript = await vsRes.json() as VoiceScript;
+          } catch { /* voice-script.json is optional */ }
+
           const loaded: EnterpriseVideoProps = {
             brollScenes:     pkg.brollScenes     ?? [],
             scenes,
             benefitSlide:    pkg.benefitSlide,
             presenterClose:  pkg.presenterClose,
             presenterConfig: pkg.presenterConfig,
+            voiceScript,
           } as unknown as EnterpriseVideoProps;
 
           const durationInFrames =

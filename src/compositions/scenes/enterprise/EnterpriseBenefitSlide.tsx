@@ -18,48 +18,8 @@ import { FONT_STACK } from '../../tokens';
 import type { BenefitIconKey, EnterpriseBenefitBullet } from '../../../core/domain/entities/RemotionPackage';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Icon map — simple SVG paths, enterprise-safe
+// Filled circle pin colors and checkmark icon
 // ─────────────────────────────────────────────────────────────────────────────
-
-const ICON_SVG: Record<BenefitIconKey, React.ReactNode> = {
-  speed: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-    </svg>
-  ),
-  accuracy: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
-    </svg>
-  ),
-  oversight: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-    </svg>
-  ),
-  revenue: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-    </svg>
-  ),
-  integration: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="3" width="7" height="7"/><rect x="15" y="3" width="7" height="7"/>
-      <rect x="15" y="14" width="7" height="7"/><rect x="2" y="14" width="7" height="7"/>
-      <path d="M9 6.5h6M9 17.5h6M12 10v4"/>
-    </svg>
-  ),
-  compliance: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-    </svg>
-  ),
-  default: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  ),
-};
 
 const ICON_COLORS: Record<BenefitIconKey, string> = {
   speed:       '#0a93d3',
@@ -70,6 +30,12 @@ const ICON_COLORS: Record<BenefitIconKey, string> = {
   compliance:  '#dc2626',
   default:     '#0a93d3',
 };
+
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BulletRow
@@ -95,57 +61,38 @@ const BulletRow: React.FC<{
   return (
     <div
       style={{
-        display:     'flex',
-        alignItems:  'flex-start',
-        gap:          20,
+        display:    'flex',
+        alignItems: 'center',
+        gap:         24,
         opacity,
-        transform:   `translateX(${slideX}px)`,
-        padding:     '12px 0',
-        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        transform:  `translateX(${slideX}px)`,
+        padding:    '16px 0',
+        borderBottom: '1px solid rgba(0,0,0,0.07)',
       }}
     >
-      {/* Icon */}
+      {/* Filled circle pin */}
       <div
         style={{
-          width:         44,
-          height:        44,
-          borderRadius:   8,
-          background:    `${iconColor}18`,
-          border:        `1px solid ${iconColor}40`,
+          width:          52,
+          height:         52,
+          borderRadius:  '50%',
+          background:     iconColor,
           display:       'flex',
           alignItems:    'center',
           justifyContent:'center',
           flexShrink:     0,
-          color:          iconColor,
-          padding:        10,
+          padding:        12,
+          boxShadow:     `0 4px 14px ${iconColor}55`,
         }}
       >
-        {ICON_SVG[icon] ?? ICON_SVG.default}
+        <CheckIcon />
       </div>
 
-      {/* Text */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span
-          style={{
-            color:         '#111827',
-            fontSize:       20,
-            fontWeight:     700,
-            lineHeight:     1.2,
-          }}
-        >
-          {bullet.label}
-        </span>
-        <span
-          style={{
-            color:      'rgba(0,0,0,0.55)',
-            fontSize:    16,
-            fontWeight:  400,
-            lineHeight:  1.45,
-          }}
-        >
-          {bullet.description}
-        </span>
-      </div>
+      {/* Single-line: Bold label — description */}
+      <p style={{ margin: 0, fontSize: 22, lineHeight: 1.4, color: '#111827' }}>
+        <span style={{ fontWeight: 800 }}>{bullet.label}:&nbsp;</span>
+        <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.65)' }}>{bullet.description}</span>
+      </p>
     </div>
   );
 };
@@ -155,10 +102,12 @@ const BulletRow: React.FC<{
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface EnterpriseBenefitSlideProps {
-  title:         string;
-  bullets:       EnterpriseBenefitBullet[];
-  presenterSrc?: string;
+  title:              string;
+  bullets:            EnterpriseBenefitBullet[];
+  presenterSrc?:      string;
+  presenterVideoSrc?: string;
   presenterWidthFraction?: number;
+  voiceSyncOffsetFrames?: number;
 }
 
 const STAGGER_FRAMES = 10; // each bullet staggers 10 frames after the previous
@@ -167,7 +116,9 @@ export const EnterpriseBenefitSlide: React.FC<EnterpriseBenefitSlideProps> = ({
   title,
   bullets,
   presenterSrc,
+  presenterVideoSrc,
   presenterWidthFraction = 0.15,
+  voiceSyncOffsetFrames,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -245,12 +196,14 @@ export const EnterpriseBenefitSlide: React.FC<EnterpriseBenefitSlideProps> = ({
         ))}
       </div>
 
-      {/* Presenter overlay */}
-      {presenterSrc && (
+      {/* Presenter overlay — animated when video available */}
+      {(presenterSrc || presenterVideoSrc) && (
         <PresenterOverlay
-          src={presenterSrc}
+          src={presenterSrc ?? ''}
+          videoSrc={presenterVideoSrc}
           widthFraction={presenterWidthFraction}
           position="bottom-left"
+          voiceSyncOffsetFrames={voiceSyncOffsetFrames}
         />
       )}
     </AbsoluteFill>

@@ -68,96 +68,44 @@ export const EnterpriseBRollScene: React.FC<EnterpriseBRollSceneProps> = ({
         }}
       />
 
-      {/* Category chip — top left */}
-      {category && category !== 'generic' && (
-        <div
-          style={{
-            position:      'absolute',
-            top:            44,
-            left:           64,
-            padding:       '6px 18px',
-            background:    'rgba(10,147,211,0.15)',
-            border:        '1px solid rgba(10,147,211,0.35)',
-            borderRadius:   4,
-            color:         '#0a93d3',
-            fontSize:       13,
-            fontWeight:     600,
-            letterSpacing: '1.2px',
-            textTransform: 'uppercase',
-            opacity,
-          }}
-        >
-          {category}
-        </div>
-      )}
-
-      {/* Scene index indicator — top right */}
+      {/* Bottom gradient for subtitle readability */}
       <div
         style={{
-          position:     'absolute',
-          top:           44,
-          right:         64,
-          color:        'rgba(255,255,255,0.28)',
-          fontSize:      13,
-          fontWeight:    500,
-          letterSpacing: '0.5px',
-          opacity,
+          position:   'absolute',
+          bottom:      0,
+          left:        0,
+          right:       0,
+          height:      200,
+          background: 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.70))',
+          pointerEvents: 'none',
         }}
-      >
-        {index + 1} / {total}
-      </div>
+      />
 
-      {/* Main subtitle */}
+      {/* Subtitle — bottom center, reference style */}
       <div
         style={{
-          position:      'absolute',
-          top:           '50%',
-          left:           96,
-          right:          96,
-          transform:     `translateY(calc(-50% + ${slideY}px))`,
+          position:  'absolute',
+          bottom:     72,
+          left:       80,
+          right:      80,
+          transform: `translateY(${slideY}px)`,
           opacity,
-          textAlign:     'center',
+          textAlign: 'center',
         }}
       >
         <p
           style={{
             color:        '#ffffff',
-            fontSize:      68,
-            fontWeight:    700,
-            lineHeight:    1.18,
-            letterSpacing: '-1.2px',
+            fontSize:      52,
+            fontWeight:    600,
+            lineHeight:    1.25,
+            letterSpacing: '-0.5px',
             margin:         0,
+            textShadow:   '0 2px 12px rgba(0,0,0,0.6)',
           }}
         >
           {subtitle}
         </p>
-      </div>
-
-      {/* Bottom progress segments */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom:    0,
-          left:      0,
-          right:     0,
-          height:    4,
-          display:  'flex',
-          gap:       2,
-        }}
-      >
-        {Array.from({ length: total }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              flex:       1,
-              height:    '100%',
-              background: i <= index
-                ? 'rgba(10,147,211,0.80)'
-                : 'rgba(255,255,255,0.10)',
-              transition: 'background 0.3s',
-            }}
-          />
-        ))}
       </div>
     </AbsoluteFill>
   );
