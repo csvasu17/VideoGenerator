@@ -273,44 +273,49 @@
                     },
     "brollScenes":  [
                         {
-                            "id":  "broll-0",
-                            "from":  0,
-                            "durationInFrames":  360,
-                            "subtitle":  "Support teams are drowning in tickets.",
-                            "category":  "helpdesk",
-                            "animationType":  "ticket-flood"
+                            “id”:  “broll-0”,
+                            “from”:  0,
+                            “durationInFrames”:  360,
+                            “subtitle”:  “Support teams are drowning in tickets.”,
+                            “category”:  “helpdesk”,
+                            “animationType”:  “ticket-flood”,
+                            “videoPath”:  “assets/broll/broll-0.mp4”
                         },
                         {
-                            "id":  "broll-1",
-                            "from":  360,
-                            "durationInFrames":  360,
-                            "subtitle":  "Every minute of delay costs customer trust.",
-                            "category":  "helpdesk",
-                            "animationType":  "sla-breach"
+                            “id”:  “broll-1”,
+                            “from”:  360,
+                            “durationInFrames”:  360,
+                            “subtitle”:  “Every minute of delay costs customer trust.”,
+                            “category”:  “helpdesk”,
+                            “animationType”:  “sla-breach”,
+                            “videoPath”:  “assets/broll/broll-1.mp4”
                         },
                         {
-                            "id":  "broll-2",
-                            "from":  720,
-                            "durationInFrames":  360,
-                            "subtitle":  "Manual triage is slow, inconsistent, and error-prone.",
-                            "category":  "helpdesk",
-                            "animationType":  "multi-channel"
+                            “id”:  “broll-2”,
+                            “from”:  720,
+                            “durationInFrames”:  360,
+                            “subtitle”:  “Manual triage is slow, inconsistent, and error-prone.”,
+                            “category”:  “helpdesk”,
+                            “animationType”:  “multi-channel”,
+                            “videoPath”:  “assets/broll/broll-2.mp4”
                         },
                         {
-                            "id":  "broll-3",
-                            "from":  1080,
-                            "durationInFrames":  360,
-                            "subtitle":  "Escalations fall through the cracks.",
-                            "category":  "helpdesk",
-                            "animationType":  "ai-triage"
+                            “id”:  “broll-3”,
+                            “from”:  1080,
+                            “durationInFrames”:  360,
+                            “subtitle”:  “Escalations fall through the cracks.”,
+                            “category”:  “helpdesk”,
+                            “animationType”:  “ai-triage”,
+                            “videoPath”:  “assets/broll/broll-3.mp4”
                         },
                         {
-                            "id":  "broll-4",
-                            "from":  1440,
-                            "durationInFrames":  360,
-                            "subtitle":  "Jira, email, chat â€” too many disconnected tools.",
-                            "category":  "helpdesk",
-                            "animationType":  "kpi-metrics"
+                            “id”:  “broll-4”,
+                            “from”:  1440,
+                            “durationInFrames”:  360,
+                            “subtitle”:  “Jira, email, chat — too many disconnected tools.”,
+                            “category”:  “helpdesk”,
+                            “animationType”:  “kpi-metrics”,
+                            “videoPath”:  “assets/broll/broll-4.mp4”
                         }
                     ],
     "benefitSlide":  {
