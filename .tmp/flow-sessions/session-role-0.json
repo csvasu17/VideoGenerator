@@ -1,0 +1,14 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://10.1.123.122:5173",
+      "localStorage": [
+        {
+          "name": "rheem_auth",
+          "value": "{\"user\":{\"id\":\"1\",\"name\":\"Henry Anderson\",\"email\":\"admin@acldigital.com\",\"role\":\"Admin\"},\"token\":\"eyJ1c2VySWQiOjEsImV4cCI6MTc4MjA5NTg5MDMyM30.vSadCvvfF2Am8HmKYrqFzd7tO7OEQdeDSqLSoc39H1M\"}"
+        }
+      ]
+    }
+  ]
+}

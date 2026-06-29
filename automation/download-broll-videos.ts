@@ -19,14 +19,13 @@ import * as path          from 'path';
 import * as os            from 'os';
 import * as dotenv        from 'dotenv';
 import { execSync }       from 'child_process';
+import { OUT_DIR }        from './config';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const PEXELS_API_KEY  = process.env['PEXELS_API_KEY'] ?? '';
-const ROOT            = path.resolve(__dirname, '..');
-const OUT_DIR         = path.join(ROOT, 'out', 'localhost');
 const RECORDINGS_DIR  = path.join(OUT_DIR, 'recordings');
 const PKG_PATH        = path.join(OUT_DIR, 'demo-package.json');
 

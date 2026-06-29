@@ -4,7 +4,6 @@ import {
   Img,
   OffthreadVideo,
   interpolate,
-  spring,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
@@ -16,6 +15,8 @@ import { FONT_STACK } from '../../tokens';
 export interface EnterpriseProductSceneProps {
   screenshotPath:          string;
   recordingPath?:          string;
+  /** Seconds into the flow video to seek to — enables one-video-per-role with startFrom. */
+  recordingStartSec?:      number;
   title:                   string;
   salesHook:               string;
   narration:               string;
@@ -24,11 +25,15 @@ export interface EnterpriseProductSceneProps {
   presenterWidthFraction?: number;
   /** Frame offset within this scene at which voice starts — passed to PresenterOverlay for lip sync. */
   voiceSyncOffsetFrames?:  number;
+  /** Per-scene MP3 for audio-amplitude mouth animation (relative to public dir). */
+  voiceAudioSrc?:          string;
+  mouthRegion?: { xFraction: number; yFraction: number; widthFraction: number };
 }
 
 export const EnterpriseProductScene: React.FC<EnterpriseProductSceneProps> = ({
   screenshotPath,
   recordingPath,
+  recordingStartSec,
   title,
   salesHook,
   narration,
@@ -36,15 +41,13 @@ export const EnterpriseProductScene: React.FC<EnterpriseProductSceneProps> = ({
   presenterVideoSrc,
   presenterWidthFraction = 0.15,
   voiceSyncOffsetFrames,
+  voiceAudioSrc,
+  mouthRegion,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  // Screen fades in over first 18 frames
-  const screenEnter = spring({ frame, fps, from: 0, to: 1, config: { damping: 22, stiffness: 90 } });
-
-
-  // Ken-Burns zoom for screenshot fallback
+  // Gentle Ken-Burns drift for screenshot fallback
   const zoom = interpolate(frame, [0, durationInFrames], [1.0, 1.04], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
@@ -56,35 +59,29 @@ export const EnterpriseProductScene: React.FC<EnterpriseProductSceneProps> = ({
   return (
     <AbsoluteFill style={{ background: '#0a0f1a', fontFamily: FONT_STACK }}>
 
-      {/* ── Screen recording / screenshot — fills full frame ───────────────── */}
+      {/* ── Full-frame screen recording ──────────────────────────────────────── */}
       <div style={{
-        position: 'absolute', inset: 0,
-        opacity: screenEnter,
+        position: 'absolute',
+        left: 0, top: 0, right: 0, bottom: 0,
         overflow: 'hidden',
       }}>
         {hasRecording ? (
           <OffthreadVideo
             src={staticFile(vidSrc)}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center' }}
+            startFrom={recordingStartSec ? Math.round(recordingStartSec * fps) : 0}
+            style={{ width: '100%', height: '100%', objectFit: 'fill' }}
           />
         ) : (
-          <div style={{ width: '100%', height: '100%', transform: `scale(${zoom})`, transformOrigin: 'center top' }}>
+          <div style={{ width: '100%', height: '100%', transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
             <Img
               src={staticFile(imgSrc)}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top left' }}
             />
           </div>
         )}
       </div>
 
-      {/* ── Thin bottom gradient for presenter readability only ─────────────── */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, height: 180,
-        background: 'linear-gradient(to bottom, transparent, rgba(0,0,0,0.35))',
-        pointerEvents: 'none',
-      }} />
-
-      {/* ── Presenter overlay — bottom-left, animated video ─────────────────── */}
+      {/* ── Presenter overlay — bottom-left, slide-in + float + mouth sync ─── */}
       {(presenterSrc || presenterVideoSrc) && (
         <PresenterOverlay
           src={presenterSrc ?? ''}
@@ -92,6 +89,8 @@ export const EnterpriseProductScene: React.FC<EnterpriseProductSceneProps> = ({
           widthFraction={presenterWidthFraction}
           position="bottom-left"
           voiceSyncOffsetFrames={voiceSyncOffsetFrames}
+          voiceAudioSrc={voiceAudioSrc}
+          mouthRegion={mouthRegion}
         />
       )}
 

@@ -1,0 +1,22 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://10.1.9.23:9003",
+      "localStorage": [
+        {
+          "name": "role",
+          "value": "admin"
+        },
+        {
+          "name": "theme",
+          "value": "dark"
+        },
+        {
+          "name": "currentUser",
+          "value": "{\"id\":\"admin_1\",\"customerId\":null,\"role\":\"admin\",\"type\":null,\"displayName\":\"System Admin\",\"avatarInitials\":\"AD\",\"email\":\"admin@acl.com\",\"phone\":null,\"firstName\":null,\"lastName\":null,\"orgName\":null,\"taxId\":null,\"department\":null,\"level\":null,\"location\":null,\"password\":\"Default@123\",\"createdAt\":\"2026-02-04T07:30:30.511Z\",\"updatedAt\":\"2026-02-04T07:30:30.511Z\",\"devices\":[]}"
+        }
+      ]
+    }
+  ]
+}

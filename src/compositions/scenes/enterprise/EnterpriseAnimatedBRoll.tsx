@@ -34,7 +34,13 @@ export type BRollAnimationType =
   | 'sla-breach'
   | 'multi-channel'
   | 'ai-triage'
-  | 'kpi-metrics';
+  | 'kpi-metrics'
+  // ── Prior Authorization / Healthcare RCM ─────────────────────────────────
+  | 'pa-intake'
+  | 'clinical-nlp'
+  | 'policy-engine'
+  | 'auth-pipeline'
+  | 'rcm-kpi';
 
 export interface EnterpriseAnimatedBRollProps {
   animationType: BRollAnimationType;
@@ -878,6 +884,315 @@ function KPIMetricsScene({ frame }: { frame: number }) {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 11. PA INTAKE — prior authorization request flood (healthcare domain)
+// ─────────────────────────────────────────────────────────────────────────────
+const PA_CARDS = [
+  { id: 'PA-2024-1892', provider: 'Dr. Raj Patel',   member: 'James K.',    cpt: '72148', payer: 'Aetna',        status: 'PENDING' },
+  { id: 'PA-2024-1893', provider: 'Dr. Lisa Chen',   member: 'Maria S.',    cpt: '27447', payer: 'UnitedHealth', status: 'PENDING' },
+  { id: 'PA-2024-1894', provider: 'Dr. Mike Torres', member: 'Robert L.',   cpt: '62442', payer: 'Cigna',        status: 'REVIEW'  },
+  { id: 'PA-2024-1895', provider: 'Dr. Sarah Kim',   member: 'Patricia W.', cpt: '23472', payer: 'Blue Cross',   status: 'URGENT'  },
+  { id: 'PA-2024-1896', provider: 'Dr. John Adams',  member: 'Thomas B.',   cpt: '27130', payer: 'Humana',       status: 'PENDING' },
+  { id: 'PA-2024-1897', provider: 'Dr. Amy Wilson',  member: 'Susan M.',    cpt: '99214', payer: 'Aetna',        status: 'PENDING' },
+  { id: 'PA-2024-1898', provider: 'Dr. Kevin Park',  member: 'David C.',    cpt: '70553', payer: 'UnitedHealth', status: 'PENDING' },
+  { id: 'PA-2024-1899', provider: 'Dr. Priya Nair',  member: 'Linda M.',    cpt: '43239', payer: 'Cigna',        status: 'REVIEW'  },
+];
+const PA_STATUS_COLOR: Record<string, string> = {
+  PENDING: '#f59e0b',
+  REVIEW:  '#0a93d3',
+  URGENT:  '#ef4444',
+};
+
+const PAIntakeScene: React.FC<{ frame: number; fps: number }> = ({ frame }) => {
+  const counter = Math.min(347 + Math.floor(frame * 0.35), 389);
+  return (
+    <svg viewBox="0 0 1920 1080" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+      <rect x="40" y="28" width="490" height="72" rx="8" fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.45)" strokeWidth="1.5" />
+      <text x="62" y="79" fill="#ef4444" fontSize="38" fontWeight="700">{counter} PENDING REQUESTS</text>
+      {PA_CARDS.map((c, i) => {
+        const delay  = i * 12;
+        const prog   = Math.max(0, Math.min(1, (frame - delay) / 20));
+        const slideX = interpolate(prog, [0, 1], [340, 0]);
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const cx  = 60  + col * 950;
+        const cy  = 130 + row * 222;
+        const sc  = PA_STATUS_COLOR[c.status] ?? '#f59e0b';
+        return (
+          <g key={c.id} transform={`translate(${cx + slideX},${cy})`} opacity={prog}>
+            <rect width="870" height="178" rx="10" fill="rgba(255,255,255,0.055)" stroke="rgba(255,255,255,0.10)" strokeWidth="1" />
+            <rect width="5" height="178" rx="2.5" fill={sc} />
+            <text x="22" y="38" fill="#60a5fa" fontSize="22" fontWeight="700" fontFamily="monospace">{c.id}</text>
+            <rect x="680" y="12" width="170" height="32" rx="6" fill={sc + '28'} stroke={sc} strokeWidth="1" />
+            <text x="765" y="35" fill={sc} fontSize="17" fontWeight="700" textAnchor="middle">{c.status}</text>
+            <text x="22" y="76" fill="rgba(255,255,255,0.5)" fontSize="17">Provider</text>
+            <text x="148" y="76" fill="rgba(255,255,255,0.88)" fontSize="17" fontWeight="600">{c.provider}</text>
+            <text x="22" y="112" fill="rgba(255,255,255,0.5)" fontSize="17">Member</text>
+            <text x="148" y="112" fill="rgba(255,255,255,0.88)" fontSize="17">{c.member}</text>
+            <text x="22" y="148" fill="rgba(255,255,255,0.5)" fontSize="17">CPT · Payer</text>
+            <text x="148" y="148" fill="rgba(255,255,255,0.88)" fontSize="17">{c.cpt} · {c.payer}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. CLINICAL NLP — AI extraction of clinical entities from PA documents
+// ─────────────────────────────────────────────────────────────────────────────
+const NLP_ENTITIES = [
+  { label: 'Diagnosis',  code: 'M54.4', value: 'Lumbar radiculopathy',            conf: 0.97 },
+  { label: 'Procedure',  code: '72148', value: 'MRI Lumbar Spine w/ contrast',    conf: 0.99 },
+  { label: 'Medication', code: 'RxN',   value: 'Ibuprofen 400mg PO TID',          conf: 0.94 },
+  { label: 'Lab Result', code: 'CBC',   value: 'Within normal limits',             conf: 0.91 },
+  { label: 'Symptom',    code: 'R52',   value: 'Chronic lower back pain',          conf: 0.96 },
+  { label: 'Treatment',  code: '8 wks', value: 'Conservative treatment completed', conf: 0.88 },
+];
+const DOC_LINES = [
+  'Patient: James K. — DOB: 04/12/1978 — MRN: 8841923',
+  'Referring Physician: Dr. Raj Patel, MD — NPI: 1234567890',
+  'Primary Diagnosis: Lumbar radiculopathy (M54.4)',
+  'Requested Service: MRI Lumbar Spine with contrast',
+  'CPT Code: 72148 — Payer: Aetna — Plan: PPO',
+  'Clinical History: Patient presents with 8-week history',
+  'of chronic lower back pain with bilateral radiation.',
+  'Conservative treatment including PT and NSAIDs has',
+  'been completed without adequate relief. CBC normal.',
+  'No contraindications to MRI identified.',
+];
+
+const ClinicalNLPScene: React.FC<{ frame: number; fps: number }> = ({ frame }) => {
+  const scanY  = interpolate(frame % 60, [0, 60], [100, 960]);
+  const scanOp = 0.55 + 0.45 * Math.sin(frame * 0.15);
+  return (
+    <svg viewBox="0 0 1920 1080" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+      <defs>
+        <linearGradient id="scan-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(96,165,250,0)" />
+          <stop offset="100%" stopColor="rgba(96,165,250,0.10)" />
+        </linearGradient>
+        <filter id="nlp-glow">
+          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      {/* Document panel */}
+      <text x="60" y="56" fill="#60a5fa" fontSize="26" fontWeight="700" letterSpacing="3">CLINICAL NLP EXTRACTION</text>
+      <line x1="60" y1="68" x2="860" y2="68" stroke="rgba(96,165,250,0.3)" strokeWidth="1" />
+      <rect x="60" y="86" width="800" height="948" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
+      <rect x="60" y="86" width="800" height="44" rx="10" fill="rgba(255,255,255,0.07)" />
+      <text x="80" y="116" fill="rgba(255,255,255,0.55)" fontSize="15" fontFamily="monospace">patient_referral_dr_patel.pdf</text>
+      {DOC_LINES.map((line, i) => (
+        <text key={i} x="80" y={150 + i * 44} fill="rgba(255,255,255,0.32)" fontSize="16" fontFamily="monospace">{line}</text>
+      ))}
+      {/* Scan beam */}
+      <rect x="60" y={scanY - 28} width="800" height="30" fill="url(#scan-grad)" />
+      <rect x="60" y={scanY} width="800" height="4" rx="2" fill={`rgba(96,165,250,${scanOp})`} filter="url(#nlp-glow)" />
+      {/* Entity panel */}
+      <text x="920" y="56" fill="#34d399" fontSize="26" fontWeight="700" letterSpacing="3">EXTRACTED ENTITIES</text>
+      <line x1="920" y1="68" x2="1880" y2="68" stroke="rgba(52,211,153,0.3)" strokeWidth="1" />
+      {NLP_ENTITIES.map((e, i) => {
+        const delay  = i * 18;
+        const prog   = Math.max(0, Math.min(1, (frame - delay) / 18));
+        const slideX = interpolate(prog, [0, 1], [60, 0]);
+        const ey     = 90 + i * 154;
+        return (
+          <g key={i} transform={`translate(${slideX},0)`} opacity={prog}>
+            <rect x="920" y={ey} width="960" height="130" rx="8" fill="rgba(52,211,153,0.05)" stroke="rgba(52,211,153,0.18)" strokeWidth="1" />
+            <rect x="920" y={ey + 116} width="960" height="6" rx="3" fill="rgba(52,211,153,0.1)" />
+            <rect x="920" y={ey + 116} width={960 * e.conf} height="6" rx="3" fill="rgba(52,211,153,0.7)" />
+            <text x="944" y={ey + 38} fill="rgba(255,255,255,0.5)" fontSize="17">{e.label}</text>
+            <rect x="1084" y={ey + 16} width="82" height="26" rx="5" fill="rgba(96,165,250,0.2)" />
+            <text x="1125" y={ey + 35} fill="#60a5fa" fontSize="15" fontWeight="700" textAnchor="middle" fontFamily="monospace">{e.code}</text>
+            <text x="1184" y={ey + 38} fill="rgba(255,255,255,0.92)" fontSize="19" fontWeight="600">{e.value}</text>
+            <text x="1860" y={ey + 38} fill="#34d399" fontSize="17" fontWeight="700" textAnchor="end">{Math.round(e.conf * 100)}%</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. POLICY ENGINE — clinical rule evaluation and compliance scoring
+// ─────────────────────────────────────────────────────────────────────────────
+const POLICY_RULES = [
+  { rule: 'Clinical necessity documented',             met: true },
+  { rule: 'Prior conservative treatment (8+ weeks)',   met: true },
+  { rule: 'No FDA contraindications present',          met: true },
+  { rule: 'Member eligibility confirmed',              met: true },
+  { rule: 'Payer coverage policy matched (Aetna PPO)', met: true },
+  { rule: 'CPT code authorization required — MRI',     met: true },
+];
+
+const PolicyEngineScene: React.FC<{ frame: number; fps: number }> = ({ frame }) => {
+  const scoreProg = Math.max(0, Math.min(1, (frame - 55) / 65));
+  const scoreNow  = Math.round(94 * scoreProg);
+  const R   = 140;
+  const gcx = 1540;
+  const gcy = 480;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const arcPt = (angle: number) => ({
+    x: gcx + R * Math.cos(toRad(angle)),
+    y: gcy + R * Math.sin(toRad(angle)),
+  });
+  const sa = 200; const ea = 340;
+  const fillEnd = sa + (ea - sa) * scoreProg;
+  const p1 = arcPt(sa); const p2 = arcPt(fillEnd); const p3 = arcPt(ea);
+  const lg = fillEnd - sa > 180 ? 1 : 0;
+  return (
+    <svg viewBox="0 0 1920 1080" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+      <defs>
+        <filter id="pe-glow">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <text x="60" y="60" fill="#a78bfa" fontSize="26" fontWeight="700" letterSpacing="3">POLICY ENGINE — RULE EVALUATION</text>
+      <line x1="60" y1="72" x2="1260" y2="72" stroke="rgba(167,139,250,0.3)" strokeWidth="1" />
+      {POLICY_RULES.map((r, i) => {
+        const delay     = i * 16;
+        const prog      = Math.max(0, Math.min(1, (frame - delay) / 18));
+        const checkProg = Math.max(0, Math.min(1, (frame - delay - 12) / 12));
+        const ry        = 92 + i * 160;
+        return (
+          <g key={i} opacity={prog}>
+            <rect x="60" y={ry} width="1200" height="132" rx="8"
+              fill="rgba(16,185,129,0.06)" stroke="rgba(16,185,129,0.22)" strokeWidth="1" />
+            <text x="84" y={ry + 62} fill="rgba(255,255,255,0.88)" fontSize="22" fontWeight="600">{r.rule}</text>
+            <text x="84" y={ry + 104} fill="rgba(255,255,255,0.33)" fontSize="15">RULE {String(i + 1).padStart(2, '0')}</text>
+            <g opacity={checkProg}>
+              <circle cx="1218" cy={ry + 66} r="28" fill="rgba(16,185,129,0.25)" stroke="#10b981" strokeWidth="2" />
+              <text x="1218" y={ry + 76} textAnchor="middle" fill="#10b981" fontSize="28" fontWeight="700">✓</text>
+            </g>
+          </g>
+        );
+      })}
+      {/* Score gauge */}
+      <rect x="1340" y="80" width="560" height="570" rx="12" fill="rgba(167,139,250,0.05)" stroke="rgba(167,139,250,0.20)" strokeWidth="1" />
+      <text x="1620" y="132" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="20" letterSpacing="2">POLICY SCORE</text>
+      <path d={`M ${p1.x} ${p1.y} A ${R} ${R} 0 1 1 ${p3.x} ${p3.y}`} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="22" strokeLinecap="round" />
+      {scoreProg > 0.01 && (
+        <path d={`M ${p1.x} ${p1.y} A ${R} ${R} 0 ${lg} 1 ${p2.x} ${p2.y}`} fill="none" stroke="#10b981" strokeWidth="22" strokeLinecap="round" filter="url(#pe-glow)" />
+      )}
+      <text x={gcx} y={gcy + 16} textAnchor="middle" fill="#10b981" fontSize="96" fontWeight="800">{scoreNow}</text>
+      <text x={gcx} y={gcy + 62} textAnchor="middle" fill="rgba(255,255,255,0.45)" fontSize="24">/ 100</text>
+      <g opacity={scoreProg}>
+        <rect x="1420" y="660" width="400" height="54" rx="8" fill="rgba(16,185,129,0.18)" stroke="#10b981" strokeWidth="1.5" />
+        <text x="1620" y="697" textAnchor="middle" fill="#10b981" fontSize="26" fontWeight="700">POLICY READY</text>
+      </g>
+    </svg>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14. AUTH PIPELINE — cases flowing through PA authorization stages
+// ─────────────────────────────────────────────────────────────────────────────
+const AUTH_STAGES = [
+  { label: 'Intake',       count: 24, color: '#64748b' },
+  { label: 'Extraction',   count: 18, color: '#0a93d3' },
+  { label: 'Policy Check', count: 12, color: '#f59e0b' },
+  { label: 'UM Review',    count:  7, color: '#f97316' },
+  { label: 'Decision',     count:  4, color: '#10b981' },
+];
+const STAGE_CASE_IDS = [
+  ['PA-1891','PA-1882','PA-1875','PA-1868','PA-1861','PA-1854'],
+  ['PA-1847','PA-1840','PA-1833','PA-1826','PA-1819','PA-1812'],
+  ['PA-1805','PA-1798','PA-1791','PA-1784','PA-1777','PA-1770'],
+  ['PA-1763','PA-1756','PA-1749','PA-1742','PA-1735','PA-1728'],
+  ['PA-1721','PA-1714','PA-1707','PA-1700'],
+];
+
+const AuthPipelineScene: React.FC<{ frame: number; fps: number }> = ({ frame }) => {
+  const stageW = 346;
+  const moveProg = Math.min(4, frame / 45);
+  const stageIdx = Math.floor(moveProg);
+  const stagePct = moveProg - stageIdx;
+  const cardX = 60 + stageIdx * (stageW + 14) + stagePct * (stageW + 14);
+  return (
+    <svg viewBox="0 0 1920 1080" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+      <text x="60" y="56" fill="#f97316" fontSize="26" fontWeight="700" letterSpacing="3">AUTHORIZATION PIPELINE</text>
+      <line x1="60" y1="68" x2="1860" y2="68" stroke="rgba(249,115,22,0.3)" strokeWidth="1" />
+      {AUTH_STAGES.map((s, i) => {
+        const sx      = 60 + i * (stageW + 14);
+        const entProg = Math.max(0, Math.min(1, (frame - i * 10) / 22));
+        const cases   = STAGE_CASE_IDS[i] ?? [];
+        return (
+          <g key={i} opacity={entProg}>
+            <rect x={sx} y={82} width={stageW} height={52} rx="8" fill={s.color + '28'} />
+            <text x={sx + stageW / 2} y={116} textAnchor="middle" fill={s.color} fontSize="19" fontWeight="700">{s.label}</text>
+            <rect x={sx + stageW - 52} y={90} width={44} height={28} rx="6" fill={s.color + '44'} />
+            <text x={sx + stageW - 30} y={111} textAnchor="middle" fill={s.color} fontSize="17" fontWeight="800">{s.count}</text>
+            <rect x={sx} y={142} width={stageW} height={900} rx="8" fill="rgba(255,255,255,0.025)" stroke={s.color + '33'} strokeWidth="1" />
+            {cases.slice(0, 6).map((id, j) => (
+              <g key={j}>
+                <rect x={sx + 10} y={158 + j * 124} width={stageW - 20} height={108} rx="6"
+                  fill="rgba(255,255,255,0.04)" stroke={s.color + '44'} strokeWidth="1" />
+                <text x={sx + 26} y={196 + j * 124} fill="rgba(255,255,255,0.72)" fontSize="15" fontFamily="monospace" fontWeight="600">{id}</text>
+                <rect x={sx + 10} y={214 + j * 124} width={stageW - 20} height="5" rx="2" fill="rgba(255,255,255,0.07)" />
+                <rect x={sx + 10} y={214 + j * 124} width={(stageW - 20) * (0.25 + j * 0.12)} height="5" rx="2" fill={s.color + 'aa'} />
+              </g>
+            ))}
+            {s.count > 6 && (
+              <text x={sx + stageW / 2} y={910} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize="14">+{s.count - 6} more</text>
+            )}
+          </g>
+        );
+      })}
+      {/* Animated rider card */}
+      <g transform={`translate(${cardX},930)`}>
+        <rect width={stageW - 20} height={56} rx="8" fill={AUTH_STAGES[Math.min(stageIdx, 4)].color} opacity="0.88" />
+        <text x="14" y="37" fill="#fff" fontSize="18" fontWeight="700" fontFamily="monospace">PA-2024-1900 ►</text>
+      </g>
+      {/* Stage arrows */}
+      {[0,1,2,3].map(i => (
+        <text key={i} x={60 + (i + 1) * (stageW + 14) - 7} y={542} fill="rgba(249,115,22,0.45)" fontSize="26" textAnchor="middle">→</text>
+      ))}
+    </svg>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. RCM KPI — revenue cycle problem-state metrics (Prior Auth domain)
+// ─────────────────────────────────────────────────────────────────────────────
+const RCM_KPIS = [
+  { label: 'Denial Rate',     value: '34%',       trend: '+12% YoY', color: '#ef4444', sub: 'of PA submissions denied by payer'        },
+  { label: 'Avg Turnaround',  value: '18 days',   trend: '↑ 3 days', color: '#ef4444', sub: 'from intake to authorization decision'    },
+  { label: 'First-Pass Rate', value: '42%',       trend: '↓ 8 pts',  color: '#ef4444', sub: 'approved without additional info request' },
+  { label: 'Manual Load/Day', value: '127 cases', trend: '↑ 28%',    color: '#f59e0b', sub: 'per UR specialist — unsustainable volume' },
+];
+
+const RCMKPIScene: React.FC<{ frame: number }> = ({ frame }) => (
+  <svg viewBox="0 0 1920 1080" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+    <text x="60" y="64" fill="rgba(255,255,255,0.7)" fontSize="26" fontWeight="700" letterSpacing="3">PRIOR AUTH — CURRENT STATE</text>
+    <line x1="60" y1="76" x2="1860" y2="76" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+    {RCM_KPIS.map((k, i) => {
+      const delay = i * 18;
+      const prog  = Math.max(0, Math.min(1, (frame - delay) / 22));
+      const col   = i % 2;
+      const row   = Math.floor(i / 2);
+      const kx    = 60  + col * 950;
+      const ky    = 96  + row * 468;
+      const pulse = 0.5 + 0.5 * Math.sin(frame * 0.12 + i);
+      return (
+        <g key={i} opacity={prog}>
+          <rect x={kx} y={ky} width={890} height={430} rx="14"
+            fill={k.color + '0d'} stroke={k.color + '55'} strokeWidth="1.5" />
+          <rect x={kx} y={ky} width={890} height={54} rx="14" fill={k.color + '1a'} />
+          <text x={kx + 24} y={ky + 38} fill={k.color} fontSize="20" fontWeight="700">{k.trend}</text>
+          <text x={kx + 445} y={ky + 240} textAnchor="middle" fill={k.color} fontSize="108" fontWeight="900"
+            style={{ filter: `drop-shadow(0 0 ${Math.round(14 * pulse)}px ${k.color})` }}>
+            {k.value}
+          </text>
+          <text x={kx + 445} y={ky + 312} textAnchor="middle" fill="rgba(255,255,255,0.75)" fontSize="30" fontWeight="700">{k.label}</text>
+          <text x={kx + 445} y={ky + 368} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="18">{k.sub}</text>
+        </g>
+      );
+    })}
+  </svg>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main composition
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -907,16 +1222,21 @@ export const EnterpriseAnimatedBRoll: React.FC<EnterpriseAnimatedBRollProps> = (
       <div style={{ position: 'absolute', inset: 0, background: BG }} />
 
       {/* Animated scene layer */}
-      {animationType === 'iot-network'   && <IoTNetworkScene   frame={frame} fps={fps} />}
-      {animationType === 'data-stream'   && <DataStreamScene   frame={frame} />}
-      {animationType === 'alert-cascade' && <AlertCascadeScene frame={frame} fps={fps} />}
-      {animationType === 'ai-prediction' && <AIPredictionScene frame={frame} />}
-      {animationType === 'global-fleet'  && <GlobalFleetScene  frame={frame} fps={fps} />}
-      {animationType === 'ticket-flood'  && <TicketFloodScene  frame={frame} fps={fps} />}
-      {animationType === 'sla-breach'    && <SLABreachScene    frame={frame} fps={fps} />}
-      {animationType === 'multi-channel' && <MultiChannelScene frame={frame} fps={fps} />}
-      {animationType === 'ai-triage'     && <AITriageScene     frame={frame} fps={fps} />}
-      {animationType === 'kpi-metrics'   && <KPIMetricsScene   frame={frame} />}
+      {animationType === 'iot-network'    && <IoTNetworkScene    frame={frame} fps={fps} />}
+      {animationType === 'data-stream'    && <DataStreamScene    frame={frame} />}
+      {animationType === 'alert-cascade'  && <AlertCascadeScene  frame={frame} fps={fps} />}
+      {animationType === 'ai-prediction'  && <AIPredictionScene  frame={frame} />}
+      {animationType === 'global-fleet'   && <GlobalFleetScene   frame={frame} fps={fps} />}
+      {animationType === 'ticket-flood'   && <TicketFloodScene   frame={frame} fps={fps} />}
+      {animationType === 'sla-breach'     && <SLABreachScene     frame={frame} fps={fps} />}
+      {animationType === 'multi-channel'  && <MultiChannelScene  frame={frame} fps={fps} />}
+      {animationType === 'ai-triage'      && <AITriageScene      frame={frame} fps={fps} />}
+      {animationType === 'kpi-metrics'    && <KPIMetricsScene    frame={frame} />}
+      {animationType === 'pa-intake'      && <PAIntakeScene      frame={frame} fps={fps} />}
+      {animationType === 'clinical-nlp'   && <ClinicalNLPScene   frame={frame} fps={fps} />}
+      {animationType === 'policy-engine'  && <PolicyEngineScene  frame={frame} fps={fps} />}
+      {animationType === 'auth-pipeline'  && <AuthPipelineScene  frame={frame} fps={fps} />}
+      {animationType === 'rcm-kpi'        && <RCMKPIScene        frame={frame} />}
 
       {/* Subtitle pill — mirrors reference video caption style */}
       <div style={{

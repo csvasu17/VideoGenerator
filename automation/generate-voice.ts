@@ -33,6 +33,7 @@ import * as fs          from 'fs';
 import * as os          from 'os';
 import { spawnSync }    from 'child_process';
 import * as dotenv      from 'dotenv';
+import { OUT_DIR, ROOT } from './config';
 
 // Load .env before reading process.env
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
@@ -68,11 +69,9 @@ function getArg(flag: string, fallback: string): string {
   return idx !== -1 && process.argv[idx + 1] ? process.argv[idx + 1] : fallback;
 }
 
-const ROOT        = path.resolve(__dirname, '..');
-const OUT_DIR     = path.join(ROOT, 'out', 'localhost');
 const SCRIPT_PATH = getArg('--script', path.join(OUT_DIR, 'voice-script.json'));
-const SEG_DIR     = path.join(OUT_DIR, 'voice-segments');
 const NARR_PATH   = path.join(OUT_DIR, 'voice-narration.mp3');
+// SEG_DIR is resolved inside main() from script.voiceDir (set after the script is loaded)
 const VIDEO_PATH  = path.join(OUT_DIR, 'demo-video.mp4');
 const OUTPUT_PATH = path.join(OUT_DIR, 'demo-video-with-voice.mp4');
 const NO_MERGE    = process.argv.includes('--no-merge');
@@ -310,6 +309,13 @@ async function main(): Promise<void> {
   }
 
   const script         = JSON.parse(fs.readFileSync(SCRIPT_PATH, 'utf-8')) as VoiceScript;
+
+  // Resolve voice-segments directory from script.voiceDir (supports multi-voice setups).
+  // Falls back to 'voice-segments' for backward compatibility.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const voiceDir = (script as any).voiceDir ?? 'voice-segments';
+  const SEG_DIR  = path.join(OUT_DIR, voiceDir);
+
   const activeSegments = script.segments.filter(
     s => s.enabled && typeof s.text === 'string' && s.text.trim().length > 0,
   );

@@ -19,6 +19,7 @@
 import * as path     from 'path';
 import * as fs       from 'fs';
 import { execSync }  from 'child_process';
+import { ROOT, OUT_DIR, SHOW_AVATAR } from './config';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CLI arg parsing
@@ -29,9 +30,7 @@ function getArg(flag: string, fallback: string): string {
   return idx !== -1 && process.argv[idx + 1] ? process.argv[idx + 1] : fallback;
 }
 
-const ROOT = path.resolve(__dirname, '..');
-
-const INPUT_PATH  = getArg('--input',      path.join(ROOT, 'out', 'localhost', 'demo-package.json'));
+const INPUT_PATH  = getArg('--input',      path.join(OUT_DIR, 'demo-package.json'));
 const CRF         = getArg('--crf',        '23');
 const SCALE       = getArg('--scale',      '1');
 const CONCURRENCY = getArg('--concurrency', '1');
@@ -91,8 +90,27 @@ function main(): void {
     process.exit(1);
   }
 
-  const pkg = JSON.parse(fs.readFileSync(INPUT_PATH, 'utf-8'));
-  const outputDir = path.dirname(INPUT_PATH);
+  const originalPkgContent = fs.readFileSync(INPUT_PATH, 'utf-8');
+  const pkg = JSON.parse(originalPkgContent);
+  const outputDir = path.resolve(path.dirname(INPUT_PATH));
+
+  // Sync global brand assets (logo, etc.) into this product's public-dir
+  const globalAssets  = path.join(ROOT, 'public', 'assets');
+  const productAssets = path.join(outputDir, 'assets');
+  if (fs.existsSync(globalAssets)) {
+    fs.mkdirSync(productAssets, { recursive: true });
+    for (const file of fs.readdirSync(globalAssets)) {
+      fs.copyFileSync(path.join(globalAssets, file), path.join(productAssets, file));
+    }
+  }
+
+  // When SHOW_AVATAR=false, clear presenterConfig so Remotion skips the overlay
+  if (!SHOW_AVATAR && pkg.presenterConfig) {
+    const patched = JSON.parse(originalPkgContent);
+    patched.presenterConfig = { src: '', widthFraction: 0, position: 'bottom-left' };
+    fs.writeFileSync(INPUT_PATH, JSON.stringify(patched, null, 2), 'utf-8');
+    console.log('  ℹ  SHOW_AVATAR=false — presenter overlay hidden for this render');
+  }
 
   const isEnterprise  = pkg?.meta?.templateId === 'enterprise';
   const compositionId = isEnterprise ? 'EnterpriseVideo' : 'DemoVideo';
@@ -201,6 +219,11 @@ function main(): void {
     // ── Cleanup temp files ──────────────────────────────────────────────────
     segmentPaths.forEach(p => { try { fs.unlinkSync(p); } catch { /* ignore */ } });
     try { fs.unlinkSync(concatListPath); } catch { /* ignore */ }
+  }
+
+  // Restore original demo-package.json if it was patched for SHOW_AVATAR=false
+  if (!SHOW_AVATAR && pkg.presenterConfig) {
+    fs.writeFileSync(INPUT_PATH, originalPkgContent, 'utf-8');
   }
 
   // ── Done ──────────────────────────────────────────────────────────────────

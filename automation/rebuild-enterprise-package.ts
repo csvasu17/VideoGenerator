@@ -18,12 +18,12 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { AzureOpenAI } from 'openai';
 import 'dotenv/config';
+import { OUT_DIR } from './config';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OUT_DIR        = path.resolve(__dirname, '../out/localhost');
 const CAPTURES_DIR   = path.join(OUT_DIR, 'captures');
 const PKG_PATH       = path.join(OUT_DIR, 'demo-package.json');
 const PROPS_PATH     = path.join(OUT_DIR, 'demo-props.json');
