@@ -16,9 +16,10 @@
  *   npx ts-node --project tsconfig.scripts.json automation/generate-voice-script.ts --input out/myrun/demo-package.json
  */
 
-import * as path from 'path';
-import * as fs   from 'fs';
+import * as path   from 'path';
+import * as fs     from 'fs';
 import * as dotenv from 'dotenv';
+import { OUT_DIR } from './config';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
@@ -31,8 +32,6 @@ function getArg(flag: string, fallback: string): string {
   return idx !== -1 && process.argv[idx + 1] ? process.argv[idx + 1] : fallback;
 }
 
-const ROOT         = path.resolve(__dirname, '..');
-const OUT_DIR      = path.join(ROOT, 'out', 'localhost');
 const INPUT_PATH   = getArg('--input',  path.join(OUT_DIR, 'demo-package.json'));
 const OUTPUT_PATH  = getArg('--output', path.join(OUT_DIR, 'voice-script.json'));
 

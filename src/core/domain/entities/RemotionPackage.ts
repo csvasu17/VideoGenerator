@@ -224,6 +224,18 @@ export interface EnterprisePresenterConfig {
   /** Fraction of frame width (0–1). Typical: 0.15. */
   widthFraction: number;
   position:      'bottom-left' | 'bottom-right';
+  /**
+   * Where the presenter's mouth is within the displayed presenter box.
+   * All values are fractions (0–1) relative to the displayed box dimensions.
+   * Defaults: xFraction 0.50 (center), yFraction 0.42, widthFraction 0.20.
+   * Measure by opening the presenter PNG in any image editor and noting the
+   * mouth center pixel, then divide by the image dimensions.
+   */
+  mouthRegion?: {
+    xFraction:     number;
+    yFraction:     number;
+    widthFraction: number;
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,12 +254,20 @@ export interface VoiceSegment {
 }
 
 export interface VoiceScript {
-  voice:           string;
-  model:           string;
-  speed:           number;
-  fps:             number;
+  voice:            string;
+  /** Subdirectory under the public root where MP3 files live.
+   *  Defaults to "voice-segments".  Change in Studio Input Props
+   *  to switch between pre-generated voice variants without re-rendering:
+   *    "voice-segments-nova"    — female, bright
+   *    "voice-segments-shimmer" — female, gentle
+   *    "voice-segments-onyx"    — male,  authoritative
+   */
+  voiceDir?:        string;
+  model:            string;
+  speed:            number;
+  fps:              number;
   totalDurationSec: number;
-  segments:        VoiceSegment[];
+  segments:         VoiceSegment[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

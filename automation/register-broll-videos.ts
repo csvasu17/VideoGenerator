@@ -13,10 +13,10 @@
 
 import * as fs   from 'fs';
 import * as path from 'path';
+import { OUT_DIR } from './config';
 
-const ROOT           = path.resolve(__dirname, '..');
-const RECORDINGS_DIR = path.join(ROOT, 'out', 'localhost', 'recordings');
-const PKG_PATH       = path.join(ROOT, 'out', 'localhost', 'demo-package.json');
+const RECORDINGS_DIR = path.join(OUT_DIR, 'recordings');
+const PKG_PATH       = path.join(OUT_DIR, 'demo-package.json');
 
 function fmt(bytes: number): string {
   return bytes > 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;

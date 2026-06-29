@@ -108,6 +108,8 @@ export interface EnterpriseBenefitSlideProps {
   presenterVideoSrc?: string;
   presenterWidthFraction?: number;
   voiceSyncOffsetFrames?: number;
+  voiceAudioSrc?:     string;
+  mouthRegion?: { xFraction: number; yFraction: number; widthFraction: number };
 }
 
 const STAGGER_FRAMES = 10; // each bullet staggers 10 frames after the previous
@@ -119,6 +121,8 @@ export const EnterpriseBenefitSlide: React.FC<EnterpriseBenefitSlideProps> = ({
   presenterVideoSrc,
   presenterWidthFraction = 0.15,
   voiceSyncOffsetFrames,
+  voiceAudioSrc,
+  mouthRegion,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -196,7 +200,7 @@ export const EnterpriseBenefitSlide: React.FC<EnterpriseBenefitSlideProps> = ({
         ))}
       </div>
 
-      {/* Presenter overlay — animated when video available */}
+      {/* Presenter overlay — slide-in + float + mouth sync */}
       {(presenterSrc || presenterVideoSrc) && (
         <PresenterOverlay
           src={presenterSrc ?? ''}
@@ -204,6 +208,8 @@ export const EnterpriseBenefitSlide: React.FC<EnterpriseBenefitSlideProps> = ({
           widthFraction={presenterWidthFraction}
           position="bottom-left"
           voiceSyncOffsetFrames={voiceSyncOffsetFrames}
+          voiceAudioSrc={voiceAudioSrc}
+          mouthRegion={mouthRegion}
         />
       )}
     </AbsoluteFill>

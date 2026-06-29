@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "Cinematic enterprise product demo video for Rheem",
   "scripts": {
-    "test":        "jest",
-    "test:watch":  "jest --watch",
-    "test:cover":  "jest --coverage",
-    "start": "remotion studio --public-dir=out/localhost",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cover": "jest --coverage",
+    "start": "ts-node --project tsconfig.scripts.json automation/start-studio.ts",
     "render": "remotion render RheemDemo out/rheem-demo.mp4 --codec=h264",
     "render:hq": "remotion render RheemDemo out/rheem-demo-hq.mp4 --codec=h264 --crf=18",
     "render:final": "remotion render RheemDemo out/rheem-final.mp4 --codec=h264 --crf=18",
@@ -29,7 +29,11 @@
     "record:enterprise": "ts-node --project tsconfig.scripts.json automation/record-enterprise-clips.ts",
     "record:enterprise:render": "npm run record:enterprise && npm run render:demo && npm run voice",
     "broll:download": "ts-node --project tsconfig.scripts.json automation/download-broll-videos.ts",
-    "broll:register": "ts-node --project tsconfig.scripts.json automation/register-broll-videos.ts"
+    "broll:register": "ts-node --project tsconfig.scripts.json automation/register-broll-videos.ts",
+    "broll:premium": "ts-node --project tsconfig.scripts.json automation/download-broll-premium.ts",
+    "record:flow": "ts-node --project tsconfig.scripts.json automation/record-flow.ts",
+    "presenter:generate": "ts-node --project tsconfig.scripts.json automation/generate-presenter-video.ts",
+    "broll:did": "ts-node --project tsconfig.scripts.json automation/generate-broll-videos.ts"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.257",
@@ -46,6 +50,7 @@
     "@types/react-dom": "^18.2.0",
     "dotenv": "^16.4.0",
     "jest": "^30.4.2",
+    "jimp": "^1.6.1",
     "playwright": "^1.44.0",
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.0",
