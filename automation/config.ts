@@ -33,7 +33,8 @@ function resolveSlug(): string {
   return 'localhost';
 }
 
-export const APP_SLUG   = resolveSlug();
-export const ROOT       = path.resolve(__dirname, '..');
-export const OUT_DIR    = path.join(ROOT, 'out', APP_SLUG);
+export const APP_SLUG    = resolveSlug();
+export const ROOT        = path.resolve(__dirname, '..');
+export const OUT_DIR     = path.join(ROOT, 'out', APP_SLUG);
 export const SHOW_AVATAR = process.env['SHOW_AVATAR'] !== 'false';
+export const SCREEN_FIT  = (process.env['SCREEN_FIT'] as 'fit' | 'full') ?? 'full';

@@ -7,6 +7,7 @@ import type {DemoVideoProps} from './compositions/DemoVideo';
 import {EnterpriseVideo} from './compositions/EnterpriseVideo';
 import type {EnterpriseVideoProps} from './compositions/EnterpriseVideo';
 import type {VoiceScript} from './core/domain/entities/RemotionPackage';
+import {ConfigPage} from './compositions/ConfigPage';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fallback props — used when out/localhost/demo-package.json is absent.
@@ -43,6 +44,21 @@ const FALLBACK_PROPS: DemoVideoProps = {
 
 export const RemotionRoot: React.FC = () => (
   <>
+    {/*
+      ── Config ─────────────────────────────────────────────────────────────────
+      Interactive configuration form — fill in .env settings and launch the
+      pipeline without leaving Remotion Studio.
+      Requires the config API server: npm run config-ui (or npm run dev)
+    */}
+    <Composition
+      id="Config"
+      component={ConfigPage}
+      durationInFrames={1}
+      fps={30}
+      width={1280}
+      height={800}
+    />
+
     {/*
       ── DemoVideo ──────────────────────────────────────────────────────────────
       Single source of truth: out/localhost/demo-package.json
@@ -182,6 +198,7 @@ export const RemotionRoot: React.FC = () => (
             presenterClose:  pkg.presenterClose,
             presenterConfig: pkg.presenterConfig,
             voiceScript,
+            screenFit:       pkg.screenFit ?? 'full',
           } as unknown as EnterpriseVideoProps;
 
           const durationInFrames =

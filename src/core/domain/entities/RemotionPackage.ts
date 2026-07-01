@@ -288,4 +288,10 @@ export interface RemotionPackage {
   benefitSlide?:   EnterpriseBenefitSlideData;
   presenterClose?: EnterprisePresenterCloseData;
   presenterConfig?: EnterprisePresenterConfig;
+  /**
+   * Controls how product screenshots/recordings fill the scene frame.
+   * 'fit'  — inset with padding and rounded corners on a dark background
+   * 'full' — edge-to-edge full bleed (default, backward-compatible)
+   */
+  screenFit?: 'fit' | 'full';
 }

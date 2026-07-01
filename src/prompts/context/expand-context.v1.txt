@@ -5,6 +5,16 @@ A Sales Engineer or Pre-Sales Consultant has written a brief description of thei
 ## User Input
 {{RAW_CONTEXT}}
 
+## Domain Glossary
+{{GLOSSARY}}
+
+Use these terms accurately when generating businessGoals, businessOutcomes, and demoPriorities. Prefer glossary terms over generic alternatives.
+
+## Application Route Map
+{{ROUTE_MAP}}
+
+Use this to understand which pages exist, which roles use them, and what each page's purpose is when forming demoPriorities.
+
 ## Your Task
 
 Analyse the input and extract the following fields. For every field, decide:

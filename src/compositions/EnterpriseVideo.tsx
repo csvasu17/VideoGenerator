@@ -61,6 +61,11 @@ export interface EnterpriseVideoProps {
    * Editable live via the Remotion Studio Input Props panel (⌥P / the {} button).
    */
   voiceScript?:    VoiceScript;
+  /**
+   * 'fit'  — product screen rendered inset with padding and rounded corners.
+   * 'full' — product screen fills the frame edge-to-edge (default).
+   */
+  screenFit?:      'fit' | 'full';
   [key: string]: unknown;
 }
 
@@ -84,6 +89,7 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
   presenterClose,
   presenterConfig,
   voiceScript,
+  screenFit = 'full',
 }) => {
   const frame      = useCurrentFrame();
   const { fps }    = useVideoConfig();
@@ -173,6 +179,7 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
               voiceSyncOffsetFrames={voiceSyncOffsetFrames}
               voiceAudioSrc={voiceAudioSrc}
               mouthRegion={presenterConfig.mouthRegion}
+              screenFit={screenFit}
             />
           </Sequence>
         );
@@ -243,22 +250,18 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
         </Sequence>
       )}
 
-      {/* ── ACL Digital logo — professional watermark, bottom-right corner ── */}
+      {/* ── ACL Digital logo — transparent watermark, top-right corner ── */}
       <div style={{
         position:      'absolute',
         top:           20,
         right:         24,
         pointerEvents: 'none',
         zIndex:        200,
-        background:    'rgba(255,255,255,0.93)',
-        borderRadius:  8,
-        padding:       '7px 14px',
-        boxShadow:     '0 2px 12px rgba(0,0,0,0.14)',
         lineHeight:    0,
       }}>
         <Img
           src={staticFile('assets/acl-logo.png')}
-          style={{ width: 130, height: 'auto', display: 'block' }}
+          style={{ width: 140, height: 'auto', display: 'block' }}
         />
       </div>
 

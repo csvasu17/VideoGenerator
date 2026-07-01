@@ -53,6 +53,12 @@ const azureClient = new AzureOpenAI({
   apiVersion: process.env['OPENAI_API_VERSION']      ?? '2024-12-01-preview',
 });
 
+const APP_CONTEXT   = process.env['APP_CONTEXT_TEXT'] ?? '';
+const APP_GLOSSARY  = process.env['APP_GLOSSARY']     ?? '';
+const APP_ROUTE_MAP = process.env['APP_ROUTE_MAP']    ?? '';
+let routeMap: Record<string, string> = {};
+try { if (APP_ROUTE_MAP) routeMap = JSON.parse(APP_ROUTE_MAP); } catch {}
+
 // ─── Notification suppression ────────────────────────────────────────────────
 
 const SUPPRESS_CSS = `
@@ -249,17 +255,35 @@ async function showPageContent(page: Page, holdSec: number): Promise<void> {
   await suppressPopups(page);
 }
 
-async function analyzeFrame(framePath: string): Promise<{ featureTitle: string; salesHook: string; narration: string }> {
+async function analyzeFrame(
+  framePath:  string,
+  userRole?:  string,
+  targetUrl?: string,
+): Promise<{ featureTitle: string; salesHook: string; narration: string }> {
   const b64 = fs.readFileSync(framePath).toString('base64');
+
+  let pagePurpose = '';
+  if (targetUrl && Object.keys(routeMap).length > 0) {
+    try {
+      const urlPath = new URL(targetUrl).pathname;
+      const key = Object.keys(routeMap).find(k => urlPath.startsWith(k.replace(/\[.*?\]/g, '')));
+      if (key) pagePurpose = routeMap[key];
+    } catch {}
+  }
+
+  const sections: string[] = ['You are a B2B SaaS demo video script writer.'];
+  if (APP_CONTEXT)  sections.push(`\n\nPRODUCT CONTEXT:\n${APP_CONTEXT}`);
+  if (userRole)     sections.push(`\n\nACTIVE USER ROLE: The logged-in user is "${userRole}". Frame all narration from this persona's goals and pain points.`);
+  if (pagePurpose)  sections.push(`\n\nCURRENT PAGE: ${pagePurpose}`);
+  if (APP_GLOSSARY) sections.push(`\n\nDOMAIN GLOSSARY (use these exact terms in narration):\n${APP_GLOSSARY}`);
+  sections.push(`\n\nGiven a product screenshot, output JSON (no fences):
+{"featureTitle":"short 2-4 word name","salesHook":"compelling 6-10 word hook for the active user role","narration":"1-paragraph ~25 words — address the active user role by name if known, explain what this screen does, and state the specific pain it eliminates"}`);
+
   const response = await azureClient.chat.completions.create({
     model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_tokens: 400,
+    max_tokens: 500,
     messages: [
-      {
-        role:    'system',
-        content: `You are a B2B SaaS demo script writer. Given a product screenshot, output JSON (no fences):
-{"featureTitle":"short 2-4 word name","salesHook":"compelling 6-10 word hook","narration":"1-paragraph ~25 words explaining the feature"}`,
-      },
+      { role: 'system', content: sections.join('') },
       {
         role:    'user',
         content: [
@@ -341,6 +365,8 @@ interface StepResult {
   flowVideoPath:string;
   startSec:     number;
   framePath:    string;
+  role?:        string;
+  targetUrl?:   string;
 }
 
 async function recordRoleFlow(
@@ -404,7 +430,7 @@ async function recordRoleFlow(
     // ── 5. Show this page with gentle scroll for holdSec ─────────────────────
     await showPageContent(page, step.holdSec);
 
-    results.push({ id: step.id, label: step.label, flowVideoPath: '', startSec, framePath });
+    results.push({ id: step.id, label: step.label, flowVideoPath: '', startSec, framePath, role: flow.role, targetUrl: step.urlPath ? APP_URL.replace(/\/$/, '') + step.urlPath : undefined });
   }
 
   // Save video
@@ -503,7 +529,7 @@ async function main(): Promise<void> {
     process.stdout.write(`  [${i + 1}/${allResults.length}] ${r.id} ... `);
     try {
       if (fs.existsSync(r.framePath)) {
-        const ai = await analyzeFrame(r.framePath);
+        const ai = await analyzeFrame(r.framePath, r.role, r.targetUrl);
         console.log(`"${ai.featureTitle}"`);
         analyzed.push({ ...r, ...ai });
       } else {

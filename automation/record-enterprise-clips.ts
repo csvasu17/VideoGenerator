@@ -25,7 +25,7 @@ import * as path                                 from 'path';
 import * as dotenv                               from 'dotenv';
 import { AzureOpenAI }                           from 'openai';
 import { ensureSession, createAuthContext }      from './utils/session';
-import { OUT_DIR }                               from './config';
+import { OUT_DIR, SCREEN_FIT }                   from './config';
 import { getVideoInfo }                          from './utils/ffprobe';
 import type { RecordingConfig }                  from './types';
 
@@ -66,6 +66,12 @@ const azureClient = new AzureOpenAI({
   deployment: process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
   apiVersion: process.env['OPENAI_API_VERSION']      ?? '2024-12-01-preview',
 });
+
+const APP_CONTEXT   = process.env['APP_CONTEXT_TEXT'] ?? '';
+const APP_GLOSSARY  = process.env['APP_GLOSSARY']     ?? '';
+const APP_ROUTE_MAP = process.env['APP_ROUTE_MAP']    ?? '';
+let routeMap: Record<string, string> = {};
+try { if (APP_ROUTE_MAP) routeMap = JSON.parse(APP_ROUTE_MAP); } catch {}
 
 // ─── Notification suppression CSS ─────────────────────────────────────────────
 
@@ -234,28 +240,44 @@ async function performFullInteraction(page: Page): Promise<void> {
 
 // ─── AI analysis ──────────────────────────────────────────────────────────────
 
-async function analyzeFrame(framePath: string): Promise<{
+async function analyzeFrame(
+  framePath:  string,
+  userRole?:  string,
+  targetUrl?: string,
+): Promise<{
   featureTitle: string;
   salesHook:    string;
   narration:    string;
 }> {
   const b64 = fs.readFileSync(framePath).toString('base64');
 
-  const response = await azureClient.chat.completions.create({
-    model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_tokens: 400,
-    messages: [
-      {
-        role: 'system',
-        content: `You are a B2B SaaS demo video script writer. Given a product screenshot,
-output a JSON object (no markdown fences) with exactly these fields:
+  let pagePurpose = '';
+  if (targetUrl && Object.keys(routeMap).length > 0) {
+    try {
+      const urlPath = new URL(targetUrl).pathname;
+      const key = Object.keys(routeMap).find(k => urlPath.startsWith(k.replace(/\[.*?\]/g, '')));
+      if (key) pagePurpose = routeMap[key];
+    } catch {}
+  }
+
+  const sections: string[] = ['You are a B2B SaaS demo video script writer.'];
+  if (APP_CONTEXT)   sections.push(`\n\nPRODUCT CONTEXT:\n${APP_CONTEXT}`);
+  if (userRole)      sections.push(`\n\nACTIVE USER ROLE: The logged-in user is "${userRole}". Frame all narration from this persona's goals and pain points.`);
+  if (pagePurpose)   sections.push(`\n\nCURRENT PAGE: ${pagePurpose}`);
+  if (APP_GLOSSARY)  sections.push(`\n\nDOMAIN GLOSSARY (use these exact terms in narration):\n${APP_GLOSSARY}`);
+  sections.push(`\n\nGiven a product screenshot, output a JSON object (no markdown fences) with exactly:
 {
   "featureTitle": "short 2-4 word feature name",
-  "salesHook": "compelling 6-10 word hook focusing on business value visible in the screenshot",
-  "narration": "one paragraph (2-3 sentences, ~25 words) explaining what this feature does and why it matters"
+  "salesHook": "compelling 6-10 word hook focusing on business value for the active user role",
+  "narration": "one paragraph (2-3 sentences, ~25 words) — address the active user role by name if known, explain what this screen lets them do, and state the specific pain it eliminates"
 }
-Be specific to what you see. No generic statements.`,
-      },
+Be specific to what you see. Use domain glossary terms accurately.`);
+
+  const response = await azureClient.chat.completions.create({
+    model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
+    max_tokens: 500,
+    messages: [
+      { role: 'system', content: sections.join('') },
       {
         role: 'user',
         content: [
@@ -268,11 +290,11 @@ Be specific to what you see. No generic statements.`,
 
   const raw = response.choices[0]?.message?.content ?? '{}';
   try {
-    const parsed = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, ''));
+    const p = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, ''));
     return {
-      featureTitle: parsed.featureTitle ?? 'Platform Feature',
-      salesHook:    parsed.salesHook    ?? 'Streamline your operations instantly.',
-      narration:    parsed.narration    ?? 'This feature improves operational efficiency across your team.',
+      featureTitle: p.featureTitle ?? 'Platform Feature',
+      salesHook:    p.salesHook    ?? 'Streamline your operations instantly.',
+      narration:    p.narration    ?? 'This feature improves operational efficiency across your team.',
     };
   } catch {
     return {
@@ -632,6 +654,7 @@ interface RecordedClip {
   id:                 string;
   label:              string;
   url:                string;
+  role?:              string;
   videoPath:          string;
   framePath:          string;
   duration:           number;
@@ -768,7 +791,7 @@ async function main(): Promise<void> {
           if (fs.existsSync(dest)) fs.unlinkSync(dest);
           fs.renameSync(vidRaw, dest);
           const info = getVideoInfo(dest);
-          clips.push({ id: entry.id, label: entry.label, url: session.postLoginUrl, videoPath: dest, framePath, duration: info.duration, durationSec: entry.durationSec, recordingStartSec: entry.recordingStartSec });
+          clips.push({ id: entry.id, label: entry.label, url: session.postLoginUrl, role: entry.role, videoPath: dest, framePath, duration: info.duration, durationSec: entry.durationSec, recordingStartSec: entry.recordingStartSec });
           console.log(`        ✅  ${entry.id}.mp4  (${info.duration.toFixed(1)}s)\n`);
         } else {
           console.log(`        ⚠️  No video produced\n`);
@@ -851,7 +874,7 @@ async function main(): Promise<void> {
         analyzed.push({ ...clip, featureTitle: clip.label, salesHook: `Explore ${clip.label}`, narration: `${clip.label} provides key functionality for your team.` });
         continue;
       }
-      const ai = await analyzeFrame(clip.framePath);
+      const ai = await analyzeFrame(clip.framePath, clip.role, clip.url);
       console.log(`"${ai.featureTitle}"`);
       analyzed.push({ ...clip, ...ai });
     } catch (e) {
@@ -955,6 +978,7 @@ async function main(): Promise<void> {
     presenterClose,
     presenterConfig,
     meta: { ...(existingPkg.meta ?? {}), templateId: 'enterprise' },
+    screenFit: SCREEN_FIT,
   };
 
   fs.writeFileSync(PKG_PATH, JSON.stringify(pkg, null, 2), 'utf-8');
