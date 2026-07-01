@@ -130,7 +130,20 @@ export class VisionAnalysisAgent implements IVisionAnalysisAgent {
     screenshot: Buffer,
     domContext: string,
   ): Promise<PageIntelligence> {
-    const prompt = fillTemplate(this.visionPrompt, { DOM_CONTEXT: domContext });
+    const glossary    = (process.env['APP_GLOSSARY']  ?? '').slice(0, 2000) || 'No glossary provided.';
+    const routeMap    = (() => {
+      try {
+        const rm: Record<string, string> = JSON.parse(process.env['APP_ROUTE_MAP'] ?? '{}');
+        const entry = Object.entries(rm).find(([k]) => pageId.includes(k.replace(/\[.*?\]/g, '').replace(/\//g, '-').slice(1)));
+        return entry ? entry[1] : 'No page purpose found.';
+      } catch { return 'No page purpose found.'; }
+    })();
+    const prompt = fillTemplate(this.visionPrompt, {
+      DOM_CONTEXT:  domContext,
+      USER_ROLE:    'unknown — use generic stakeholder framing',
+      PAGE_PURPOSE: routeMap,
+      GLOSSARY:     glossary,
+    });
     const image  = this.encoder.encode(screenshot);
 
     const rawText = await this.llmProvider.complete(
@@ -142,7 +155,13 @@ export class VisionAnalysisAgent implements IVisionAnalysisAgent {
   }
 
   private async analyzeWithDomOnly(pageId: string, domContext: string): Promise<PageIntelligence> {
-    const prompt = fillTemplate(this.domOnlyPrompt, { DOM_CONTEXT: domContext });
+    const glossary = (process.env['APP_GLOSSARY'] ?? '').slice(0, 2000) || 'No glossary provided.';
+    const prompt = fillTemplate(this.domOnlyPrompt, {
+      DOM_CONTEXT:  domContext,
+      USER_ROLE:    'unknown — use generic stakeholder framing',
+      PAGE_PURPOSE: 'No page purpose found.',
+      GLOSSARY:     glossary,
+    });
 
     const rawText = await this.llmProvider.complete(
       [{ role: 'user', content: [{ type: 'text', text: prompt }] }],

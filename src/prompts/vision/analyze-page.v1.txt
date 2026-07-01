@@ -81,6 +81,24 @@ Note: primaryElementBoundingBox is OPTIONAL. Omit it (do not include the key) wh
 - You cannot confidently estimate the element's screen position
 All coordinate values must be in [0, 1] and width/height must be positive.
 
+## Active User Role
+
+{{USER_ROLE}}
+
+Frame all feature analysis, business value, and narration recommendations from this persona's goals and the pain points described for their role. If USER_ROLE is "unknown" or empty, use generic stakeholder framing.
+
+## Page Context
+
+{{PAGE_PURPOSE}}
+
+Use this to understand the intent of the page before analyzing the screenshot.
+
+## Domain Glossary
+
+{{GLOSSARY}}
+
+Use these exact terms in feature names and business value statements. Do not invent synonyms.
+
 ## DOM Context
 
 {{DOM_CONTEXT}}

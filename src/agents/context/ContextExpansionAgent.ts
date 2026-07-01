@@ -100,7 +100,13 @@ export class ContextExpansionAgent implements IContextExpansionAgent {
 
   private async runExpansion(rawText: string): Promise<ExpandedApplicationContext> {
     const trimmedInput = rawText.slice(0, this.config.maxInputChars);
-    const prompt = fillTemplate(this.promptTemplate, { RAW_CONTEXT: trimmedInput });
+    const glossary  = (process.env['APP_GLOSSARY']  ?? '').slice(0, 2000);
+    const routeMap  = (process.env['APP_ROUTE_MAP'] ?? '').slice(0, 3000);
+    const prompt = fillTemplate(this.promptTemplate, {
+      RAW_CONTEXT: trimmedInput,
+      GLOSSARY:    glossary  || 'No glossary provided.',
+      ROUTE_MAP:   routeMap  || 'No route map provided.',
+    });
 
     const responseText = await this.llmProvider.complete(
       [{ role: 'user', content: [{ type: 'text', text: prompt }] }],

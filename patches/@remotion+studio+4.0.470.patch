@@ -1,0 +1,27 @@
+diff --git a/node_modules/@remotion/studio/dist/components/PlaybackRateSelector.js b/node_modules/@remotion/studio/dist/components/PlaybackRateSelector.js
+index 852be26..636535a 100644
+--- a/node_modules/@remotion/studio/dist/components/PlaybackRateSelector.js
++++ b/node_modules/@remotion/studio/dist/components/PlaybackRateSelector.js
+@@ -10,7 +10,7 @@ const playbackrate_1 = require("../state/playbackrate");
+ const ControlButton_1 = require("./ControlButton");
+ const ComboBox_1 = require("./NewComposition/ComboBox");
+ const commonPlaybackRates = [
+-    -4, -2, -1, -0.5, -0.25, 0.25, 0.5, 1, 1.5, 2, 4,
++    -4, -2, -1, -0.5, -0.25, 0.25, 0.5, 1, 1.1, 1.2, 1.25, 1.5, 2, 4,
+ ];
+ const getPlaybackRateLabel = (playbackRate) => {
+     return `${playbackRate}x`;
+diff --git a/node_modules/@remotion/studio/dist/esm/chunk-dny42qnq.js b/node_modules/@remotion/studio/dist/esm/chunk-dny42qnq.js
+index 9b49afb..09967ca 100644
+--- a/node_modules/@remotion/studio/dist/esm/chunk-dny42qnq.js
++++ b/node_modules/@remotion/studio/dist/esm/chunk-dny42qnq.js
+@@ -23103,6 +23103,9 @@ var commonPlaybackRates = [
+   0.25,
+   0.5,
+   1,
++  1.1,
++  1.2,
++  1.25,
+   1.5,
+   2,
+   4

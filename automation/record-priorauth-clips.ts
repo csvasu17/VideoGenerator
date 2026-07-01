@@ -19,6 +19,7 @@ import * as dotenv            from 'dotenv';
 import { AzureOpenAI }        from 'openai';
 import { getVideoInfo }       from './utils/ffprobe';
 import { execSync }           from 'child_process';
+import { OUT_DIR, SCREEN_FIT } from './config';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
@@ -26,14 +27,13 @@ dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
 const APP_URL       = (process.env['APP_URL'] ?? 'http://10.1.9.23:3013').replace(/\/$/, '');
 const LOGIN_URL     = `${APP_URL}/login`;
-const OUT_DIR       = path.resolve(__dirname, '../out/priorauth');
 const REC_DIR       = path.join(OUT_DIR, 'recordings');
 const PKG_PATH      = path.join(OUT_DIR, 'demo-package.json');
 const VOICE_PATH    = path.join(OUT_DIR, 'voice-script.json');
 
 const FPS           = 30;
 const VIEWPORT      = { width: 1920, height: 1080 };
-const BROLL_FRAMES  = 180;   // 6 s per broll
+const BROLL_FRAMES  = 240;   // 8 s per broll — enough room for 13-15 word narrations
 const PRODUCT_SEC   = 14;    // default scene duration
 const BENEFIT_SEC   = 18;
 const PRESENTER_SEC = 16;
@@ -52,33 +52,67 @@ const azureClient = new AzureOpenAI({
   apiVersion: process.env['OPENAI_API_VERSION']      ?? '2024-12-01-preview',
 });
 
-const APP_CONTEXT = process.env['APP_CONTEXT_TEXT'] ?? '';
+const APP_CONTEXT   = process.env['APP_CONTEXT_TEXT'] ?? '';
+const APP_GLOSSARY  = process.env['APP_GLOSSARY']     ?? '';
+const APP_ROUTE_MAP = process.env['APP_ROUTE_MAP']    ?? '';
 
-async function analyzeFrame(framePath: string): Promise<{
+// Pre-parse route map once so we can look up page purpose by URL at analysis time
+let routeMap: Record<string, string> = {};
+try { if (APP_ROUTE_MAP) routeMap = JSON.parse(APP_ROUTE_MAP); } catch {}
+
+async function analyzeFrame(
+  framePath:  string,
+  userRole?:  string,   // e.g. "Nancy" — from clip.loginAs
+  targetUrl?: string,   // e.g. "http://host/authorization-queue"
+): Promise<{
   featureTitle: string;
   salesHook:    string;
   narration:    string;
 }> {
   const b64 = fs.readFileSync(framePath).toString('base64');
-  const ctxNote = APP_CONTEXT
-    ? `\nApp context: ${APP_CONTEXT.slice(0, 400)}`
-    : '';
 
-  const response = await azureClient.chat.completions.create({
-    model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_tokens: 400,
-    messages: [
-      {
-        role: 'system',
-        content: `You are a B2B SaaS demo video script writer for healthcare technology.${ctxNote}
+  // Resolve page purpose from route map (match URL path against keys)
+  let pagePurpose = '';
+  if (targetUrl && Object.keys(routeMap).length > 0) {
+    try {
+      const urlPath = new URL(targetUrl).pathname;
+      const key = Object.keys(routeMap).find(k => urlPath.startsWith(k.replace(/\[.*?\]/g, '')));
+      if (key) pagePurpose = routeMap[key];
+    } catch {}
+  }
+
+  // Build enriched system prompt
+  const sections: string[] = [
+    'You are a B2B SaaS demo video script writer for healthcare technology.',
+  ];
+
+  if (APP_CONTEXT) {
+    sections.push(`\nPRODUCT CONTEXT:\n${APP_CONTEXT}`);
+  }
+  if (userRole) {
+    sections.push(`\nACTIVE USER ROLE: The logged-in user is "${userRole}". Frame all narration from this persona's goals and pain points as described in the ROLES section above.`);
+  }
+  if (pagePurpose) {
+    sections.push(`\nCURRENT PAGE: ${pagePurpose}`);
+  }
+  if (APP_GLOSSARY) {
+    sections.push(`\nDOMAIN GLOSSARY (use these exact terms in narration):\n${APP_GLOSSARY}`);
+  }
+
+  sections.push(`
 Given a product screenshot, output a JSON object (no markdown fences) with exactly:
 {
   "featureTitle": "short 2-4 word feature name",
-  "salesHook": "compelling 6-10 word hook focusing on business value",
-  "narration": "one paragraph (2-3 sentences, ~25 words) explaining what this feature does and why it matters for healthcare revenue cycle teams"
+  "salesHook": "compelling 6-10 word hook focusing on business value for the active user role",
+  "narration": "one paragraph (2-3 sentences, ~25 words) — address the active user role by name, explain what this screen lets them do, and state the specific pain it eliminates"
 }
-Be specific to what you see. Focus on prior authorization, RCM, clinical workflow value.`,
-      },
+Be specific to what you see. Use domain glossary terms accurately.`);
+
+  const response = await azureClient.chat.completions.create({
+    model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
+    max_tokens: 500,
+    messages: [
+      { role: 'system', content: sections.join('') },
       {
         role: 'user',
         content: [
@@ -183,7 +217,7 @@ async function performAction(page: Page, action: ClipAction): Promise<void> {
       await page.waitForTimeout(action.waitAfterMs ?? 1000);
       break;
     case 'navigate':
-      await page.goto(action.url!, { waitUntil: 'networkidle', timeout: 20000 }).catch(() => {});
+      await page.goto(action.url!, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
       if (action.waitAfterMs) await page.waitForTimeout(action.waitAfterMs);
       break;
     case 'click':
@@ -208,19 +242,20 @@ async function performAction(page: Page, action: ClipAction): Promise<void> {
 }
 
 // ─── Recording Plan ───────────────────────────────────────────────────────────
+// Story arc: one PA case followed from arrival to decision, across all 4 roles.
 
 const RECORDING_PLAN: ClipPlan[] = [
 
-  // 0. Login page — shows PAYERCORE branding + Demo Quick Login cards
+  // ── Opening — set the stage ───────────────────────────────────────────────────
+
   {
     id: 'login',
     label: 'Login Page',
-    targetUrl: LOGIN_URL,          // stays on login — no auth needed
+    targetUrl: LOGIN_URL,
     durationSec: 10,
-    loginAs: undefined,            // do NOT login — just show the page
+    loginAs: undefined,
     actions: [
       { type: 'wait', waitAfterMs: 3000 },
-      // Slow mouse sweep over the Quick Login cards to show them
       { type: 'evaluate', value: `(() => {
           const e = document.createEvent('MouseEvent');
           e.initMouseEvent('mousemove',true,true,window,0,0,0,728,520,false,false,false,false,0,null);
@@ -230,13 +265,15 @@ const RECORDING_PLAN: ClipPlan[] = [
     ],
   },
 
-  // 1. Operational Dashboard — AI Intelligence Hub with KPI metrics
+  // ── Alice — Intake Coordinator ────────────────────────────────────────────────
+
+  // Dashboard: live pipeline KPIs — Alice's morning view
   {
     id: 'dashboard',
     label: 'Operational Dashboard',
-    targetUrl: `${APP_URL}/dashboard`,
-    durationSec: 18,
-    loginAs: 'Nancy',
+    targetUrl: `${APP_URL}/`,
+    durationSec: 16,
+    loginAs: 'Alice',
     recordingStartSec: LOGIN_SKIP_SEC,
     actions: [
       { type: 'wait', waitAfterMs: 2000 },
@@ -246,30 +283,62 @@ const RECORDING_PLAN: ClipPlan[] = [
     ],
   },
 
-  // 2. Submit New PA — Mission Documentation / AI clinical extraction intake
+  // Intake Queue: incoming requests pre-scored, filterable by status and LOB
+  {
+    id: 'intake-queue',
+    label: 'PA Intake Queue',
+    targetUrl: `${APP_URL}/intake`,
+    durationSec: 14,
+    loginAs: 'Alice',
+    recordingStartSec: LOGIN_SKIP_SEC,
+    actions: [
+      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'scroll', value: 250, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
+      { type: 'wait', waitAfterMs: 2000 },
+    ],
+  },
+
+  // Submit New PA: AI extracts ICD-10, CPT, flags missing info gaps instantly
   {
     id: 'intake-new',
     label: 'Submit New PA',
     targetUrl: `${APP_URL}/intake/new`,
-    durationSec: 15,
-    loginAs: 'Nancy',
+    durationSec: 16,
+    loginAs: 'Alice',
     recordingStartSec: LOGIN_SKIP_SEC,
     actions: [
       { type: 'wait', waitAfterMs: 2000 },
-      // Show "Paste Text" tab
       { type: 'click', text: 'Paste Text', waitAfterMs: 2000 },
-      // Show "Bulk Upload" tab
       { type: 'click', text: 'Bulk Upload', waitAfterMs: 2000 },
-      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'wait', waitAfterMs: 4000 },
     ],
   },
 
-  // 3. Authorization Queue — AI-scored policy-ready cases for UM review
+  // Intake Review: Alice confirms the case is complete before routing to UM
+  {
+    id: 'intake-review',
+    label: 'Intake Review',
+    targetUrl: `${APP_URL}/intake/review`,
+    durationSec: 14,
+    loginAs: 'Alice',
+    recordingStartSec: LOGIN_SKIP_SEC,
+    actions: [
+      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'scroll', value: 250, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
+      { type: 'wait', waitAfterMs: 2000 },
+    ],
+  },
+
+  // ── Nancy — Nurse Reviewer (UM) ───────────────────────────────────────────────
+
+  // Authorization Queue: policy-ready cases with Readiness Scores, ready for decision
   {
     id: 'auth-queue',
     label: 'Authorization Queue',
     targetUrl: `${APP_URL}/authorization-queue`,
-    durationSec: 20,
+    durationSec: 18,
     loginAs: 'Nancy',
     recordingStartSec: LOGIN_SKIP_SEC,
     actions: [
@@ -280,12 +349,29 @@ const RECORDING_PLAN: ClipPlan[] = [
     ],
   },
 
-  // 4. Outreach Queue — cases needing additional documentation from providers
+  // Case Detail: 5 AI agent cards — Nancy's "aha moment", one-click decision
+  {
+    id: 'case-detail',
+    label: 'Case Detail — AI Review',
+    targetUrl: `${APP_URL}/authorization-queue`,
+    durationSec: 20,
+    loginAs: 'Nancy',
+    recordingStartSec: 14,
+    actions: [
+      { type: 'wait', waitAfterMs: 2000 },
+      { type: 'click', selector: 'tbody tr:first-child', waitAfterMs: 3000 },
+      { type: 'scroll', value: 300, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
+      { type: 'wait', waitAfterMs: 3000 },
+    ],
+  },
+
+  // Outreach Queue: provider obligations tracked — documentation, P2P, denial notices
   {
     id: 'outreach-queue',
     label: 'Outreach Queue',
     targetUrl: `${APP_URL}/outreach-queue`,
-    durationSec: 12,
+    durationSec: 14,
     loginAs: 'Nancy',
     recordingStartSec: LOGIN_SKIP_SEC,
     actions: [
@@ -295,19 +381,84 @@ const RECORDING_PLAN: ClipPlan[] = [
     ],
   },
 
-  // 5. Governance — Policy Library → Rule Engine → Agent Audit Trail (single continuous clip)
+  // ── Michael — Medical Director ────────────────────────────────────────────────
+
+  // Appeals Workbench: denial management, P2P scheduling and resolution
   {
-    id: 'governance',
-    label: 'Governance',
-    targetUrl: `${APP_URL}/policy-library`,
-    durationSec: 35,
-    loginAs: 'Nancy',
+    id: 'appeals',
+    label: 'Appeals Workbench',
+    targetUrl: `${APP_URL}/appeals-workbench`,
+    durationSec: 14,
+    loginAs: 'Michael',
     recordingStartSec: LOGIN_SKIP_SEC,
-    skipInteraction: true,
     actions: [
-      { type: 'wait', waitAfterMs: 5000 },                          // Policy Library visible
-      { type: 'click', text: 'Rule Engine', waitAfterMs: 8000 },    // Medical Policy Enforcement Layer
-      { type: 'click', text: 'Agent Audit Trail', waitAfterMs: 8000 },// Live AI Pipeline Control
+      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'scroll', value: 200, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
+    ],
+  },
+
+  // ── Sam — Admin / Policy Manager ──────────────────────────────────────────────
+
+  // Policy Library: full clinical policy registry with version history
+  {
+    id: 'policy-library',
+    label: 'Policy Library',
+    targetUrl: `${APP_URL}/policy-library`,
+    durationSec: 14,
+    loginAs: 'Sam',
+    recordingStartSec: LOGIN_SKIP_SEC,
+    actions: [
+      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'scroll', value: 250, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
+      { type: 'wait', waitAfterMs: 2000 },
+    ],
+  },
+
+  // Policy Studio: upload new payer policy, AI extracts and flags conflicts
+  {
+    id: 'policy-studio',
+    label: 'Policy Studio',
+    targetUrl: `${APP_URL}/policy-studio`,
+    durationSec: 16,
+    loginAs: 'Sam',
+    recordingStartSec: LOGIN_SKIP_SEC,
+    actions: [
+      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'scroll', value: 200, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
+      { type: 'wait', waitAfterMs: 3000 },
+    ],
+  },
+
+  // Rule Engine: auto-approve/deny/pend based on payer-specific conditions
+  {
+    id: 'rules',
+    label: 'Rule Engine',
+    targetUrl: `${APP_URL}/rules`,
+    durationSec: 14,
+    loginAs: 'Sam',
+    recordingStartSec: LOGIN_SKIP_SEC,
+    actions: [
+      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'scroll', value: 200, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
+    ],
+  },
+
+  // Agent Audit Trail: every AI decision logged — compliance, appeals, governance
+  {
+    id: 'audit-trail',
+    label: 'Agent Audit Trail',
+    targetUrl: `${APP_URL}/audit-trail`,
+    durationSec: 14,
+    loginAs: 'Sam',
+    recordingStartSec: LOGIN_SKIP_SEC,
+    actions: [
+      { type: 'wait', waitAfterMs: 3000 },
+      { type: 'scroll', value: 200, waitAfterMs: 2000 },
+      { type: 'scroll', value: 0, waitAfterMs: 2000 },
     ],
   },
 ];
@@ -341,7 +492,7 @@ function findFfmpeg(): string {
 
 function convertToMp4(webmPath: string, mp4Path: string): void {
   const ffmpeg = findFfmpeg();
-  execSync(`"${ffmpeg}" -y -i "${webmPath}" -c:v libx264 -crf 23 -preset fast -an "${mp4Path}"`, { stdio: 'pipe' });
+  execSync(`"${ffmpeg}" -y -i "${webmPath}" -c:v libx264 -crf 23 -preset fast -pix_fmt yuv420p -movflags +faststart -an "${mp4Path}"`, { stdio: 'pipe' });
 }
 
 // ─── Record one clip ──────────────────────────────────────────────────────────
@@ -350,6 +501,7 @@ interface RecordedClip {
   id:               string;
   label:            string;
   targetUrl:        string;
+  loginAs?:         string;
   videoPath:        string;
   framePath:        string;
   durationSec:      number;
@@ -384,12 +536,12 @@ async function recordClip(
     await loginAs(page, plan.loginAs);
     // Navigate to target after login
     if (page.url() !== plan.targetUrl) {
-      await page.goto(plan.targetUrl, { waitUntil: 'networkidle', timeout: 20000 });
+      await page.goto(plan.targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(2000);
     }
   } else {
     // No login — navigate directly
-    await page.goto(plan.targetUrl, { waitUntil: 'networkidle', timeout: 20000 });
+    await page.goto(plan.targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForTimeout(1500);
   }
 
@@ -446,6 +598,7 @@ async function recordClip(
     id:               plan.id,
     label:            plan.label,
     targetUrl:        plan.targetUrl,
+    loginAs:          plan.loginAs,
     videoPath:        `recordings/${plan.id}.mp4`,
     framePath,
     durationSec:      plan.durationSec,
@@ -477,7 +630,8 @@ function buildDemoPackage(clips: AnalyzedClip[]): object {
       narration:      clip.narration,
       description:    clip.narration,
       screenshotPath: `recordings/${clip.id}-frame.png`,
-      recordingPath:  clip.videoPath,
+      // Login uses screenshot fallback (Ken-Burns) — no video needed for a static login page
+      ...(clip.id !== 'login' ? { recordingPath: clip.videoPath } : {}),
       ...(clip.recordingStartSec ? { recordingStartSec: clip.recordingStartSec } : {}),
       from,
       durationInFrames: dur,
@@ -500,22 +654,22 @@ function buildDemoPackage(clips: AnalyzedClip[]): object {
   const presenterFrames = Math.round(PRESENTER_SEC * FPS);
   const totalFrames = presenterFrom + presenterFrames;
 
-  // ── B-roll problem scenes ───────────────────────────────────────────────────
+  // ── B-roll problem scenes (Pexels stock video) ─────────────────────────────
   const brollDefs = [
-    { sub: 'Manual PA reviews drown clinical staff in paperwork and phone calls.',         anim: 'data-stream'   },
-    { sub: 'Incomplete submissions mean one in three PA requests is returned for more information.', anim: 'ticket-flood' },
-    { sub: 'Payer policy mismatches spike denial rates and delay reimbursements.',         anim: 'alert-cascade' },
-    { sub: 'Clinical evidence buried in PDFs and faxes is missed by manual reviewers.',   anim: 'multi-channel' },
-    { sub: 'No pipeline visibility leaves revenue cycle teams unable to predict outcomes.',anim: 'kpi-metrics'   },
+    'Manual PA reviews drown clinical staff in paperwork and phone calls.',
+    'Incomplete submissions mean one in three PA requests is returned for more information.',
+    'Payer policy mismatches spike denial rates and delay patient care by days or weeks.',
+    'Critical clinical evidence buried in unstructured PDFs is routinely missed by manual reviewers.',
+    'No pipeline visibility leaves revenue cycle teams unable to predict outcomes or prevent denials.',
   ];
 
-  const brollScenes = brollDefs.map((b, i) => ({
-    id:              `broll-${i}`,
-    from:            i * BROLL_FRAMES,
+  const brollScenes = brollDefs.map((sub, i) => ({
+    id:               `broll-${i}`,
+    from:             i * BROLL_FRAMES,
     durationInFrames: BROLL_FRAMES,
-    subtitle:        b.sub,
-    category:        'healthcare',
-    animationType:   b.anim,
+    subtitle:         sub,
+    category:         'healthcare',
+    videoPath:        `recordings/broll-${i}.mp4`,
   }));
 
   return {
@@ -531,39 +685,39 @@ function buildDemoPackage(clips: AnalyzedClip[]): object {
     benefitSlide: {
       from: benefitFrom,
       durationInFrames: benefitFrames,
-      title: 'Prior Auth AI — Value Adds',
+      title: 'PriorCore — Built for Every Role',
       bullets: [
         {
           icon: 'accuracy',
           label: 'AI Clinical Extraction',
-          description: 'NLP agents read unstructured clinical documents and extract diagnosis codes, procedures, symptoms, and lab results automatically.',
+          description: 'NLP agents read unstructured clinical documents and extract ICD-10 codes, CPT codes, diagnoses, and lab results — eliminating manual data entry.',
         },
         {
           icon: 'speed',
-          label: 'Policy Matching Engine',
-          description: 'Maps extracted clinical data against payer-specific policies and scores each case for completeness before submission.',
+          label: 'Readiness Score Engine',
+          description: 'Every PA request receives a 0–100 Readiness Score before it reaches a reviewer — only Policy-Ready cases enter the Authorization Queue.',
         },
         {
           icon: 'oversight',
-          label: 'Authorization Queue',
-          description: 'Only policy-ready cases reach the UM team — eliminating incomplete submissions and reducing payer denials.',
+          label: 'Multi-Role Workflow',
+          description: 'Alice submits, Nancy reviews, Michael decides, Sam governs — each role sees exactly the information they need, nothing more.',
         },
         {
           icon: 'compliance',
-          label: 'Role-Based Workflows',
-          description: 'PA intake, UR nurses, medical reviewers, and compliance teams all work in one HIPAA-compliant platform with full audit trails.',
+          label: 'Policy Studio',
+          description: 'Sam uploads payer policy amendments and the Rule Engine instantly flags conflicts with existing clinical rules before any case is affected.',
         },
         {
           icon: 'revenue',
-          label: 'Agent Audit Trail',
-          description: 'Full transparency into every AI decision supports compliance, governance, and appeals workflows.',
+          label: 'Full Audit Transparency',
+          description: 'Every AI agent decision is logged in real time — supporting compliance reviews, denial appeals, and regulatory audits.',
         },
       ],
     },
     presenterClose: {
       from: presenterFrom,
       durationInFrames: presenterFrames,
-      tagline: 'every PA submission — complete, compliant, on time',
+      tagline: 'every PA — submitted complete, reviewed fast, decided with confidence',
       presenterSrc: '',
     },
     presenterConfig: {
@@ -574,47 +728,93 @@ function buildDemoPackage(clips: AnalyzedClip[]): object {
       enabled: false,
     },
     meta: {
-      productName:     'Prior Auth AI',
-      targetAudience:  'healthcare payers, hospital billing teams, and revenue cycle managers',
-      primaryBenefit:  'automate prior authorization from clinical intake to policy-ready submission',
+      productName:     'PriorCore',
+      targetAudience:  'healthcare payers, utilization management teams, and revenue cycle managers',
+      primaryBenefit:  'automate prior authorization across all roles — from intake to policy governance',
       templateId:      'enterprise',
     },
+    screenFit: SCREEN_FIT,
   };
 }
 
 // ─── Build voice-script.json ──────────────────────────────────────────────────
 
+// ─── Voice narrations — one story, one case, four roles ───────────────────────
+// Each line is a chapter in the same PA case journey: arrival → decision → governance.
+// Role titles used throughout — not person names. No repeated sentence openers.
+const SCENE_NARRATIONS: Record<string, string> = {
+  'login':
+    'Four teams. One platform. A prior authorization just arrived — and it\'s about to move through every one of them.',
+
+  'dashboard':
+    'The intake coordinator opens to a live view of the pipeline — readiness scores, case volumes, and weekly authorization trends. She sees exactly where every PA stands before her first call of the day.',
+
+  'intake-queue':
+    'A new request is waiting in the intake queue, already scored for readiness. She filters by status and line of business — no spreadsheets, no shared inboxes, no guesswork.',
+
+  'intake-new':
+    'She pastes the clinical referral notes. The AI immediately extracts the ICD-10 diagnosis code, the CPT procedure code, and lists every missing documentation gap. Thirty seconds in, the case knows exactly what it still needs.',
+
+  'intake-review':
+    'Before routing to the UM team, she reviews the submission. The case is complete — Readiness Score confirmed, all clinical evidence attached. She routes it forward.',
+
+  'auth-queue':
+    'The case is routed to clinical review. The nurse reviewer\'s queue shows it — already policy-ready, already pre-scored. No charts to pull, no binders to check. A Readiness Score, a ranked policy match, a recommendation — and she acts.',
+
+  'case-detail':
+    'She opens the case. Five AI agents have completed their review — eligibility, medical coding, policy alignment, clinical evidence, and appeal risk — all surfaced in one view. What once took thirty minutes of manual preparation is already done. One click. Approved.',
+
+  'outreach-queue':
+    'Unresolved payer requests land in the Outreach Queue — each tracked with a status, owner, and due date. No chasing providers by phone.',
+
+  'appeals':
+    'When a payer denies, Michael — the medical director — manages the appeal from one workbench. Peer-to-peer review consultations are scheduled, tracked, and resolved without leaving the platform.',
+
+  'policy-library':
+    'The decisions Nancy and Michael make are grounded in this — the clinical policy registry. Every payer policy, every version, every expiry date — searchable, auditable, and always current.',
+
+  'policy-studio':
+    'When a new payer policy arrives, Sam uploads it directly into Policy Studio. The AI extracts coverage criteria and prior therapy requirements, then flags every conflict with existing rules — before a single case is affected.',
+
+  'rules':
+    'Low-complexity cases never reach a human reviewer. The Rule Engine evaluates every case against payer-specific conditions and automatically approves, denies, or pends — keeping turnaround time short and the autonomy rate high.',
+
+  'audit-trail':
+    'Every step of that case\'s journey is logged here — every AI agent decision, every approval, every override — in real time. Complete transparency for compliance reviews, regulatory audits, and denial appeals.',
+};
+
 function buildVoiceScript(clips: AnalyzedClip[], pkg: any): object {
   const brollCount = pkg.brollScenes.length;
-  const brollSec   = (brollCount * BROLL_FRAMES) / FPS;
 
-  // Broll voice segments (one per broll, starts 1.5s into each 6s broll)
+  // Broll voice segments — one per broll, 8s slot, voice starts at 1s and runs 6.5s
+  const brollSec = BROLL_FRAMES / FPS;   // 8s per broll
   const brollSegments = [
-    { id: 'broll-0', text: 'Prior auth teams are buried — manual reviews, fax queues, and phone calls consume hours every day.' },
-    { id: 'broll-1', text: 'Incomplete submissions mean resubmissions. One in three PA requests bounces back for missing documentation.' },
-    { id: 'broll-2', text: 'Payer policy mismatches drive denial rates up and delay patient care by days or even weeks.' },
-    { id: 'broll-3', text: 'Critical clinical evidence — buried in unstructured PDFs — is routinely missed by manual reviewers.' },
-    { id: 'broll-4', text: 'With no pipeline visibility, revenue cycle teams cannot predict outcomes or prevent revenue leakage.' },
+    { id: 'broll-0', text: 'Prior auth teams lose hours every day to manual reviews, phone calls, and fax queues.' },
+    { id: 'broll-1', text: 'One in three PA requests bounces back — reviewers discover missing documentation days later.' },
+    { id: 'broll-2', text: 'Payer policy mismatches go undetected until denial — costing days of patient care and revenue.' },
+    { id: 'broll-3', text: 'Critical clinical evidence buried in unstructured PDFs is routinely missed by manual reviewers.' },
+    { id: 'broll-4', text: 'Without pipeline visibility, revenue cycle teams cannot stop revenue leakage before it happens.' },
   ].map((b, i) => ({
     id:          b.id,
     label:       `B-roll ${i + 1}`,
-    startSec:    i * (BROLL_FRAMES / FPS) + 1.5,
-    durationSec: 4.5,
+    startSec:    i * brollSec + 1,
+    durationSec: 6.5,
     enabled:     true,
     text:        b.text,
   }));
 
-  // Product scene segments
+  // Product scene segments — use handcrafted narration if available, AI fallback otherwise
   const productSegments = clips.map((clip, idx) => {
-    const scene = pkg.scenes[idx];
+    const scene   = pkg.scenes[idx];
     const startSec = scene.from / FPS;
+    const text    = SCENE_NARRATIONS[clip.id] ?? clip.narration;
     return {
       id:          `scene-${idx + 1}`,
       label:       `Scene ${idx + 1} — ${clip.label}`,
       startSec,
-      durationSec: clip.durationSec - 2,  // leave 2s tail silent
+      durationSec: clip.durationSec - 2,
       enabled:     true,
-      text:        clip.narration,
+      text,
     };
   });
 
@@ -626,10 +826,10 @@ function buildVoiceScript(clips: AnalyzedClip[], pkg: any): object {
     startSec:    benefitStartSec,
     durationSec: BENEFIT_SEC - 2,
     enabled:     true,
-    text:        'Prior Auth AI delivers AI-powered clinical extraction — no more manual document review. ' +
-                 'A policy matching engine eliminates incomplete submissions. ' +
-                 'Role-based workflows keep PA intake, UR nursing, and medical review all in one platform. ' +
-                 'And full agent audit trails support compliance, governance, and appeals.',
+    text:        'PriorCore automates prior authorization from intake to governance. ' +
+                 'Readiness scoring eliminates incomplete submissions. ' +
+                 'Role-based workflows keep intake, review, medical direction, and admin in sync. ' +
+                 'Full audit trails ensure every decision is defensible.',
   };
 
   // Presenter close
@@ -640,7 +840,7 @@ function buildVoiceScript(clips: AnalyzedClip[], pkg: any): object {
     startSec:    closeStartSec,
     durationSec: PRESENTER_SEC - 2,
     enabled:     true,
-    text:        'every PA submission — complete, compliant, on time — Prior Auth AI. Contact us to arrange your live demonstration.',
+    text:        'One case. Four teams. Zero manual bottlenecks. That\'s PriorCore — prior authorization done right, from first submission to final decision. Contact us to arrange your live demonstration.',
   };
 
   return {
@@ -676,7 +876,7 @@ async function main(): Promise<void> {
       let dur = plan.durationSec;
       try { dur = getVideoInfo(mp4).duration; } catch {}
       recorded.push({
-        id: plan.id, label: plan.label, targetUrl: plan.targetUrl,
+        id: plan.id, label: plan.label, targetUrl: plan.targetUrl, loginAs: plan.loginAs,
         videoPath: `recordings/${plan.id}.mp4`, framePath: frame,
         durationSec: plan.durationSec, recordingStartSec: plan.recordingStartSec,
       });
@@ -694,22 +894,8 @@ async function main(): Promise<void> {
 
   const analyzed: AnalyzedClip[] = [];
   for (const clip of recorded) {
-    // Hardcode the governance clip to avoid GPT seeing only the last section
-    if (clip.id === 'governance') {
-      analyzed.push({
-        ...clip,
-        featureTitle: 'Governance & Compliance',
-        salesHook:    'Full policy control — from clinical rules to AI audit trails',
-        narration:    'The Governance layer gives administrators complete control over clinical policy enforcement. ' +
-                      'The Policy Library manages payer-specific coverage criteria. The Rule Engine defines deterministic clinical rules for auto-approvals and denials. ' +
-                      'The Agent Audit Trail provides complete transparency into every AI decision — supporting compliance, appeals, and regulatory review.',
-      });
-      console.log(`  [${clip.id}]  hardcoded (governance multi-section)`);
-      continue;
-    }
-
-    console.log(`  Analysing [${clip.id}]...`);
-    const analysis = await analyzeFrame(clip.framePath);
+    console.log(`  Analysing [${clip.id}] as "${clip.loginAs ?? 'guest'}"...`);
+    const analysis = await analyzeFrame(clip.framePath, clip.loginAs, clip.targetUrl);
     analyzed.push({ ...clip, ...analysis });
     console.log(`    → ${analysis.featureTitle}: ${analysis.salesHook}`);
   }

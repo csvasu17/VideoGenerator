@@ -34,6 +34,7 @@ import * as os          from 'os';
 import { spawnSync }    from 'child_process';
 import * as dotenv      from 'dotenv';
 import { OUT_DIR, ROOT } from './config';
+import { fetchBackgroundMusic, MUSIC_FILE } from './fetch-background-music';
 
 // Load .env before reading process.env
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
@@ -75,6 +76,11 @@ const NARR_PATH   = path.join(OUT_DIR, 'voice-narration.mp3');
 const VIDEO_PATH  = path.join(OUT_DIR, 'demo-video.mp4');
 const OUTPUT_PATH = path.join(OUT_DIR, 'demo-video-with-voice.mp4');
 const NO_MERGE    = process.argv.includes('--no-merge');
+
+// Background music config (read from .env)
+const MUSIC_VOLUME   = parseFloat(process.env['BACKGROUND_MUSIC_VOLUME']      ?? '0.08');
+const MUSIC_FADE_SEC = parseFloat(process.env['BACKGROUND_MUSIC_FADE_OUT_SEC'] ?? '3');
+const MUSIC_OVERRIDE = (process.env['BACKGROUND_MUSIC_PATH'] ?? '').trim();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ffmpeg — direct binary, bypasses cmd.exe quoting issues with spaces in paths
@@ -275,6 +281,26 @@ async function main(): Promise<void> {
   console.log(`      Script : ${SCRIPT_PATH}`);
   console.log(SEP);
 
+  // ── Background music — auto-fetch if needed ───────────────────────────────
+  let musicFilePath: string | null = null;
+
+  if (MUSIC_OVERRIDE) {
+    if (fs.existsSync(MUSIC_OVERRIDE)) {
+      musicFilePath = MUSIC_OVERRIDE;
+      console.log(`  ♪  Background music : ${MUSIC_OVERRIDE}  (from BACKGROUND_MUSIC_PATH)`);
+    } else {
+      console.warn(`  ⚠️  BACKGROUND_MUSIC_PATH not found: ${MUSIC_OVERRIDE} — skipping music.`);
+    }
+  } else if (process.env['PIXABAY_API_KEY']) {
+    if (fs.existsSync(MUSIC_FILE)) {
+      musicFilePath = MUSIC_FILE;
+      console.log(`  ♪  Background music : using cached  ${path.relative(ROOT, MUSIC_FILE)}`);
+    } else {
+      console.log('\n  ♪  Auto-fetching background music from Pixabay …');
+      musicFilePath = await fetchBackgroundMusic();
+    }
+  }
+
   // ── Detect TTS provider ────────────────────────────────────────────────────
   const azureKey    = process.env['AZURE_OPENAI_API_KEY'];
   const azureEndpt  = process.env['AZURE_OPENAI_ENDPOINT'];
@@ -451,19 +477,51 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log('\n  Merging narration with video …');
+  if (musicFilePath) {
+    console.log(`\n  Merging narration + background music with video …`);
+    console.log(`     Music volume : ${MUSIC_VOLUME}  |  fade-out : ${MUSIC_FADE_SEC}s`);
 
-  runFfmpeg([
-    '-i',       VIDEO_PATH,
-    '-i',       NARR_PATH,
-    '-map',     '0:v:0',   // video from demo-video.mp4
-    '-map',     '1:a:0',   // audio from voice-narration.mp3 (explicit — demo-video already has audio)
-    '-c:v',     'copy',
-    '-c:a',     'aac',
-    '-b:a',     '128k',
-    '-shortest',
-    '-y',       OUTPUT_PATH,
-  ]);
+    // Fade starts MUSIC_FADE_SEC before the end of the video
+    const fadeStart = Math.max(0, (script.totalDurationSec ?? 44) - MUSIC_FADE_SEC);
+
+    // filter_complex:
+    //   [1:a] narration at full volume
+    //   [2:a] music at reduced volume, faded out near the end
+    //   amix  mixes both without normalising (keeps narration dominant)
+    const filterStr =
+      `[1:a]volume=1.0[narr];` +
+      `[2:a]volume=${MUSIC_VOLUME},afade=t=out:st=${fadeStart}:d=${MUSIC_FADE_SEC}[music];` +
+      `[narr][music]amix=inputs=2:normalize=0[aout]`;
+
+    runFfmpeg([
+      '-i',            VIDEO_PATH,
+      '-i',            NARR_PATH,
+      '-stream_loop',  '-1',        // loop music if shorter than video
+      '-i',            musicFilePath,
+      '-filter_complex', filterStr,
+      '-map',          '0:v:0',
+      '-map',          '[aout]',
+      '-c:v',          'copy',
+      '-c:a',          'aac',
+      '-b:a',          '192k',      // higher bitrate for richer mixed audio
+      '-shortest',
+      '-y',            OUTPUT_PATH,
+    ]);
+  } else {
+    console.log('\n  Merging narration with video …');
+
+    runFfmpeg([
+      '-i',       VIDEO_PATH,
+      '-i',       NARR_PATH,
+      '-map',     '0:v:0',
+      '-map',     '1:a:0',
+      '-c:v',     'copy',
+      '-c:a',     'aac',
+      '-b:a',     '128k',
+      '-shortest',
+      '-y',       OUTPUT_PATH,
+    ]);
+  }
 
   const outStat = fs.statSync(OUTPUT_PATH);
 
