@@ -186,7 +186,9 @@ export class AuthAgent implements IAuthAgent {
     // ── 3a. LOGIN_TYPE=2: click a Quick Access option ────────────────────
     // Quick Access cards pre-fill credentials but do not auto-submit.
     // After the card click, the form must be submitted explicitly.
+    // Wait 1.5 s for React to finish rendering tiles (mirrors record-priorauth-clips.ts).
     if (input.loginType === 2) {
+      await page.waitForTimeout(1500);
       const clicked = await this.clickQuickAccessOption(page, input.quickAccessIndex ?? 0);
       if (!clicked) return false;
 
@@ -252,18 +254,18 @@ export class AuthAgent implements IAuthAgent {
       }
     }
 
-    // Strategy 2: find the container that holds "QUICK ACCESS" text, then
-    //             click the nth button / [role="button"] inside it.
+    // Strategy 2: find the container that holds "Quick Access" or "Quick Login"
+    //             text, then click the nth button / [role="button"] inside it.
     try {
       const section = page
         .locator('div, section, aside, form')
-        .filter({ hasText: /quick.access/i })
+        .filter({ hasText: /quick[\s\-_]*(access|login)/i })
         .last();
       const isVisible = await section.isVisible({ timeout: 2000 }).catch(() => false);
       if (isVisible) {
         const buttons = section
-          .locator('button, [role="button"]')
-          .filter({ hasNotText: /quick.access/i });
+          .locator('button, [role="button"], div[class*="card"], div[class*="Card"], div[class*="user"], div[class*="User"]')
+          .filter({ hasNotText: /quick[\s\-_]*(access|login)/i });
         const count = await buttons.count().catch(() => 0);
         if (count > index) {
           await buttons.nth(index).click();
@@ -274,14 +276,14 @@ export class AuthAgent implements IAuthAgent {
       // fall through
     }
 
-    // Strategy 3: any button that appears below the "QUICK ACCESS" label
+    // Strategy 3: any clickable element below a "Quick Access" or "Quick Login" label
     try {
-      const label = page.locator(':text-matches("QUICK ACCESS", "i")').first();
+      const label = page.locator(':text-matches("quick.*(access|login)", "i")').first();
       const labelVisible = await label.isVisible({ timeout: 1000 }).catch(() => false);
       if (labelVisible) {
         const labelBox = await label.boundingBox().catch(() => null);
         if (labelBox) {
-          const allButtons = page.locator('button, [role="button"]');
+          const allButtons = page.locator('button, [role="button"], div[class*="card"], div[class*="Card"], div[class*="user"], div[class*="User"]');
           const total      = await allButtons.count().catch(() => 0);
           let   found      = 0;
           for (let i = 0; i < total; i++) {
@@ -296,6 +298,89 @@ export class AuthAgent implements IAuthAgent {
             }
           }
         }
+      }
+    } catch {
+      // fall through
+    }
+
+    // Strategy 4: Playwright locates the divider (handles inline elements correctly),
+    // then page.evaluate() finds tile-sized elements below that Y coordinate.
+    // Splitting the work avoids the offsetHeight=0 problem for inline <span> dividers.
+    try {
+      const dividerLoc = page.locator(
+        ':text-matches("quick.*(login|access)", "i"), :text-matches("demo.*quick", "i")',
+      ).first();
+      const divBox = await dividerLoc.boundingBox().catch(() => null);
+
+      if (divBox) {
+        const tileCoords = await page.evaluate(
+          ({ divBottom, targetIndex }: { divBottom: number; targetIndex: number }) => {
+            const candidates = Array.from(
+              document.querySelectorAll('div, button, li, a, [role="button"]'),
+            ).filter(el => {
+              if (!(el instanceof HTMLElement)) return false;
+              const r = el.getBoundingClientRect();
+              if (r.top    < divBottom + 2) return false;
+              if (r.height < 28 || r.height > 160) return false;
+              if (r.width  < 60 || r.width  > 560) return false;
+              return true;
+            }) as HTMLElement[];
+
+            // Prefer cursor:pointer (interactive tiles); fall back to all tile-sized candidates.
+            const withPointer = candidates.filter(
+              el => window.getComputedStyle(el).cursor === 'pointer',
+            );
+            const pool = withPointer.length > 0 ? withPointer : candidates;
+
+            // Remove parent/child duplicates — keep the innermost (most specific) element.
+            const tiles = pool.filter(
+              (el, _, arr) => !arr.some(other => other !== el && el.contains(other)),
+            );
+
+            tiles.sort((a, b) => {
+              const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+              return Math.abs(ra.top - rb.top) > 10 ? ra.top - rb.top : ra.left - rb.left;
+            });
+
+            if (tiles.length <= targetIndex) return null;
+            const el = tiles[targetIndex];
+            const r  = el.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+          },
+          { divBottom: divBox.y + divBox.height, targetIndex: index },
+        );
+
+        if (tileCoords) {
+          await page.mouse.click(tileCoords.x, tileCoords.y);
+          return true;
+        }
+      }
+    } catch {
+      // fall through
+    }
+
+    // Strategy 5: Playwright :below() layout selector — finds elements physically
+    // below the quick-login label without any CSS class assumptions.
+    // Mirrors the approach in record-priorauth-clips.ts loginAs().
+    try {
+      const dividerSel =
+        ':text-matches("quick.*(login|access)", "i"), :text-matches("demo.*quick", "i")';
+      const belowLoc = page.locator(
+        `div:below(${dividerSel}), button:below(${dividerSel}), li:below(${dividerSel})`,
+      );
+      const total = await belowLoc.count().catch(() => 0);
+      let tileCount = 0;
+      for (let i = 0; i < total; i++) {
+        const el  = belowLoc.nth(i);
+        const box = await el.boundingBox().catch(() => null);
+        if (!box) continue;
+        if (box.height < 28 || box.height > 160) continue;
+        if (box.width  < 60 || box.width  > 560) continue;
+        if (tileCount === index) {
+          await el.click({ force: true, timeout: 5_000 });
+          return true;
+        }
+        tileCount++;
       }
     } catch {
       // fall through

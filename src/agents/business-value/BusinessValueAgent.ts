@@ -165,11 +165,18 @@ export class BusinessValueAgent implements IBusinessValueAgent {
     }));
 
     // ── Fill prompt template ───────────────────────────────────────────────
+    const locale   = process.env['APP_LANGUAGE'] ?? 'en';
+    const langHint = !locale || locale === 'en' || locale.startsWith('en-') ? '' : (() => {
+      const { resolveLocale } = require('../../core/domain/types/Locale') as
+        typeof import('../../core/domain/types/Locale');
+      return `\n\nIMPORTANT: Write all output text in ${resolveLocale(locale).name}.`;
+    })();
+
     const prompt = fillTemplate(this.promptTemplate, {
       PRODUCT_NAME:    this.config.productName    ?? 'the Platform',
       TARGET_AUDIENCE: this.config.targetAudience ?? 'decision makers and operations leaders',
       FEATURE_BATCH:   JSON.stringify(featureBatch, null, 2),
-    });
+    }) + langHint;
 
     // ── LLM call ───────────────────────────────────────────────────────────
     const rawText = await this.llmProvider.complete(

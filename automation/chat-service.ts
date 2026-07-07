@@ -59,7 +59,7 @@ export async function chat(userMessage: string): Promise<ChatResult> {
   try {
     const response = await getClient().chat.completions.create({
       model:       process.env['AZURE_OPENAI_DEPLOYMENT'] ?? '',
-      max_tokens:  1024,
+      max_completion_tokens: 1024,
       temperature: 0.2,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -84,13 +84,13 @@ export async function chat(userMessage: string): Promise<ChatResult> {
   }
 
   try {
-    const errors = jsonpatch.validate(parsed.changes as jsonpatch.Operation[], pkg);
-    if (errors && errors.length > 0) {
+    const patchError = jsonpatch.validate(parsed.changes as jsonpatch.Operation[], pkg);
+    if (patchError) {
       return {
         reply: parsed.reply,
         changes: parsed.changes,
         applied: false,
-        error: errors[0]?.message ?? 'Invalid patch path',
+        error: (patchError as { message?: string }).message ?? 'Invalid patch path',
       };
     }
 

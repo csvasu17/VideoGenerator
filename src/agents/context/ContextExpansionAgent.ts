@@ -102,11 +102,22 @@ export class ContextExpansionAgent implements IContextExpansionAgent {
     const trimmedInput = rawText.slice(0, this.config.maxInputChars);
     const glossary  = (process.env['APP_GLOSSARY']  ?? '').slice(0, 2000);
     const routeMap  = (process.env['APP_ROUTE_MAP'] ?? '').slice(0, 3000);
+
+    // When running in a non-English locale, instruct the LLM to generate output
+    // in the target language so that expanded context text (businessGoals, etc.)
+    // is consistent with the translated storyboard produced later in the pipeline.
+    const locale     = process.env['APP_LANGUAGE'] ?? 'en';
+    const langHint   = !locale || locale === 'en' || locale.startsWith('en-') ? '' : (() => {
+      const { resolveLocale } = require('../../core/domain/types/Locale') as
+        typeof import('../../core/domain/types/Locale');
+      return `\n\nIMPORTANT: Generate all output text values in ${resolveLocale(locale).name}.`;
+    })();
+
     const prompt = fillTemplate(this.promptTemplate, {
       RAW_CONTEXT: trimmedInput,
       GLOSSARY:    glossary  || 'No glossary provided.',
       ROUTE_MAP:   routeMap  || 'No route map provided.',
-    });
+    }) + langHint;
 
     const responseText = await this.llmProvider.complete(
       [{ role: 'user', content: [{ type: 'text', text: prompt }] }],

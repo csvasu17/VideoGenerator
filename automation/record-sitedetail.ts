@@ -14,7 +14,7 @@ import {recordProjectWorkflows} from './workflow-recorder';
 dotenv.config({path: path.resolve(__dirname, '../.env'), override: true});
 
 const ROOT           = path.resolve(__dirname, '..');
-const PROJECT_ID     = 'rheem';
+const PROJECT_ID     = (process.env.APP_PRODUCT_NAME ?? 'app').toLowerCase().replace(/\s+/g, '-');
 const RECORDINGS_DIR = path.join(ROOT, 'public', 'projects', PROJECT_ID, 'recordings');
 const MANIFEST_PATH  = path.join(ROOT, 'projects', PROJECT_ID, 'clipManifest.json');
 const FPS            = 60;

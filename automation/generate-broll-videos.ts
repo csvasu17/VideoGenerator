@@ -287,7 +287,7 @@ async function main(): Promise<void> {
     console.log('     Encoding (strip audio, scale to 1920×1080)...');
     try {
       execSync(
-        `"${ffmpeg}" -y -i "${rawPath}" -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black" -an -c:v libx264 -crf 20 -preset fast "${outMp4}"`,
+        `"${ffmpeg}" -y -i "${rawPath}" -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black" -an -c:v libx264 -crf 20 -preset veryfast -threads 4 "${outMp4}"`,
         { stdio: 'pipe' },
       );
     } catch (err: any) {

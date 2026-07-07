@@ -101,7 +101,7 @@ async function analyzeScreenshot(absPath: string): Promise<{
 
   const response = await azureClient.chat.completions.create({
     model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_tokens: 400,
+    max_completion_tokens: 400,
     messages: [
       {
         role:    'system',

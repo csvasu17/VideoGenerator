@@ -185,10 +185,15 @@ export const RemotionRoot: React.FC = () => (
 
           // Also load voice-script.json so audio plays in Studio preview
           // and the script is editable via the Input Props panel.
+          // Cache-bust with timestamp so voice-ready flag is always fresh after pipeline runs.
           let voiceScript: VoiceScript | undefined;
           try {
-            const vsRes = await fetch(staticFile('voice-script.json'));
-            if (vsRes.ok) voiceScript = await vsRes.json() as VoiceScript;
+            const ts = Date.now();
+            const vsRes = await fetch(staticFile('voice-script.json') + '?t=' + ts);
+            if (vsRes.ok) {
+              voiceScript = await vsRes.json() as VoiceScript;
+              voiceScript.loadedAt = ts;
+            }
           } catch { /* voice-script.json is optional */ }
 
           const loaded: EnterpriseVideoProps = {

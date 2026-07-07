@@ -57,6 +57,7 @@ interface VoiceScript {
   model:            string;  // tts-1 or tts-1-hd
   speed:            number;  // 0.25–4.0; 1.0 = normal
   fps:              number;
+  locale?:          string;  // BCP-47 locale code (e.g. 'fr', 'de') — used for SAPI voice selection
   totalDurationSec: number;
   segments:         VoiceSegment[];
 }
@@ -90,7 +91,7 @@ const MUSIC_OVERRIDE = (process.env['BACKGROUND_MUSIC_PATH'] ?? '').trim();
  * Find Remotion's bundled ffmpeg binary.
  * We use it directly (not via `npx remotion ffmpeg --`) so that spawnSync can
  * pass arguments as a proper Win32 args array, avoiding cmd.exe quoting issues
- * when paths contain spaces (e.g. "Rheem Video").
+ * when paths contain spaces (e.g. "My Product Video").
  */
 function findFfmpegBin(): string {
   const candidates = [
@@ -204,14 +205,33 @@ async function generateWithOpenAI(
 }
 
 /**
+ * Maps a BCP-47 locale code to the Windows SAPI voice name.
+ * Falls back to Microsoft David Desktop (English) if no locale-specific
+ * voice is installed or the locale is unknown.
+ */
+function resolveSapiVoice(locale: string): string {
+  const map: Record<string, string> = {
+    fr: 'Microsoft Hortense Desktop',   // French
+    de: 'Microsoft Hedda Desktop',      // German
+    es: 'Microsoft Helena Desktop',     // Spanish
+    it: 'Microsoft Elsa Desktop',       // Italian
+    pt: 'Microsoft Heami Desktop',      // Portuguese
+    ja: 'Microsoft Haruka Desktop',     // Japanese
+  };
+  const code = locale.split('-')[0].toLowerCase();
+  return map[code] ?? 'Microsoft David Desktop';
+}
+
+/**
  * Provider B: Windows SAPI (no API key required).
- * Uses Microsoft David Desktop (male) via PowerShell.
+ * Uses Microsoft David Desktop (male, English) by default; selects a
+ * locale-appropriate voice when locale is provided.
  * Quality is acceptable but less natural than OpenAI TTS.
  *
  * All paths passed to PowerShell via a temp .ps1 file to avoid escaping issues.
  * All spawnSync calls use shell:false so Win32 handles spaces in paths directly.
  */
-function generateWithSAPI(text: string, outMp3: string, speed: number): void {
+function generateWithSAPI(text: string, outMp3: string, speed: number, locale = 'en'): void {
   // Put temp WAV/ps1/text in the OS temp dir to avoid path-with-space issues
   // in the PowerShell SetOutputToWaveFile call.
   const tmpDir   = path.join(os.tmpdir(), 'rheem-voice-gen');
@@ -231,12 +251,14 @@ function generateWithSAPI(text: string, outMp3: string, speed: number): void {
   fs.writeFileSync(textFile, text, 'utf-8');
 
   // PowerShell script that reads text file → synthesises to WAV
-  // Paths here are the OS tmpdir paths which never have "Rheem Video" spaces.
+  // Paths here are the OS tmpdir paths which never have product-name spaces.
+  const preferredVoice = resolveSapiVoice(locale);
   const psLines = [
     `Add-Type -AssemblyName System.Speech`,
     `$text  = [System.IO.File]::ReadAllText('${textFile.replace(/\\/g, '\\\\')}', [Text.Encoding]::UTF8)`,
     `$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer`,
-    `$synth.SelectVoice('Microsoft David Desktop')`,
+    // Try locale-specific voice; fall back to David Desktop if not installed
+    `try { $synth.SelectVoice('${preferredVoice}') } catch { $synth.SelectVoice('Microsoft David Desktop') }`,
     `$synth.Rate   = ${sapiRate}`,
     `$synth.Volume = 100`,
     `$synth.SetOutputToWaveFile('${wavFile.replace(/\\/g, '\\\\')}')`,
@@ -336,6 +358,19 @@ async function main(): Promise<void> {
 
   const script         = JSON.parse(fs.readFileSync(SCRIPT_PATH, 'utf-8')) as VoiceScript;
 
+  // Log locale info — Azure/OpenAI TTS auto-detect language from text content.
+  // SAPI requires a locale-specific voice to be installed on the host machine.
+  const scriptLocale = script.locale ?? process.env['APP_LANGUAGE'] ?? 'en';
+  if (scriptLocale !== 'en') {
+    console.log(`\n  🌐  Locale : ${scriptLocale}`);
+    if (provider === 'azure' || provider === 'openai') {
+      console.log(`           Azure/OpenAI TTS auto-detects language from text — no extra config needed.`);
+    } else {
+      const sapiVoiceName = resolveSapiVoice(scriptLocale);
+      console.log(`           SAPI voice : ${sapiVoiceName} (must be installed on this machine)`);
+    }
+  }
+
   // Resolve voice-segments directory from script.voiceDir (supports multi-voice setups).
   // Falls back to 'voice-segments' for backward compatibility.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -351,14 +386,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const voice = script.voice ?? 'onyx';
-  const model = script.model ?? 'tts-1-hd';
-  const speed = script.speed ?? 1.0;
+  const voice  = script.voice  ?? 'onyx';
+  const model  = script.model  ?? 'tts-1-hd';
+  const speed  = script.speed  ?? 1.0;
+  const locale = script.locale ?? process.env['APP_LANGUAGE'] ?? 'en';
 
   if (provider === 'azure' || provider === 'openai') {
     console.log(`  Voice    : ${voice}  (model: ${model},  speed: ${speed})`);
   } else {
-    console.log(`  Voice    : Microsoft David Desktop  (SAPI rate ≈ ${Math.round((speed - 0.9) * 15)})`);
+    const sapiVoice = resolveSapiVoice(locale);
+    console.log(`  Voice    : ${sapiVoice}  (SAPI rate ≈ ${Math.round((speed - 0.9) * 15)})`);
   }
   console.log(`  Segments : ${activeSegments.length} active\n`);
 
@@ -409,12 +446,12 @@ async function main(): Promise<void> {
           console.warn('       Azure OpenAI → Deployments → Add deployment → tts-1-hd.');
           console.warn('       Falling back to Windows SAPI for this run.\n');
         }
-        generateWithSAPI(seg.text, segFile, speed);
+        generateWithSAPI(seg.text, segFile, speed, locale);
       }
     } else if (provider === 'openai') {
       await generateWithOpenAI(seg.text, segFile, voice, model, speed);
     } else {
-      generateWithSAPI(seg.text, segFile, speed);
+      generateWithSAPI(seg.text, segFile, speed, locale);
     }
 
     const stat = fs.statSync(segFile);
@@ -462,6 +499,14 @@ async function main(): Promise<void> {
   console.log(
     `\n  ✓  Narration : ${NARR_PATH}  (${(narrStat.size / 1_048_576).toFixed(2)} MB)`,
   );
+
+  // Stamp voice-script.json so the Remotion composition knows audio is ready.
+  try {
+    const vsRaw = JSON.parse(fs.readFileSync(SCRIPT_PATH, 'utf-8')) as Record<string, unknown>;
+    vsRaw['voiceReady'] = true;
+    fs.writeFileSync(SCRIPT_PATH, JSON.stringify(vsRaw, null, 2), 'utf-8');
+    console.log('  ✓  voice-script.json → voiceReady: true');
+  } catch {}
 
   if (NO_MERGE) {
     console.log('\n  --no-merge set — skipping video merge.');

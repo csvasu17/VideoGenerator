@@ -240,6 +240,46 @@ async function performFullInteraction(page: Page): Promise<void> {
 
 // ─── AI analysis ──────────────────────────────────────────────────────────────
 
+const GENERIC_NARRATIONS_ENT = new Set([
+  'This feature improves operational efficiency across your team.',
+  'This feature accelerates your workflow.',
+  'Platform Feature',
+]);
+
+async function analyzeFrameTextOnly(
+  pagePurpose: string,
+  userRole?:   string,
+): Promise<{ featureTitle: string; salesHook: string; narration: string }> {
+  const PRODUCT_NAME_LOCAL = (process.env['APP_PRODUCT_NAME'] ?? 'The Platform').replace(/_/g, ' ');
+  const prompt = `You are a B2B SaaS demo video script writer.
+${APP_CONTEXT ? `\n\nPRODUCT CONTEXT:\n${APP_CONTEXT}` : ''}
+${userRole ? `\n\nACTIVE USER ROLE: The logged-in user is "${userRole}". Frame all narration from this persona's goals and pain points.` : ''}
+${pagePurpose ? `\n\nCURRENT PAGE: ${pagePurpose}` : ''}
+${APP_GLOSSARY ? `\n\nDOMAIN GLOSSARY (use these exact terms in narration):\n${APP_GLOSSARY}` : ''}
+
+Based on the product context and current page description above, output a JSON object (no markdown fences) with exactly:
+{
+  "featureTitle": "short 2-4 word feature name",
+  "salesHook": "compelling 6-10 word hook focusing on business value for the active user role",
+  "narration": "one paragraph (2-3 sentences, ~25 words) — address the active user role by name if known, explain what this screen lets them do, and state the specific pain it eliminates"
+}
+Be specific to this product page. Use domain glossary terms accurately.`;
+
+  const response = await azureClient.chat.completions.create({
+    model:             process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
+    max_completion_tokens: 500,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const raw = response.choices[0]?.message?.content ?? '{}';
+  const p = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, ''));
+  return {
+    featureTitle: p.featureTitle ?? 'Platform Feature',
+    salesHook:    p.salesHook    ?? 'Streamline your operations instantly.',
+    narration:    p.narration    ?? `${pagePurpose || PRODUCT_NAME_LOCAL} — purpose-built to streamline your operations.`,
+  };
+}
+
 async function analyzeFrame(
   framePath:  string,
   userRole?:  string,
@@ -273,40 +313,56 @@ async function analyzeFrame(
 }
 Be specific to what you see. Use domain glossary terms accurately.`);
 
-  const response = await azureClient.chat.completions.create({
-    model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_tokens: 500,
-    messages: [
-      { role: 'system', content: sections.join('') },
-      {
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}`, detail: 'low' } },
-          { type: 'text', text: 'Analyse this product screenshot and return the JSON.' },
-        ],
-      },
-    ],
-  });
-
-  const raw = response.choices[0]?.message?.content ?? '{}';
+  let visionResult: { featureTitle: string; salesHook: string; narration: string } | null = null;
   try {
+    const response = await azureClient.chat.completions.create({
+      model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
+      max_completion_tokens: 500,
+      messages: [
+        { role: 'system', content: sections.join('') },
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}`, detail: 'low' } },
+            { type: 'text', text: 'Analyse this product screenshot and return the JSON.' },
+          ],
+        },
+      ],
+    });
+
+    const raw = response.choices[0]?.message?.content ?? '{}';
     const p = JSON.parse(raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, ''));
-    return {
-      featureTitle: p.featureTitle ?? 'Platform Feature',
-      salesHook:    p.salesHook    ?? 'Streamline your operations instantly.',
-      narration:    p.narration    ?? 'This feature improves operational efficiency across your team.',
+    visionResult = {
+      featureTitle: p.featureTitle ?? '',
+      salesHook:    p.salesHook    ?? '',
+      narration:    p.narration    ?? '',
     };
   } catch {
-    return {
-      featureTitle: 'Platform Feature',
-      salesHook:    'Streamline your operations instantly.',
-      narration:    'This feature improves operational efficiency across your team.',
-    };
+    // Vision not supported by this model deployment — fall through to text-only
   }
+
+  // If vision succeeded and returned non-generic narration, use it
+  if (visionResult && visionResult.narration && !GENERIC_NARRATIONS_ENT.has(visionResult.narration)) {
+    return visionResult;
+  }
+
+  // Fall back to text-only narration using page context
+  if (pagePurpose || APP_CONTEXT) {
+    try {
+      return await analyzeFrameTextOnly(pagePurpose, userRole);
+    } catch { /* fall through */ }
+  }
+
+  const PRODUCT_NAME_LOCAL = (process.env['APP_PRODUCT_NAME'] ?? 'The Platform').replace(/_/g, ' ');
+  return {
+    featureTitle: visionResult?.featureTitle || 'Platform Feature',
+    salesHook:    visionResult?.salesHook    || 'Streamline your operations instantly.',
+    narration:    visionResult?.narration    || `${pagePurpose || PRODUCT_NAME_LOCAL} — purpose-built to streamline your operations.`,
+  };
 }
 
 // ─── Recording plan ───────────────────────────────────────────────────────────
-// cardIndex: 0=George(Customer), 1=Alice(SupportL1), 2=Bob(SupportL2), 3=ITAdmin
+// cardIndex: 0=Primary user (APP_USERNAME/APP_PASSWORD), 1=Secondary user (APP_USERNAME_2/APP_PASSWORD_2)
 // navItem: sidebar span text to click — null means record from the dashboard.
 // actions: optional click/wait steps to perform AFTER the page loads, capturing
 //          a specific workflow (e.g. open a ticket detail, fill a form step, etc.)
@@ -339,86 +395,55 @@ interface ClipPlan {
   actions?:           ClipAction[];
 }
 
-const ADMIN_BASE = `${APP_URL}/admin`;
-const CHAT_INPUT = 'textarea, input[placeholder*="Ask" i], input[placeholder*="question" i], input[placeholder*="query" i], [contenteditable="true"]';
+function buildRecordingPlan(): ClipPlan[] {
+  const routes = Object.entries(routeMap);
 
-const RECORDING_PLAN: ClipPlan[] = [
+  const plan: ClipPlan[] = [
+    // Login page — always first, no auth
+    {
+      cardIndex: 0, role: 'Primary User', id: 'login-page', navItem: null, label: 'Login Page',
+      durationSec: 10,
+      showLoginPage: true,
+      skipInteraction: true,
+      actions: [
+        { type: 'wait',  waitAfterMs: 2000 },
+        { type: 'click', selector: 'input[type="email"], input[name="username"], input[placeholder*="user" i], input[type="text"]', waitAfterMs: 500 },
+        { type: 'type',  selector: 'input[type="email"], input[name="username"], input[placeholder*="user" i], input[type="text"]', value: USERNAME, waitAfterMs: 500 },
+        { type: 'click', selector: 'input[type="password"]', waitAfterMs: 300 },
+        { type: 'type',  selector: 'input[type="password"]', value: PASSWORD, waitAfterMs: 500 },
+        { type: 'wait',  waitAfterMs: 3000 },
+      ],
+    },
+  ];
 
-  // ── 0. Login Page — shows credentials being entered before logging in ──────
-  {
-    cardIndex: 1, role: 'End User', id: 'login-page', navItem: null, label: 'Login Page',
-    durationSec: 10,
-    showLoginPage: true,
-    skipInteraction: true,
-    actions: [
-      { type: 'wait',  waitAfterMs: 2000 },
-      { type: 'click', selector: 'input[type="email"], input[name="username"], input[placeholder*="user" i], input[type="text"]', waitAfterMs: 500 },
-      { type: 'type',  selector: 'input[type="email"], input[name="username"], input[placeholder*="user" i], input[type="text"]', value: 'user', waitAfterMs: 500 },
-      { type: 'click', selector: 'input[type="password"]', waitAfterMs: 300 },
-      { type: 'type',  selector: 'input[type="password"]', value: 'user123', waitAfterMs: 500 },
-      { type: 'wait',  waitAfterMs: 3000 },
-    ],
-  },
+  if (routes.length === 0) {
+    plan.push({
+      cardIndex: 0, role: 'Primary User', id: 'home', navItem: null, label: 'Home',
+      durationSec: PRODUCT_SEC,
+      recordingStartSec: 8,
+    });
+  } else {
+    for (const [routePath, label] of routes) {
+      const id = routePath === '/'
+        ? 'home'
+        : routePath.replace(/^\//, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+      plan.push({
+        cardIndex: 0, role: 'Primary User', id, navItem: null,
+        navBaseUrl: `${APP_URL}${routePath}`,
+        label: String(label),
+        durationSec: PRODUCT_SEC,
+        recordingStartSec: 8,
+        actions: [
+          { type: 'wait', waitAfterMs: 3000 },
+        ],
+      });
+    }
+  }
 
-  // ── 1. AI Chat: type query → wait for response → Save Widget → modal ──────
-  {
-    cardIndex: 1, role: 'End User', id: 'chat-interface', navItem: null, label: 'AI Chat Interface',
-    durationSec: 45,
-    recordingStartSec: 47,   // seek to 2s before AI response appears at t≈49s (skips ~40s wait)
-    actions: [
-      { type: 'wait',  waitAfterMs: 2000 },
-      { type: 'click', selector: CHAT_INPUT, waitAfterMs: 800 },
-      { type: 'type',  selector: CHAT_INPUT, value: 'Show the top 5 most recently registered patient details', waitAfterMs: 600 },
-      { type: 'press', value: 'Enter', waitAfterMs: 40000 },   // wait 40s — generous for slow AI
-      { type: 'wait',  waitAfterMs: 3000 },                    // let table fully render
-      // Scroll to bottom so the response card is at a consistent screen position
-      { type: 'evaluate', value: 'document.querySelector("[class*=chat],[class*=Chat],[class*=message],[class*=Message],main,#root")?.scrollTo(0,99999) || window.scrollTo(0,document.body.scrollHeight)', waitAfterMs: 1000 },
-      // Wide vertical sweep — covers wherever response card landed after scroll
-      { type: 'mouseMove', value: '960,700', waitAfterMs: 200 },
-      { type: 'mouseMove', value: '1100,650', waitAfterMs: 200 },
-      { type: 'mouseMove', value: '1050,600', waitAfterMs: 200 },
-      { type: 'mouseMove', value: '960,550', waitAfterMs: 200 },
-      { type: 'mouseMove', value: '1100,500', waitAfterMs: 200 },
-      { type: 'mouseMove', value: '1050,450', waitAfterMs: 300 },
-      { type: 'mouseMove', value: '960,400', waitAfterMs: 300 },
-      { type: 'waitFor', selector: 'button.widget-save-icon', value: '8000', waitAfterMs: 400 },
-      { type: 'click', selector: 'button.widget-save-icon', force: true, waitAfterMs: 2500 },
-      { type: 'wait',  waitAfterMs: 1000 },
-      { type: 'click', text: 'Save Widget', waitAfterMs: 3000 },
-    ],
-  },
+  return plan;
+}
 
-  // ── 2. BI Dashboard — all charts ──────────────────────────────────────────
-  {
-    cardIndex: 1, role: 'End User', id: 'bi-dashboard', navItem: null, label: 'BI Dashboard',
-    durationSec: 15,
-    actions: [
-      { type: 'navigate', value: `${APP_URL}/dashboard`, waitAfterMs: 4000 },
-      { type: 'wait', waitAfterMs: 2000 },
-    ],
-  },
-
-  // ── 3. Admin Panel — ONE continuous recording through ALL sections ─────────
-  //   Starts at /admin (Dashboard), then clicks each sidebar item in sequence.
-  //   No re-loading dashboard between sections — smooth navigation throughout.
-  {
-    cardIndex: 0, role: 'Admin', id: 'admin-panel', navItem: null, navBaseUrl: ADMIN_BASE, label: 'Admin Panel',
-    durationSec: 55,
-    skipInteraction: true,   // custom actions cover all exploration; skip performFullInteraction
-    actions: [
-      { type: 'wait',  waitAfterMs: 4000 },                                      // Dashboard loads
-      { type: 'click', text: 'Schema Explorer',  waitAfterMs: 5000 },            // → Schema Explorer
-      { type: 'click', text: 'Column Mapper',    waitAfterMs: 5000 },            // → Column Mapper
-      { type: 'click', text: 'Column Lookups',   waitAfterMs: 5000 },            // → Column Lookups
-      { type: 'click', text: 'Few-Shot Learning',waitAfterMs: 5000 },            // → Few-Shot Learning
-      { type: 'click', text: 'Query Review',     waitAfterMs: 5000 },            // → Query Review
-      { type: 'click', text: 'Schema Chat',      waitAfterMs: 5000 },            // → Schema Chat
-      { type: 'click', text: 'Role Management',  waitAfterMs: 5000 },            // → Role Management
-      { type: 'click', text: 'Token Usage',      waitAfterMs: 5000 },            // → Token Usage
-      { type: 'click', text: 'Settings',         waitAfterMs: 4000 },            // → Settings
-    ],
-  },
-];
+const RECORDING_PLAN = buildRecordingPlan();
 
 // ─── URL discovery (no recording) ────────────────────────────────────────────
 // Navigates through every nav item WITHOUT recording to capture the real URL for
@@ -834,14 +859,9 @@ async function main(): Promise<void> {
     // Admin panel: hardcode analysis — GPT vision sees the last screenshot (Settings page)
     // which generates wrong titles. The admin clip covers all 10 sections so use fixed text.
     if (clip.id === 'admin-panel') {
-      console.log(`  [${i + 1}/${clips.length}] 📖  admin-panel — hardcoded analysis`);
-      analyzed.push({
-        ...clip,
-        featureTitle: 'Admin Panel',
-        salesHook:    'Complete platform control — from schema to security',
-        narration:    'The Admin Panel gives administrators complete control over Cognify One. Configure schemas, train the AI with custom examples, review generated SQL, manage role-based access, and monitor token usage — all from one unified interface.',
-      });
-      continue;
+      const productName = (process.env['APP_PRODUCT_NAME'] ?? 'The Platform').replace(/_/g, ' ');
+      console.log(`  [${i + 1}/${clips.length}] 📖  admin-panel — using AI analysis`);
+      // Let analyzeFrame() generate narration — fall through to normal analysis below
     }
 
     // Login page: use app overview narration instead of AI vision

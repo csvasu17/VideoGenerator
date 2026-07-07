@@ -21,7 +21,8 @@ export class AuthStage implements PipelineStage<WorkflowInput, AuthSession> {
     let session: AuthSession;
 
     if (input.loginType === 2) {
-      // Quick Access login — no credentials to read or seal.
+      // Quick Access login: click a role tile instead of filling a form.
+      // If no tiles are found (app uses standard login), fall back to credentials.
       session = await this.agent.login({
         url:              input.url,
         username:         '',
@@ -29,11 +30,27 @@ export class AuthStage implements PipelineStage<WorkflowInput, AuthSession> {
         loginType:        2,
         quickAccessIndex: input.quickAccessIndex ?? 0,
       });
+
+      if (!session.authenticated && input.credentials) {
+        // Quick Access tiles not found on this app — fall back to credential login.
+        const username = input.credentials.username;
+        const password = input.credentials.password;
+        try {
+          session = await this.agent.login({
+            url: input.url,
+            username,
+            password,
+            loginType: 1,
+          });
+        } finally {
+          input.credentials.seal();
+        }
+      } else if (input.credentials) {
+        // Quick Access succeeded — still seal credentials since they were kept.
+        input.credentials.seal();
+      }
     } else {
       // ── Read credentials before sealing ───────────────────────────────────
-      // We extract to locals so the seal() call in finally doesn't break the
-      // login() invocation, and to ensure the strings leave scope after this
-      // method returns.
       const username = input.credentials!.username;
       const password = input.credentials!.password;
 

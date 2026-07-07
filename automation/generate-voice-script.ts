@@ -53,6 +53,7 @@ interface VoiceScript {
   model:            string;
   speed:            number;
   fps:              number;
+  locale?:          string;
   totalDurationSec: number;
   segments:         VoiceSegment[];
 }
@@ -214,14 +215,20 @@ function main(): void {
   // ── Voice config ─────────────────────────────────────────────────────────
   // Enterprise voice: "onyx" (deep, authoritative) at 0.95× speed (measured, formal).
   // Model uses the TTS deployment name from .env.
+  const locale = process.env['APP_LANGUAGE'] ?? 'en';
   const script: VoiceScript = {
     voice:            'onyx',
     model:            process.env['AZURE_OPENAI_TTS_DEPLOYMENT'] ?? 'tts-hd',
     speed:            0.95,
     fps,
+    locale,
     totalDurationSec,
     segments,
   };
+
+  if (locale !== 'en') {
+    console.log(`\n  🌐  Locale: ${locale} (narration text is localised — TTS will auto-detect language)`);
+  }
 
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(script, null, 2), 'utf-8');
 

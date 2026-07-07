@@ -12,7 +12,7 @@ import { FeatureRankingStage }       from './stages/FeatureRankingStage';
 import { JourneyGenerationStage }    from './stages/JourneyGenerationStage';
 import { StoryboardStage }           from './stages/StoryboardStage';
 import { RemotionExportStage }       from './stages/RemotionExportStage';
-import type { RunInput, WorkflowInput } from './PipelineContext';
+import type { RunInput, WorkflowInput, WorkflowOptions } from './PipelineContext';
 import { AuthAgent }                 from '../../agents/auth/AuthAgent';
 import { SealedCredentials }         from '../../core/domain/entities/Credentials';
 import { UrlValidator, UrlValidationError } from './UrlValidator';
@@ -26,6 +26,8 @@ import { MotionDirectionStage, buildMotionDirectionInput } from './stages/Motion
 import { DemoReadinessStage }           from './stages/DemoReadinessStage';
 import { SalesStoryDirectorStage }         from './stages/SalesStoryDirectorStage';
 import { InteractionReplayDirectorStage } from './stages/InteractionReplayDirectorStage';
+import { NarrationTranslationStage }      from './stages/NarrationTranslationStage';
+import { isEnglish }                      from '../../core/domain/types/Locale';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stage progress weights (must sum to 100)
@@ -45,7 +47,8 @@ const STAGE_PROGRESS: Record<string, number> = {
   'Sales Story':                 2,   // Phase 8 — narrative arc construction
   'Interaction Replay Director': 2,   // Phase 9 — interaction replay plan
   'Journey Generation':          1,   // -1 to accommodate Phase 9 stage
-  'Storyboard Generation':       5,   // -1 to accommodate Phase 9 stage
+  'Storyboard Generation':       3,   // reduced by 2 to accommodate Translation stage
+  'Narration Translation':       2,   // i18n — no-op when locale === 'en'
   'Remotion Export':             10,
   'Motion Direction':            5,
   // Total: 100
@@ -134,20 +137,27 @@ export class WorkflowOrchestrator {
     }
 
     // ── RF5: Wrap raw strings in SealedCredentials — AuthStage seals after use.
-    // For LOGIN_TYPE=2 (Quick Access), credentials are not required and are omitted.
+    // Always seal credentials when provided; for LOGIN_TYPE=2 (Quick Access) they
+    // act as a credential fallback if no Quick Access cards are found on the page.
+    //
+    // Merge APP_LANGUAGE into options.locale here so it flows into ctx.input.options
+    // and is visible to all stages (NarrationTranslationStage, RemotionExportStage).
     const input: WorkflowInput = {
       url:              rawInput.url,
-      credentials:      rawInput.loginType === 2
-                          ? undefined
-                          : new SealedCredentials(rawInput.username, rawInput.password),
+      credentials:      rawInput.username && rawInput.password
+                          ? new SealedCredentials(rawInput.username, rawInput.password)
+                          : undefined,
       outputDir:        rawInput.outputDir,
-      options:          rawInput.options,
+      options: {
+        ...rawInput.options,
+        locale: rawInput.options?.locale ?? process.env['APP_LANGUAGE'] ?? 'en',
+      },
       loginType:        rawInput.loginType,
       quickAccessIndex: rawInput.quickAccessIndex,
     };
 
     const ctx = createPipelineContext(input);
-    const opts = input.options ?? {};
+    const opts = input.options!;
 
     const run: PipelineRun = {
       id:       runId,
@@ -468,6 +478,21 @@ export class WorkflowOrchestrator {
         stageResults,
         onProgress,
       );
+
+      // ── 7b. Narration Translation (i18n) ─────────────────────────────────
+      // Translates all storyboard text fields to the target language when
+      // options.locale is set to a non-English code. No-op for English.
+      // Reads APP_LANGUAGE from env; locale can also be set in RunInput.options.
+      {
+        const locale = opts.locale ?? process.env['APP_LANGUAGE'] ?? 'en';
+        if (!isEnglish(locale)) {
+          const translationStage = new NarrationTranslationStage();
+          ctx.storyboard = await runStage(
+            translationStage, undefined, ctx,
+            progressAt('Narration Translation'), stageResults, onProgress,
+          );
+        }
+      }
 
       // ── 8. Remotion export ────────────────────────────────────────────────
       const exportOutput = await runStage(

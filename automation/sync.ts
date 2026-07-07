@@ -11,7 +11,7 @@ import * as fs   from 'fs';
 import {getVideoInfo, durationToFrames} from './utils/ffprobe';
 import type {ClipInfo, ClipManifest, ResolvedSegment, SegmentDef} from './types';
 
-const PROJECT_ID     = process.argv[2] || 'rheem';
+const PROJECT_ID     = process.argv[2] || (process.env.APP_PRODUCT_NAME ?? 'app').toLowerCase().replace(/\s+/g, '-');
 const ROOT           = path.resolve(__dirname, '..');
 const PUBLIC_DIR     = path.join(ROOT, 'public');
 const REC_DIR        = path.join(PUBLIC_DIR, 'projects', PROJECT_ID, 'recordings');
@@ -46,10 +46,7 @@ const WORKFLOW_ORDER: Record<string, number> = {
   analytics:          9,
   reports:            10,
   report:             10,
-  'ai-predict':       11,
-  'ai-predictions':   11,
   ai:                 11,
-  simulator:          12,
   simulate:           12,
   workflows:          13,
   workflow:           13,
