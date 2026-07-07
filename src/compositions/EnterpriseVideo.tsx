@@ -17,6 +17,7 @@
 
 import React from 'react';
 import { AbsoluteFill, Audio, Img, Sequence, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { ChatWidget } from './ChatWidget';
 import { PresenterOverlay, TalkingWindow } from './layers/PresenterOverlay';
 import { EnterpriseBRollScene }        from './scenes/enterprise/EnterpriseBRollScene';
 import { EnterpriseAnimatedBRoll }     from './scenes/enterprise/EnterpriseAnimatedBRoll';
@@ -163,7 +164,7 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
         const voiceSyncOffsetFrames = voiceSeg
           ? Math.max(0, Math.round(voiceSeg.startSec * fps) - scene.from)
           : undefined;
-        const voiceAudioSrc = voiceSeg ? `${voiceDir}/${voiceSeg.id}.mp3` : undefined;
+        const voiceAudioSrc = (voiceScript?.voiceReady && voiceSeg) ? `${voiceDir}/${voiceSeg.id}.mp3` : undefined;
         return (
           <Sequence key={scene.id} from={scene.from} durationInFrames={scene.durationInFrames}>
             <EnterpriseProductScene
@@ -201,7 +202,7 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
                 presenterVideoSrc={isDirectVideo ? undefined : presenterConfig.videoSrc}
                 presenterWidthFraction={presenterConfig.widthFraction}
                 voiceSyncOffsetFrames={benefitVoiceOffset}
-                voiceAudioSrc={benefitSeg ? `${voiceDir}/${benefitSeg.id}.mp3` : undefined}
+                voiceAudioSrc={(voiceScript?.voiceReady && benefitSeg) ? `${voiceDir}/${benefitSeg.id}.mp3` : undefined}
                 mouthRegion={presenterConfig.mouthRegion}
               />
             );
@@ -219,8 +220,11 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
         </Sequence>
       )}
 
-      {/* ── Voice narration — one <Audio> per segment, timed to startSec ───── */}
-      {voiceScript?.segments
+      {/* ── Voice narration — only when MP3s are confirmed on disk ───────────
+           voiceReady is stamped by the pipeline after voice:only succeeds.
+           Skipping this block avoids 404 crashes when voice hasn't been
+           generated yet (e.g. immediately after a fresh recording run).    */}
+      {voiceScript?.voiceReady && voiceScript.segments
         .filter(seg => seg.enabled !== false)
         .map(seg => (
           <Sequence
@@ -229,7 +233,7 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
             durationInFrames={Math.round(seg.durationSec * fps)}
           >
             <Audio
-              src={staticFile(`${voiceDir}/${seg.id}.mp3`)}
+              src={staticFile(`${voiceDir}/${seg.id}.mp3`) + (voiceScript.loadedAt ? `?t=${voiceScript.loadedAt}` : '')}
               volume={1}
             />
           </Sequence>
@@ -264,6 +268,9 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
           style={{ width: 140, height: 'auto', display: 'block' }}
         />
       </div>
+
+      {/* ── Studio-only chat widget — invisible in rendered video ────────── */}
+      <ChatWidget />
 
     </AbsoluteFill>
   );

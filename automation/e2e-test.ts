@@ -16,8 +16,10 @@
 
 import * as path   from 'path';
 import * as dotenv from 'dotenv';
+// config.ts loads its own dotenv so OUT_DIR is always based on APP_PRODUCT_NAME.
+import { OUT_DIR as _OUT_DIR } from './config';
 
-// Load .env BEFORE any other import that reads process.env
+// Reload .env in case this script is run standalone (config.ts already does it too).
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
 // ── Pipeline wiring ──────────────────────────────────────────────────────────
@@ -33,15 +35,25 @@ import type { RunInput }           from '../src/application/pipeline/PipelineCon
 
 // ── Target  (read from .env — fall back to OrangeHRM demo for testing) ───────
 
-const TARGET_URL  = process.env['APP_URL']      ?? 'https://opensource-demo.orangehrmlive.com';
-const USERNAME    = process.env['APP_USERNAME'] ?? 'Admin';
-const PASSWORD    = process.env['APP_PASSWORD'] ?? 'admin123';
+const TARGET_URL        = process.env['APP_URL']               ?? 'https://opensource-demo.orangehrmlive.com';
+const USERNAME          = process.env['APP_USERNAME']          ?? 'Admin';
+const PASSWORD          = process.env['APP_PASSWORD']          ?? 'admin123';
+const LOGIN_TYPE        = process.env['LOGIN_TYPE'] === '2' ? 2 as const : 1 as const;
+const QUICK_ACCESS_IDX  = parseInt(process.env['APP_QUICK_ACCESS_INDEX'] ?? '0', 10) || 0;
 
-/** True when TARGET_URL points at a loopback / local dev server. */
+/**
+ * True when TARGET_URL points at a loopback or private-network address.
+ * Private IPs (RFC 1918: 10/8, 172.16/12, 192.168/16) are just as internal
+ * as localhost — allow them so the pipeline can reach on-prem / LAN apps.
+ */
 function isLocalUrl(u: string): boolean {
   try {
     const { hostname } = new URL(u);
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    return false;
   } catch {
     return false;
   }
@@ -77,28 +89,16 @@ function buildSeedUrls(baseUrl: string): string[] {
   if (raw) {
     return raw.split(',').map(r => r.trim()).filter(Boolean);
   }
-  // Auto-seed known routes when targeting the local app
+  // No APP_SEED_ROUTES set — start BFS discovery from root only
   if (isLocalUrl(baseUrl)) {
-    return [
-      '/dashboard',
-      '/sites',
-      '/alarms',
-      '/devices',
-      '/insights',
-      '/ai-predict',
-      '/simulator',
-      '/users',
-      '/settings',
-    ];
+    return ['/'];
   }
   return [];
 }
 const SEED_URLS = buildSeedUrls(TARGET_URL);
 
-// Output lives alongside existing runs; name is derived from the host so
-// re-running the same target always overwrites the previous artefacts.
-const _host      = new URL(TARGET_URL).hostname.replace(/[^a-zA-Z0-9]/g, '-');
-const OUTPUT_DIR = path.resolve(__dirname, `../out/${_host}`);
+// Output dir matches the slug Remotion Studio serves (derived from APP_PRODUCT_NAME).
+const OUTPUT_DIR = _OUT_DIR;
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
@@ -138,6 +138,7 @@ async function main(): Promise<void> {
   if (APP_CONTEXT_TEXT) {
     console.log(`      Context  : ${APP_CONTEXT_TEXT.slice(0, 80)}${APP_CONTEXT_TEXT.length > 80 ? '…' : ''}`);
   }
+  console.log(`      Login    : ${LOGIN_TYPE === 2 ? `Quick Access card #${QUICK_ACCESS_IDX}` : 'Username / password'}`);
   console.log(`      Template : ${VIDEO_TEMPLATE ?? 'modern_saas (default)'}`);
   console.log(`      Out      : ${OUTPUT_DIR}`);
   console.log(SEP);
@@ -175,11 +176,13 @@ async function main(): Promise<void> {
 
   // ── Run input ───────────────────────────────────────────────────────────────
   const input: RunInput = {
-    url:         TARGET_URL,
-    username:    USERNAME,
-    password:    PASSWORD,
-    outputDir:   OUTPUT_DIR,
-    contextText: APP_CONTEXT_TEXT || undefined,   // omit empty string → isPresent() stays false
+    url:              TARGET_URL,
+    username:         USERNAME,
+    password:         PASSWORD,
+    loginType:        LOGIN_TYPE,
+    quickAccessIndex: QUICK_ACCESS_IDX,
+    outputDir:        OUTPUT_DIR,
+    contextText:      APP_CONTEXT_TEXT || undefined,   // omit empty string → isPresent() stays false
     options: {
       maxDepth:             3,
       maxPages:             20,

@@ -43,6 +43,7 @@ export class RemotionExportStage
         ...input,
         storyArc:             ctx.salesStory,
         businessValueOutputs: ctx.businessValueOutputs?.outputs,
+        locale:               ctx.input.options?.locale ?? process.env['APP_LANGUAGE'] ?? 'en',
       });
     }
 

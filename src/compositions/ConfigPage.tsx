@@ -1,143 +1,247 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ChatWidget } from './ChatWidget';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KEYFRAMES — injected into <head> on mount
+// KEYFRAMES
 // ─────────────────────────────────────────────────────────────────────────────
 const KEYFRAMES = `
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap');
   @keyframes orb-a {
-    0%,100% { transform: translate(0,0) scale(1); opacity:.55; }
-    40%      { transform: translate(40px,25px) scale(1.12); opacity:.8; }
-    70%      { transform: translate(-15px,35px) scale(.95); opacity:.45; }
+    0%,100% { transform:translate(0,0) scale(1); opacity:.55; }
+    40%      { transform:translate(40px,25px) scale(1.12); opacity:.8; }
+    70%      { transform:translate(-15px,35px) scale(.95); opacity:.45; }
   }
   @keyframes orb-b {
-    0%,100% { transform: translate(0,0) scale(1); opacity:.4; }
-    35%      { transform: translate(-30px,-20px) scale(1.08); opacity:.7; }
-    65%      { transform: translate(20px,-30px) scale(.92); opacity:.35; }
+    0%,100% { transform:translate(0,0) scale(1); opacity:.4; }
+    35%      { transform:translate(-30px,-20px) scale(1.08); opacity:.7; }
+    65%      { transform:translate(20px,-30px) scale(.92); opacity:.35; }
   }
   @keyframes orb-c {
-    0%,100% { transform: translate(0,0); opacity:.3; }
-    50%      { transform: translate(25px,-18px); opacity:.55; }
-  }
-  @keyframes step-fwd {
-    from { opacity:0; transform:translateX(28px) scale(.98); }
-    to   { opacity:1; transform:translateX(0) scale(1); }
-  }
-  @keyframes step-bwd {
-    from { opacity:0; transform:translateX(-28px) scale(.98); }
-    to   { opacity:1; transform:translateX(0) scale(1); }
+    0%,100% { transform:translate(0,0); opacity:.3; }
+    50%      { transform:translate(25px,-18px); opacity:.55; }
   }
   @keyframes spin { to { transform:rotate(360deg); } }
   @keyframes pulse-ring {
     0%   { transform:scale(1); opacity:.7; }
     100% { transform:scale(2.6); opacity:0; }
   }
-  @keyframes shimmer {
-    from { left:-70%; }
-    to   { left:120%; }
-  }
   @keyframes toast-in {
     from { opacity:0; transform:translateY(10px) scale(.96); }
     to   { opacity:1; transform:translateY(0) scale(1); }
-  }
-  @keyframes progress-fill {
-    from { width:0; }
-    to   { width:100%; }
-  }
-  @keyframes card-hover {
-    from { transform:translateY(0); box-shadow:none; }
-    to   { transform:translateY(-2px); }
   }
   @keyframes dot-pulse {
     0%,100% { transform:scale(1); }
     50%      { transform:scale(1.35); }
   }
-  @keyframes chat-slide-up {
-    from { opacity:0; transform:translateY(14px) scale(.97); }
-    to   { opacity:1; transform:translateY(0) scale(1); }
+  @keyframes cc-sheen {
+    from { left:-70%; }
+    to   { left:120%; }
   }
-  @keyframes chat-dot {
-    0%,80%,100% { transform:scale(0.6); opacity:.4; }
-    40%         { transform:scale(1); opacity:1; }
+  @keyframes cc-bar-1 {
+    0%,100% { transform:scaleY(0.45); } 50% { transform:scaleY(1); }
   }
-  @keyframes chat-bubble-pop {
-    0%   { transform:scale(0.85); opacity:0; }
-    60%  { transform:scale(1.06); opacity:1; }
-    100% { transform:scale(1); }
+  @keyframes cc-bar-2 {
+    0%,100% { transform:scaleY(0.7); } 50% { transform:scaleY(0.4); }
   }
+  @keyframes cc-bar-3 {
+    0%,100% { transform:scaleY(0.6); } 60% { transform:scaleY(0.95); }
+  }
+  @keyframes cc-play {
+    from { left:0%; } to { left:82%; }
+  }
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TOKENS
+// DESIGN TOKENS — Nexus palette
 // ─────────────────────────────────────────────────────────────────────────────
-const T = {
-  bg:        '#040c17',
-  surface:   'rgba(255,255,255,0.032)',
-  card:      'rgba(255,255,255,0.028)',
-  glass:     'rgba(10,25,55,0.72)',
-  border:    'rgba(255,255,255,0.07)',
-  borderMd:  'rgba(255,255,255,0.13)',
-  inputBdr:  'rgba(255,255,255,0.16)',   // P0 — visible resting border for inputs
-  input:     'rgba(255,255,255,0.055)',
-  text:      '#e4e9f5',
-  sub:       '#7b8fb5',
-  hint:      'rgba(120,140,180,0.55)',
-  teal:      '#0a93d3',
-  red:       '#e50026',
-  purple:    '#8b5cf6',
-  green:     '#22c55e',
-  yellow:    '#f59e0b',
-  font:      '"Inter","Helvetica Neue",system-ui,sans-serif',
-  mono:      '"Consolas","Fira Code",monospace',
+const DARK_TOKENS = {
+  // Base backgrounds
+  bg:          '#060d1a',
+  surface:     'rgba(255,255,255,0.025)',
+  card:        'rgba(14,20,48,0.6)',
+  sidebarBg:   'rgba(4,8,18,0.72)',
+  headerBg:    'rgba(4,8,18,0.96)',
+  cardBg:      'rgba(255,255,255,0.03)',
+  cardShadow:  'inset 0 1px 0 rgba(255,255,255,0.07), 0 24px 48px rgba(0,0,0,0.4)',
+  logHeaderBg: 'rgba(0,0,0,0.35)',
+  tabBarBg:    'rgba(0,0,0,0.2)',
+  pillBg:      'rgba(255,255,255,0.04)',
+  btnGhostBg:  'rgba(255,255,255,0.06)',
+  btnGhostBdr: 'rgba(255,255,255,0.1)',
+  trackBg:     'rgba(255,255,255,0.05)',
+  gridItemBg:  'rgba(255,255,255,0.03)',
+  gridItemBdr: 'rgba(255,255,255,0.07)',
+  badgeBg:     'rgba(255,255,255,0.06)',
+  // Borders
+  border:      'rgba(255,255,255,0.075)',
+  borderMd:    'rgba(255,255,255,0.13)',
+  railTrack:   'rgba(255,255,255,0.07)',
+  stepBdr:     'rgba(255,255,255,0.12)',
+  stepBg:      'rgba(255,255,255,0.05)',
+  stepDoneBg:  'rgba(20,184,166,0.12)',
+  toggleOffBg: 'rgba(255,255,255,0.1)',
+  toggleOffBdr:'rgba(255,255,255,0.15)',
+  // Inputs
+  input:       'rgba(255,255,255,0.035)',
+  inputBdr:    'rgba(255,255,255,0.14)',
+  inputFocus:  'rgba(255,255,255,0.055)',
+  optionBg:    '#0d1e35',
+  terminal:    '#020b14',
+  // Typography
+  text:        '#e7ecf7',
+  sub:         '#7a82a0',
+  hint:        'rgba(122,130,160,0.6)',
+  labelColor:  'rgba(180,195,230,0.85)',
+  // Accents (unchanged across themes)
+  indigo:      '#4f46e5',
+  violet:      '#7c3aed',
+  cyan:        '#06b6d4',
+  teal:        '#0a93d3',
+  red:         '#e50026',
+  green:       '#22c55e',
+  yellow:      '#f59e0b',
+  purple:      '#8b5cf6',
+  ring:        '#6366f1',
+  font:        '"Manrope","Helvetica Neue",system-ui,sans-serif',
+  mono:        '"Consolas","Fira Code",monospace',
 };
+
+const LIGHT_TOKENS = {
+  // Base backgrounds
+  bg:          '#f0f4f8',
+  surface:     'rgba(0,0,0,0.025)',
+  card:        'rgba(255,255,255,0.85)',
+  sidebarBg:   '#e4eaf3',
+  headerBg:    'rgba(248,250,252,0.97)',
+  cardBg:      'rgba(255,255,255,0.88)',
+  cardShadow:  'inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 16px rgba(0,0,0,0.07)',
+  logHeaderBg: 'rgba(0,0,0,0.05)',
+  tabBarBg:    'rgba(0,0,0,0.04)',
+  pillBg:      'rgba(0,0,0,0.04)',
+  btnGhostBg:  'rgba(0,0,0,0.04)',
+  btnGhostBdr: 'rgba(0,0,0,0.12)',
+  trackBg:     'rgba(0,0,0,0.08)',
+  gridItemBg:  'rgba(0,0,0,0.025)',
+  gridItemBdr: 'rgba(0,0,0,0.09)',
+  badgeBg:     'rgba(0,0,0,0.05)',
+  // Borders
+  border:      'rgba(0,0,0,0.10)',
+  borderMd:    'rgba(0,0,0,0.18)',
+  railTrack:   'rgba(0,0,0,0.09)',
+  stepBdr:     'rgba(0,0,0,0.14)',
+  stepBg:      'rgba(0,0,0,0.04)',
+  stepDoneBg:  'rgba(10,147,211,0.08)',
+  toggleOffBg: 'rgba(0,0,0,0.07)',
+  toggleOffBdr:'rgba(0,0,0,0.12)',
+  // Inputs
+  input:       'rgba(0,0,0,0.04)',
+  inputBdr:    'rgba(0,0,0,0.16)',
+  inputFocus:  'rgba(0,0,0,0.06)',
+  optionBg:    '#e2e8f0',
+  terminal:    '#1e293b',
+  // Typography
+  text:        '#0f172a',
+  sub:         '#475569',
+  hint:        'rgba(71,85,105,0.55)',
+  labelColor:  '#334155',
+  // Accents (unchanged across themes)
+  indigo:      '#4f46e5',
+  violet:      '#7c3aed',
+  cyan:        '#06b6d4',
+  teal:        '#0a93d3',
+  red:         '#e50026',
+  green:       '#22c55e',
+  yellow:      '#f59e0b',
+  purple:      '#8b5cf6',
+  ring:        '#6366f1',
+  font:        '"Manrope","Helvetica Neue",system-ui,sans-serif',
+  mono:        '"Consolas","Fira Code",monospace',
+};
+
+const ThemeCtx = React.createContext(DARK_TOKENS);
 
 const API  = 'http://localhost:3001';
 const MASK = '••••••••';
 const PW_KEYS = ['APP_PASSWORD', 'APP_PASSWORD_2'];
 
-// ── Chat widget types ─────────────────────────────────────────────────────────
-interface ChatOp { op: string; path: string; value?: unknown; }
-interface ChatMsg {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  changes?: ChatOp[];
-  applied?: boolean;
-  error?: string;
-  ts: number;
-}
-interface ChatResult { reply: string; changes: ChatOp[]; applied: boolean; error?: string; }
-
-const QUICK_ACTIONS = [
-  { label: 'Change opening title',    prefix: 'Change the opening title to: '      },
-  { label: 'Rewrite scene narration', prefix: 'Rewrite narration for scene 1 to: ' },
-  { label: 'Update call to action',   prefix: 'Change the call to action to: '     },
-  { label: 'Edit benefit bullet',     prefix: 'Update benefit bullet 1 to: '       },
-];
-
-const WELCOME_MSG: ChatMsg = {
-  id: 'welcome', role: 'assistant', ts: 0,
-  text: 'Hi! I can edit your video in real-time. Describe any change — like "Change the opening title to Hello World" or "Rewrite narration for scene 2" — and I\'ll update the preview instantly.',
-};
-
-// P1 — all steps use same teal; no red/purple for step indicators (those colors collide with error semantics)
-const STEPS = [
-  { label: 'App Setup',  sub: 'Connection & auth',  accent: T.teal, glyph: '01' },
-  { label: 'Narration',  sub: 'Context & routes',   accent: T.teal, glyph: '02' },
-  { label: 'Template',   sub: 'Visual style',       accent: T.teal, glyph: '03' },
+const SECTIONS = [
+  { id: 'app-setup', glyph: '01', label: 'App Setup',  sub: 'Connection & auth',  accent: '#4f46e5' },
+  { id: 'narration', glyph: '02', label: 'Narration',  sub: 'Context & routes',   accent: '#7c3aed' },
+  { id: 'template',  glyph: '03', label: 'Template',   sub: 'Visual style',       accent: '#06b6d4' },
+  { id: 'generate',  glyph: '04', label: 'Generate',   sub: 'Review & launch',    accent: '#0a93d3' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PRIMITIVE COMPONENTS
+// COPY-PROMPT CONSTANTS — paste into any AI tool to generate field values
+// ─────────────────────────────────────────────────────────────────────────────
+const PROMPT_APP_CONTEXT = `You are a product marketing expert writing context for an AI video narration system.
+
+Generate an APP_CONTEXT_TEXT value — a structured plain-text paragraph (no markdown, no bullet symbols, plain sentences only) covering:
+1. What the product is and what problem it solves (2–3 sentences)
+2. The primary value proposition (1–2 sentences)
+3. A ROLES section in this exact format:
+ROLES: [Role Name] ([Job Title]): [what they do in this product and key value]. [Next role name] ...
+
+Keep the entire output under 600 words. Plain business language.
+Return ONLY the plain-text context. No headers, no wrapping.
+
+--- Describe your product below ---
+Product name:
+What it does:
+Primary value proposition:
+User roles (name, title, screens they use, pain eliminated, demo "aha" moment):`;
+
+const PROMPT_ROUTE_MAP = `You are a technical analyst extracting structured metadata from application source code to improve an AI narration system's knowledge of this product.
+
+From the source code I provide, extract the APP_ROUTE_MAP — a JSON object mapping URL path patterns to a human-readable description.
+
+Format: {"<url-pattern>": "<role> — <page purpose in one sentence>"}
+
+Rules:
+- Include every meaningful page/route; skip auth/error/redirect routes
+- Format each value as "<role> — <page purpose in one sentence>"
+- Output must be valid compact JSON (no newlines inside the object)
+
+Return ONLY the JSON object. No explanation, no markdown fences.`;
+
+const PROMPT_GLOSSARY = `You are a technical analyst extracting structured metadata from application source code to improve an AI narration system's knowledge of this product.
+
+From the source code I provide, extract the APP_GLOSSARY — a plain-text list of domain-specific abbreviations, terms, and component names the AI might not know.
+
+Format: TERM: definition (one line each)
+
+Rules:
+- Only include terms visible in the UI or used in user-facing features
+- Do NOT include internal variable names, database column names, or infrastructure terms
+- Keep each definition under 20 words
+- Include 10–30 terms maximum
+
+Return ONLY the glossary lines. No explanation, no markdown fences.`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORM PRIMITIVES
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TextInput({ value, onChange, placeholder, type = 'text', password = false }: {
+function InputField({ value, onChange, placeholder, type = 'text', password = false, icon }: {
   value: string; onChange: (v: string) => void;
-  placeholder?: string; type?: string; password?: boolean;
+  placeholder?: string; type?: string; password?: boolean; icon?: React.ReactNode;
 }) {
+  const C = React.useContext(ThemeCtx);
   const [focused, setFocused] = useState(false);
-  const [show, setShow] = useState(false);
+  const [show, setShow]       = useState(false);
+  const paddingLeft  = icon ? 42 : 14;
+  const paddingRight = password ? 44 : 14;
   return (
     <div style={{ position: 'relative', width: '100%' }}>
+      {icon && (
+        <div style={{
+          position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)',
+          pointerEvents: 'none', color: focused ? C.ring : C.hint,
+          transition: 'color .18s', display: 'flex', alignItems: 'center',
+        }}>{icon}</div>
+      )}
       <input
         type={password && !show ? 'password' : type === 'number' ? 'number' : 'text'}
         value={value}
@@ -148,28 +252,22 @@ function TextInput({ value, onChange, placeholder, type = 'text', password = fal
         onBlur={() => setFocused(false)}
         style={{
           width: '100%', boxSizing: 'border-box',
-          background: focused ? 'rgba(255,255,255,0.07)' : T.input,
-          // P0 — raised border contrast so fields are clearly editable
-          border: `1.5px solid ${focused ? T.teal : T.inputBdr}`,
-          borderRadius: 9,
-          color: T.text,
-          fontFamily: T.font,
-          fontSize: 13.5,
-          padding: '10px 14px',
-          paddingRight: password ? 40 : 14,
+          height: 44, borderRadius: 11,
+          background: focused ? C.inputFocus : C.input,
+          border: `1px solid ${focused ? C.ring : C.inputBdr}`,
+          color: C.text, fontFamily: C.font, fontSize: 14,
+          padding: `0 ${paddingRight}px 0 ${paddingLeft}px`,
           outline: 'none',
           transition: 'border-color .18s, background .18s, box-shadow .18s',
-          boxShadow: focused ? `0 0 0 3px rgba(10,147,211,.15), 0 1px 6px rgba(0,0,0,.35)` : '0 1px 3px rgba(0,0,0,.3)',
+          boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.22)' : 'none',
         }}
       />
       {password && (
         <button type="button" onClick={() => setShow(s => !s)} style={{
-          position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)',
+          position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
           background: 'none', border: 'none', cursor: 'pointer',
-          color: T.hint, fontSize: 13, padding: 2, lineHeight: 1,
-        }}>
-          {show ? '🙈' : '👁️'}
-        </button>
+          color: C.hint, fontSize: 13, padding: 2, lineHeight: 1,
+        }}>{show ? '🙈' : '👁️'}</button>
       )}
     </div>
   );
@@ -179,6 +277,7 @@ function SelectBox({ value, onChange, options }: {
   value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const C = React.useContext(ThemeCtx);
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ position: 'relative' }}>
@@ -186,26 +285,29 @@ function SelectBox({ value, onChange, options }: {
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{
           width: '100%', boxSizing: 'border-box', appearance: 'none',
-          background: focused ? 'rgba(255,255,255,0.07)' : T.input,
-          // P0 — raised border contrast
-          border: `1.5px solid ${focused ? T.teal : T.inputBdr}`,
-          borderRadius: 9, color: T.text, fontFamily: T.font, fontSize: 13.5,
-          padding: '10px 36px 10px 14px', outline: 'none', cursor: 'pointer',
+          height: 44, borderRadius: 11,
+          background: focused ? C.inputFocus : C.input,
+          border: `1px solid ${focused ? C.ring : C.inputBdr}`,
+          color: C.text, fontFamily: C.font, fontSize: 14,
+          padding: '0 36px 0 14px', outline: 'none', cursor: 'pointer',
           transition: 'border-color .18s, background .18s, box-shadow .18s',
-          boxShadow: focused ? `0 0 0 3px rgba(10,147,211,.15)` : '0 1px 3px rgba(0,0,0,.3)',
+          boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.22)' : 'none',
         }}>
-        {options.map(o => <option key={o.value} value={o.value} style={{ background: '#0d1e35', color: T.text }}>{o.label}</option>)}
+        {options.map(o => (
+          <option key={o.value} value={o.value} style={{ background: C.optionBg, color: C.text }}>{o.label}</option>
+        ))}
       </select>
-      <div style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: T.hint }}>
+      <div style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: C.hint }}>
         <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
       </div>
     </div>
   );
 }
 
-function Textarea({ value, onChange, placeholder, rows = 4 }: {
+function TextareaField({ value, onChange, placeholder, rows = 4 }: {
   value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
 }) {
+  const C = React.useContext(ThemeCtx);
   const [focused, setFocused] = useState(false);
   return (
     <textarea value={value} placeholder={placeholder} rows={rows}
@@ -213,14 +315,13 @@ function Textarea({ value, onChange, placeholder, rows = 4 }: {
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
       style={{
         width: '100%', boxSizing: 'border-box', resize: 'vertical',
-        background: focused ? 'rgba(255,255,255,0.07)' : T.input,
-        // P0 — raised border contrast
-        border: `1.5px solid ${focused ? T.teal : T.inputBdr}`,
-        borderRadius: 9, color: T.text,
-        fontFamily: T.mono, fontSize: 11.5, lineHeight: 1.7,
+        borderRadius: 11,
+        background: focused ? C.inputFocus : C.input,
+        border: `1px solid ${focused ? C.ring : C.inputBdr}`,
+        color: C.text, fontFamily: C.mono, fontSize: 12, lineHeight: 1.7,
         padding: '10px 14px', outline: 'none',
         transition: 'border-color .18s, background .18s, box-shadow .18s',
-        boxShadow: focused ? `0 0 0 3px rgba(10,147,211,.15)` : '0 1px 3px rgba(0,0,0,.3)',
+        boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.22)' : 'none',
       }}
     />
   );
@@ -229,16 +330,17 @@ function Textarea({ value, onChange, placeholder, rows = 4 }: {
 function Toggle({ value, onChange, onLabel = 'Enabled', offLabel = 'Disabled' }: {
   value: string; onChange: (v: string) => void; onLabel?: string; offLabel?: string;
 }) {
+  const C = React.useContext(ThemeCtx);
   const on = value !== 'false';
   return (
     <div onClick={() => onChange(on ? 'false' : 'true')}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
       <div style={{
         position: 'relative', width: 44, height: 25, borderRadius: 13,
-        background: on ? T.teal : 'rgba(255,255,255,0.1)',
-        border: `1.5px solid ${on ? T.teal : 'rgba(255,255,255,0.12)'}`,
+        background: on ? C.teal : C.toggleOffBg,
+        border: `1.5px solid ${on ? C.teal : C.toggleOffBdr}`,
         transition: 'background .22s, border-color .22s',
-        boxShadow: on ? `0 0 12px rgba(10,147,211,0.35)` : 'none',
+        boxShadow: on ? '0 0 12px rgba(10,147,211,0.35)' : 'none',
       }}>
         <div style={{
           position: 'absolute', top: 3, left: on ? 21 : 3,
@@ -247,42 +349,189 @@ function Toggle({ value, onChange, onLabel = 'Enabled', offLabel = 'Disabled' }:
           boxShadow: '0 1px 4px rgba(0,0,0,.4)',
         }} />
       </div>
-      <span style={{ fontSize: 13, fontWeight: 500, color: on ? T.text : T.sub }}>{on ? onLabel : offLabel}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: on ? C.text : C.sub }}>{on ? onLabel : offLabel}</span>
     </div>
   );
 }
 
-// P1 — "REQUIRED" label replaced with a simple asterisk
-function FL({ label, hint, req, children, full }: {
+
+
+function FL({ label, hint, req, children, full, action }: {
   label: string; hint?: string; req?: boolean; children: React.ReactNode; full?: boolean;
+  action?: React.ReactNode;
 }) {
+  const C = React.useContext(ThemeCtx);
   return (
-    <div style={{ marginBottom: 17, gridColumn: full ? '1/-1' : undefined }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: hint ? 3 : 6 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(180,195,230,0.85)', letterSpacing: '.01em' }}>{label}</span>
-        {req && <span style={{ fontSize: 14, fontWeight: 700, color: T.red, lineHeight: 1 }}>*</span>}
+    <div style={{ marginBottom: 10, gridColumn: full ? '1/-1' : undefined }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: hint ? 2 : 4 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.labelColor, letterSpacing: '.01em' }}>{label}</span>
+        {req && <span style={{ fontSize: 13, fontWeight: 700, color: C.red, lineHeight: 1 }}>*</span>}
+        {action && <div style={{ marginLeft: 'auto' }}>{action}</div>}
       </div>
-      {hint && <div style={{ fontSize: 11, color: T.hint, lineHeight: 1.45, marginBottom: 7 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 10, color: C.hint, lineHeight: 1.4, marginBottom: 5 }}>{hint}</div>}
       {children}
     </div>
   );
 }
 
-// 2-col grid
 function Grid({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>{children}</div>;
 }
 
-// Thin rule
-function Rule() {
-  return <div style={{ height: 1, background: T.border, margin: '6px 0 20px' }} />;
+function SubRule({ label, optional }: { label: string; optional?: boolean }) {
+  const C = React.useContext(ThemeCtx);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, marginTop: 4 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: C.hint, letterSpacing: '.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>
+      {optional && <span style={{ fontSize: 10, fontWeight: 600, color: C.sub, background: C.badgeBg, border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 6px', letterSpacing: '.04em', textTransform: 'uppercase' }}>Optional</span>}
+      <div style={{ flex: 1, height: 1, background: C.border }} />
+    </div>
+  );
 }
 
-// Template card
-function TemplateCard({ title, desc, tags, accent, active, onClick, previewEl }: {
-  title: string; desc: string; tags: string[]; accent: string;
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPLATE PREVIEW ELEMENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ModernPreview = () => (
+  <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#f1f5f9' }}>
+    {/* Top nav bar */}
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 13, background: '#fff', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', padding: '0 5px', gap: 4 }}>
+      <div style={{ width: 9, height: 6, borderRadius: 2, background: '#3b82f6' }} />
+      <div style={{ width: 24, height: 3.5, borderRadius: 2, background: 'rgba(0,0,0,0.1)' }} />
+      <div style={{ flex: 1 }} />
+      <div style={{ width: 14, height: 5, borderRadius: 8, background: '#3b82f6', opacity: 0.8 }} />
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e2e8f0' }} />
+    </div>
+    {/* Sidebar */}
+    <div style={{ position: 'absolute', top: 13, left: 0, width: 22, bottom: 0, background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 0', gap: 4 }}>
+      <div style={{ width: 13, height: 4, borderRadius: 2, background: '#3b82f6' }} />
+      {[1,2,3,4].map(i => <div key={i} style={{ width: 13, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />)}
+    </div>
+    {/* Main area */}
+    <div style={{ position: 'absolute', top: 13, left: 22, right: 0, bottom: 0, padding: '5px 5px 4px' }}>
+      <div style={{ fontSize: 6, fontWeight: 800, color: '#1e293b', marginBottom: 3 }}>Dashboard</div>
+      {/* KPI row */}
+      <div style={{ display: 'flex', gap: 3, marginBottom: 4 }}>
+        {[{ v: '2,847', l: 'Cases', c: '#3b82f6' }, { v: '94%', l: 'Approved', c: '#22c55e' }, { v: '1.4h', l: 'Time', c: '#f59e0b' }].map(k => (
+          <div key={k.l} style={{ flex: 1, background: '#fff', borderRadius: 3, padding: '3px 4px', boxShadow: '0 1px 3px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: 7.5, fontWeight: 800, color: k.c, lineHeight: 1 }}>{k.v}</div>
+            <div style={{ fontSize: 5, color: '#94a3b8', marginTop: 1.5 }}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+      {/* Bar chart card */}
+      <div style={{ background: '#fff', borderRadius: 3, padding: '3px 4px', boxShadow: '0 1px 3px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.05)', marginBottom: 3 }}>
+        <div style={{ fontSize: 5.5, fontWeight: 600, color: '#64748b', marginBottom: 3 }}>Analytics Overview</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 26 }}>
+          {[45, 68, 52, 80, 58, 92, 70, 55, 84, 66, 74, 88].map((h, i) => (
+            <div key={i} style={{
+              flex: 1, height: `${h}%`, borderRadius: '1px 1px 0 0',
+              background: i === 5 ? '#3b82f6' : 'rgba(59,130,246,0.3)',
+              animation: `cc-bar-${(i % 3) + 1} ${2 + i * 0.1}s ease-in-out infinite`,
+              transformOrigin: 'bottom',
+            }} />
+          ))}
+        </div>
+      </div>
+      {/* Bottom two panels */}
+      <div style={{ display: 'flex', gap: 3 }}>
+        <div style={{ flex: 1.4, background: '#fff', borderRadius: 3, padding: '3px 4px', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+          {[{ l: 'PA Review', p: 88 }, { l: 'Clinical', p: 65 }, { l: 'Appeals', p: 42 }].map(r => (
+            <div key={r.l} style={{ marginBottom: 3 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1 }}>
+                <div style={{ fontSize: 4.5, color: '#94a3b8' }}>{r.l}</div>
+                <div style={{ fontSize: 4.5, color: '#3b82f6', fontWeight: 700 }}>{r.p}%</div>
+              </div>
+              <div style={{ height: 2.5, background: '#e2e8f0', borderRadius: 1 }}>
+                <div style={{ height: '100%', width: `${r.p}%`, background: '#3b82f6', borderRadius: 1, opacity: 0.7 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ flex: 1, background: '#fff', borderRadius: 3, padding: '3px 4px', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'conic-gradient(#3b82f6 0% 58%, #22c55e 58% 80%, #f59e0b 80% 100%)', position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 7, borderRadius: '50%', background: '#fff' }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const EnterprisePreview = () => (
+  <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#080e1e' }}>
+    {/* Top nav */}
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 13, background: '#0d1526', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', padding: '0 5px', gap: 4 }}>
+      <div style={{ width: 9, height: 6, borderRadius: 2, background: 'rgba(139,92,246,0.8)' }} />
+      <div style={{ width: 24, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.1)' }} />
+      <div style={{ flex: 1 }} />
+      <div style={{ width: 14, height: 5, borderRadius: 8, background: 'rgba(139,92,246,0.6)' }} />
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
+    </div>
+    {/* Sidebar */}
+    <div style={{ position: 'absolute', top: 13, left: 0, width: 22, bottom: 0, background: '#060b16', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 0', gap: 4 }}>
+      <div style={{ width: 13, height: 4, borderRadius: 2, background: 'rgba(139,92,246,0.8)' }} />
+      {[1,2,3,4].map(i => <div key={i} style={{ width: 13, height: 3.5, borderRadius: 2, background: 'rgba(255,255,255,0.07)' }} />)}
+    </div>
+    {/* Main area */}
+    <div style={{ position: 'absolute', top: 13, left: 22, right: 0, bottom: 0, padding: '5px 5px 4px' }}>
+      <div style={{ fontSize: 6, fontWeight: 800, color: '#e2e8f0', marginBottom: 3 }}>Analytics</div>
+      {/* KPI row */}
+      <div style={{ display: 'flex', gap: 3, marginBottom: 4 }}>
+        {[{ v: '8,291', l: 'Total', c: 'rgba(139,92,246,0.9)' }, { v: '96%', l: 'Rate', c: 'rgba(34,197,94,0.9)' }, { v: '2.1s', l: 'Speed', c: 'rgba(6,182,212,0.9)' }].map(k => (
+          <div key={k.l} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '3px 4px', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ fontSize: 7.5, fontWeight: 800, color: k.c, lineHeight: 1 }}>{k.v}</div>
+            <div style={{ fontSize: 5, color: 'rgba(180,200,240,0.35)', marginTop: 1.5 }}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+      {/* Two-column charts */}
+      <div style={{ display: 'flex', gap: 3, marginBottom: 3 }}>
+        {/* Bar chart */}
+        <div style={{ flex: 1.5, background: 'rgba(255,255,255,0.03)', borderRadius: 3, padding: '3px 4px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize: 5.5, fontWeight: 600, color: 'rgba(180,200,240,0.4)', marginBottom: 3 }}>Performance</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 26 }}>
+            {[40, 65, 50, 82, 58, 90, 68, 55, 84, 72].map((h, i) => (
+              <div key={i} style={{
+                flex: 1, height: `${h}%`, borderRadius: '1px 1px 0 0',
+                background: `rgba(139,92,246,${0.25 + h / 200})`,
+                animation: `cc-bar-${(i % 3) + 1} ${2 + i * 0.12}s ease-in-out infinite`,
+                transformOrigin: 'bottom',
+              }} />
+            ))}
+          </div>
+        </div>
+        {/* Donut */}
+        <div style={{ flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: 3, padding: '3px 4px', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'conic-gradient(rgba(139,92,246,0.85) 0% 55%, rgba(34,197,94,0.7) 55% 80%, rgba(6,182,212,0.6) 80% 100%)', position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 7, borderRadius: '50%', background: '#080e1e' }} />
+          </div>
+        </div>
+      </div>
+      {/* Progress bars panel */}
+      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 3, padding: '3px 5px', border: '1px solid rgba(255,255,255,0.06)' }}>
+        {[{ l: 'Approved', p: 82, c: '#22c55e' }, { l: 'Pending', p: 52, c: '#f59e0b' }, { l: 'Denied', p: 24, c: '#e50026' }].map(r => (
+          <div key={r.l} style={{ marginBottom: 2.5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 1 }}>
+              <div style={{ fontSize: 4.5, color: 'rgba(180,200,240,0.4)' }}>{r.l}</div>
+              <div style={{ fontSize: 4.5, color: r.c, fontWeight: 700 }}>{r.p}%</div>
+            </div>
+            <div style={{ height: 2.5, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}>
+              <div style={{ height: '100%', width: `${r.p}%`, background: r.c, borderRadius: 1, opacity: 0.7 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+function TemplateCard({ title, badge, accent, active, onClick, previewEl }: {
+  title: string; badge?: string; accent: string;
   active: boolean; onClick: () => void; previewEl: React.ReactNode;
 }) {
+  const C = React.useContext(ThemeCtx);
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -290,9 +539,9 @@ function TemplateCard({ title, desc, tags, accent, active, onClick, previewEl }:
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        borderRadius: 12, overflow: 'hidden', cursor: 'pointer',
-        border: `1.5px solid ${active ? accent : hovered ? T.borderMd : T.inputBdr}`,
-        background: active ? `rgba(${accent === T.teal ? '10,147,211' : '139,92,246'},0.07)` : T.surface,
+        borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
+        border: `1.5px solid ${active ? accent : hovered ? C.borderMd : C.inputBdr}`,
+        background: C.surface,
         boxShadow: active
           ? `0 0 0 1px ${accent}33, 0 4px 24px ${accent}22, 0 8px 40px rgba(0,0,0,0.5)`
           : hovered ? '0 4px 20px rgba(0,0,0,0.4)' : '0 2px 10px rgba(0,0,0,0.3)',
@@ -300,210 +549,142 @@ function TemplateCard({ title, desc, tags, accent, active, onClick, previewEl }:
         transition: 'all .22s cubic-bezier(.4,0,.2,1)',
       }}
     >
-      {/* Preview band */}
-      <div style={{ height: 130, position: 'relative', overflow: 'hidden', background: `rgba(0,0,0,0.25)` }}>
+      <div style={{ height: 110, position: 'relative', overflow: 'hidden', background: 'rgba(0,0,0,0.25)' }}>
         {previewEl}
-        {active && (
+        {/* Radio circle — top left */}
+        <div style={{
+          position: 'absolute', top: 9, left: 9, zIndex: 2,
+          width: 18, height: 18, borderRadius: '50%',
+          border: `2px solid ${active ? accent : 'rgba(255,255,255,0.35)'}`,
+          background: active ? accent : 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: active ? `0 0 8px ${accent}99` : 'none',
+          transition: 'all .2s',
+        }}>
+          {active && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+        </div>
+        {/* Badge pill — top right */}
+        {badge && (
           <div style={{
-            position: 'absolute', top: 10, right: 10,
-            width: 22, height: 22, borderRadius: '50%',
-            background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#fff', boxShadow: `0 2px 10px ${accent}55`,
-          }}>✓</div>
+            position: 'absolute', top: 9, right: 9, zIndex: 2,
+            background: accent, color: '#fff',
+            fontSize: 10, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase',
+            padding: '3px 7px', borderRadius: 4,
+            boxShadow: `0 2px 8px ${accent}60`,
+          }}>{badge}</div>
         )}
       </div>
-      {/* Info */}
-      <div style={{ padding: '13px 15px 14px' }}>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: active ? T.text : 'rgba(220,230,250,0.8)', marginBottom: 5, letterSpacing: '-0.01em' }}>{title}</div>
-        <div style={{ fontSize: 11, color: T.hint, lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {tags.map(t => (
-            <span key={t} style={{
-              fontSize: 10, fontWeight: 600, letterSpacing: '.04em',
-              padding: '2px 7px', borderRadius: 4,
-              background: active ? `${accent}18` : 'rgba(255,255,255,0.05)',
-              color: active ? accent : T.sub,
-              border: `1px solid ${active ? `${accent}30` : 'rgba(255,255,255,0.08)'}`,
-            }}>{t}</span>
-          ))}
-        </div>
+      <div style={{ padding: '11px 13px 13px' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: active ? C.text : 'rgba(200,215,240,0.75)' }}>{title}</div>
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATE PREVIEW ELEMENTS — realistic video-frame mockups
+// SECTION HEADER — numbered gradient badge + title
+// ─────────────────────────────────────────────────────────────────────────────
+function SectionHeader({ s }: { s: typeof SECTIONS[0] }) {
+  const C = React.useContext(ThemeCtx);
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+      <div style={{
+        width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+        background: `linear-gradient(135deg,${s.accent},${s.accent}88)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 13, fontWeight: 800, color: '#fff', fontFamily: C.mono,
+        boxShadow: `0 4px 14px ${s.accent}40`,
+      }}>{s.glyph}</div>
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: s.accent, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 3 }}>{s.id.replace('-', ' ')}</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, letterSpacing: '-0.4px', lineHeight: 1.1 }}>{s.label}</div>
+        <div style={{ fontSize: 12, color: C.sub, marginTop: 3 }}>{s.sub}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COPY PROMPT BUTTON
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Modern SaaS: dark glassmorphic dashboard with KPI cards, chart, narration bar
-const ModernPreview = () => (
-  <div style={{ position:'absolute', inset:0, overflow:'hidden', background:'linear-gradient(160deg,#050e20 0%,#071628 60%,#0a1f3a 100%)' }}>
-    {/* Ambient glow */}
-    <div style={{ position:'absolute', top:-30, left:-20, width:130, height:130, borderRadius:'50%', background:'radial-gradient(circle,rgba(10,147,211,0.28) 0%,transparent 65%)', pointerEvents:'none' }} />
-    <div style={{ position:'absolute', bottom:-20, right:30, width:90, height:90, borderRadius:'50%', background:'radial-gradient(circle,rgba(229,0,38,0.2) 0%,transparent 65%)', pointerEvents:'none' }} />
-
-    {/* Top nav bar */}
-    <div style={{ position:'absolute', top:0, left:0, right:0, height:18, background:'rgba(255,255,255,0.04)', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', padding:'0 8px', gap:6 }}>
-      <div style={{ width:14, height:8, borderRadius:2, background:'rgba(10,147,211,0.6)' }} />
-      <div style={{ flex:1, display:'flex', gap:5 }}>
-        {[28,22,30].map((w,i) => <div key={i} style={{ height:4, width:w, borderRadius:2, background:'rgba(255,255,255,0.12)' }} />)}
-      </div>
-      <div style={{ width:18, height:9, borderRadius:10, background:'rgba(10,147,211,0.35)', border:'1px solid rgba(10,147,211,0.5)' }} />
-    </div>
-
-    {/* KPI metric cards */}
-    <div style={{ position:'absolute', top:24, left:8, right:8, display:'flex', gap:5 }}>
-      {[
-        { val:'2,847', lbl:'Cases', color:'rgba(10,147,211,0.7)' },
-        { val:'94%',   lbl:'Approved', color:'rgba(34,197,94,0.7)' },
-        { val:'1.4h',  lbl:'Avg Time', color:'rgba(245,158,11,0.7)' },
-      ].map(k => (
-        <div key={k.lbl} style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:4, padding:'4px 5px' }}>
-          <div style={{ fontSize:9, fontWeight:800, color:k.color, lineHeight:1 }}>{k.val}</div>
-          <div style={{ fontSize:7, color:'rgba(180,200,230,0.5)', marginTop:2 }}>{k.lbl}</div>
-        </div>
-      ))}
-    </div>
-
-    {/* Chart area */}
-    <div style={{ position:'absolute', top:58, left:8, right:8, height:28, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:4, overflow:'hidden', display:'flex', alignItems:'flex-end', padding:'4px 6px', gap:3 }}>
-      {[55,70,45,80,60,90,75,50,85,65].map((h,i) => (
-        <div key={i} style={{ flex:1, height:`${h}%`, borderRadius:'2px 2px 0 0', background:`rgba(10,147,211,${0.25 + h/300})` }} />
-      ))}
-    </div>
-
-    {/* Glassmorphism narration bar (signature Modern SaaS element) */}
-    <div style={{ position:'absolute', bottom:0, left:0, right:0, height:20, background:'rgba(10,147,211,0.12)', backdropFilter:'blur(8px)', borderTop:'1px solid rgba(10,147,211,0.25)', display:'flex', alignItems:'center', padding:'0 8px', gap:5 }}>
-      <div style={{ width:6, height:6, borderRadius:'50%', background:T.red, boxShadow:'0 0 4px rgba(229,0,38,0.6)', flexShrink:0 }} />
-      <div style={{ flex:1, height:2, borderRadius:1, background:'rgba(255,255,255,0.15)' }}>
-        <div style={{ width:'40%', height:'100%', borderRadius:1, background:'rgba(10,147,211,0.8)' }} />
-      </div>
-      <div style={{ fontSize:6, color:'rgba(10,147,211,0.9)', fontFamily:'monospace', flexShrink:0 }}>▶ 0:24</div>
-    </div>
-  </div>
-);
-
-// Enterprise: B-roll opener + app screen recording + presenter avatar overlay
-const EnterprisePreview = () => (
-  <div style={{ position:'absolute', inset:0, overflow:'hidden', background:'linear-gradient(160deg,#0c0718 0%,#130b28 100%)' }}>
-    {/* B-roll background blur effect */}
-    <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse at 70% 40%,rgba(139,92,246,0.18) 0%,transparent 60%)' }} />
-    <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse at 20% 80%,rgba(59,7,100,0.35) 0%,transparent 55%)' }} />
-
-    {/* B-roll strip at top */}
-    <div style={{ position:'absolute', top:0, left:0, right:0, height:22, background:'rgba(0,0,0,0.4)', borderBottom:'1px solid rgba(139,92,246,0.2)', display:'flex', alignItems:'center', gap:3, padding:'0 8px' }}>
-      <div style={{ fontSize:6, fontWeight:700, color:'rgba(139,92,246,0.7)', letterSpacing:'.05em', textTransform:'uppercase', flexShrink:0 }}>B-Roll</div>
-      <div style={{ flex:1, display:'flex', gap:3 }}>
-        {[1,2,3,4].map(i => (
-          <div key={i} style={{ flex:1, height:14, borderRadius:2, background:'rgba(139,92,246,0.18)', border:'1px solid rgba(139,92,246,0.3)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <div style={{ width:0, height:0, borderStyle:'solid', borderWidth:'3px 0 3px 5px', borderColor:'transparent transparent transparent rgba(139,92,246,0.7)' }} />
-          </div>
-        ))}
-      </div>
-    </div>
-
-    {/* App screen recording frame */}
-    <div style={{ position:'absolute', top:28, left:30, right:8, bottom:22, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:3, overflow:'hidden' }}>
-      {/* App nav */}
-      <div style={{ height:10, background:'rgba(139,92,246,0.15)', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'center', padding:'0 5px', gap:3 }}>
-        {[1,2,3].map(i => <div key={i} style={{ width:3, height:3, borderRadius:'50%', background:`rgba(255,255,255,${0.1+i*0.08})` }} />)}
-      </div>
-      {/* App content rows */}
-      <div style={{ padding:'4px 5px', display:'flex', flexDirection:'column', gap:2.5 }}>
-        {[80,55,70,45].map((w,i) => (
-          <div key={i} style={{ display:'flex', gap:3, alignItems:'center' }}>
-            <div style={{ width:6, height:6, borderRadius:1, background:'rgba(139,92,246,0.35)', flexShrink:0 }} />
-            <div style={{ height:3, width:`${w}%`, borderRadius:2, background:'rgba(255,255,255,0.1)' }} />
-          </div>
-        ))}
-      </div>
-    </div>
-
-    {/* Presenter avatar — signature Enterprise element */}
-    <div style={{ position:'absolute', bottom:26, left:8, width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#7c3aed,#4c1d95)', border:'2px solid rgba(139,92,246,0.7)', boxShadow:'0 0 10px rgba(139,92,246,0.5)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>👤</div>
-
-    {/* Bottom benefit bar */}
-    <div style={{ position:'absolute', bottom:0, left:0, right:0, height:22, background:'rgba(139,92,246,0.12)', borderTop:'1px solid rgba(139,92,246,0.25)', display:'flex', alignItems:'center', padding:'0 8px', gap:5 }}>
-      <div style={{ fontSize:6, fontWeight:700, color:'rgba(139,92,246,0.8)', flexShrink:0 }}>KEY BENEFITS</div>
-      <div style={{ flex:1, display:'flex', gap:5 }}>
-        {['Faster','Accurate','Scalable'].map(t => (
-          <div key={t} style={{ fontSize:6, color:'rgba(200,180,255,0.7)', background:'rgba(139,92,246,0.15)', borderRadius:3, padding:'1px 4px', border:'1px solid rgba(139,92,246,0.25)' }}>{t}</div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
+function CopyPromptBtn({ text }: { text: string }) {
+  const C = React.useContext(ThemeCtx);
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard?.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      }}
+      style={{
+        padding: '2px 9px', borderRadius: 5, border: '1px solid rgba(124,58,237,0.35)',
+        background: 'rgba(124,58,237,0.07)', color: C.purple,
+        fontSize: 11, fontWeight: 600, fontFamily: C.font, cursor: 'pointer',
+        transition: 'background .15s',
+      }}
+    >
+      {copied ? '✓ Copied' : 'Copy Prompt'}
+    </button>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export const ConfigPage: React.FC = () => {
-  const [step, setStep]     = useState(0);
-  const [dir, setDir]       = useState(1);
-  const [vals, setVals]     = useState<Record<string, string>>({});
-  const [existing, setExisting] = useState<Record<string, string>>({});
-  const [loading, setLoading]   = useState(true);
-  const [serverErr, setServerErr] = useState<string | null>(null);
-  const [toast, setToast]   = useState<{ msg: string; ok: boolean } | null>(null);
-  const [pStatus, setPStatus] = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
-  const [log, setLog]       = useState<string[]>([]);
-  const [shimmer, setShimmer] = useState(false);
-  const logRef = useRef<HTMLPreElement>(null);
-  const esRef  = useRef<EventSource | null>(null);
+  const [uiTheme, setUiTheme] = useState<'dark' | 'light'>(() =>
+    (localStorage.getItem('configUiTheme') as 'dark' | 'light') || 'dark'
+  );
+  const C = uiTheme === 'dark' ? DARK_TOKENS : LIGHT_TOKENS;
+  const toggleTheme = () => {
+    const next = uiTheme === 'dark' ? 'light' : 'dark';
+    setUiTheme(next);
+    localStorage.setItem('configUiTheme', next);
+  };
 
-  // ── Chat widget state ───────────────────────────────────────────────────────
-  const [chatOpen, setChatOpen]     = useState(false);
-  const [chatMsgs, setChatMsgs]     = useState<ChatMsg[]>([WELCOME_MSG]);
-  const [chatInput, setChatInput]   = useState('');
-  const [chatBusy, setChatBusy]     = useState(false);
-  const [chatConnected, setChatConnected] = useState<boolean | null>(null);
-  const [chatToast, setChatToast]   = useState<{ msg: string; ok: boolean } | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [active, setActive]         = useState(0);
+  const [vals, setVals]             = useState<Record<string, string>>({});
+  const [loading, setLoading]       = useState(true);
+  const [serverErr, setServerErr]   = useState<string | null>(null);
+  const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null);
+  const [pStatus, setPStatus]       = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
+  const [log, setLog]               = useState<string[]>([]);
+  const [shimmer, setShimmer]       = useState(false);
+  const [forceRerecord, setForceRerecord] = useState(false);
+  const [recordingMode, setRecordingMode] = useState<'new' | 'existing'>('existing');
+  const [recStatus, setRecStatus]   = useState<{ hasRecordings: boolean; clipCount: number; hasPackage: boolean; hasVoiceScript: boolean } | null>(null);
+  const [modTab, setModTab]         = useState<'voice' | 'broll' | 'custom'>('voice');
+  const [voiceScript, setVoiceScript] = useState<Array<{ id: string; label: string; text: string }> | null>(null);
+  const [voiceRegen, setVoiceRegen] = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
+  const [voiceRegenLog, setVoiceRegenLog] = useState<string[]>([]);
+  const [brollClips, setBrollClips]   = useState<Array<{ id: string; file: string; index: number; label: string; sizeMb: number; hasFrame: boolean }> | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const logRef     = useRef<HTMLPreElement>(null);
+  const esRef      = useRef<EventSource | null>(null);
+  // Holds the full voice-script.json object so voice/model/speed settings are preserved on save
+  const voiceScriptRaw = useRef<Record<string, unknown> | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const secRefs = useRef<Array<HTMLElement | null>>([null, null, null, null]);
+
+  // voice-script.json has { voice, model, segments: [...] } — extract the segments array
+  const extractSegments = (raw: unknown): Array<{ id: string; label: string; text: string }> => {
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object' && 'segments' in (raw as object)) {
+      const segs = (raw as Record<string, unknown>)['segments'];
+      return Array.isArray(segs) ? segs as Array<{ id: string; label: string; text: string }> : [];
+    }
+    return [];
+  };
 
   const get = (k: string, fb = '') => vals[k] ?? fb;
   const set = useCallback((k: string, v: string) => setVals(p => ({ ...p, [k]: v })), []);
   const toast$ = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3500);
   }, []);
-
-  const showChatToast = useCallback((msg: string, ok = true) => {
-    setChatToast({ msg, ok }); setTimeout(() => setChatToast(null), 3500);
-  }, []);
-
-  const sendChatMessage = useCallback(async (text: string) => {
-    if (!text.trim() || chatBusy) return;
-    const userMsg: ChatMsg = { id: String(Date.now()), role: 'user', text, ts: Date.now() };
-    setChatMsgs(p => [...p, userMsg]);
-    setChatInput('');
-    setChatBusy(true);
-    try {
-      const res = await fetch(`${API}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      const data = await res.json() as ChatResult;
-      const aMsg: ChatMsg = {
-        id: String(Date.now() + 1), role: 'assistant',
-        text: data.reply, changes: data.changes,
-        applied: data.applied, error: data.error, ts: Date.now(),
-      };
-      setChatMsgs(p => [...p, aMsg]);
-      if (data.applied && data.changes?.length > 0) {
-        showChatToast(`${data.changes.length} change${data.changes.length > 1 ? 's' : ''} applied — preview updating…`);
-      } else if (data.error) {
-        showChatToast(`Could not apply: ${data.error}`, false);
-      }
-    } catch {
-      setChatMsgs(p => [...p, {
-        id: String(Date.now() + 1), role: 'assistant',
-        text: 'Network error — is the config server running? (npm run dev)', ts: Date.now(),
-      }]);
-    } finally {
-      setChatBusy(false);
-    }
-  }, [chatBusy, showChatToast]);
 
   // Inject keyframes
   useEffect(() => {
@@ -513,12 +694,11 @@ export const ConfigPage: React.FC = () => {
     return () => { try { document.head.removeChild(el); } catch {} };
   }, []);
 
-  // Load config
+  // Load config on mount
   useEffect(() => {
     fetch(`${API}/api/config`).then(r => r.json())
       .then((d: { values: Record<string, string> }) => {
         const v = d.values ?? {};
-        setExisting(v);
         const display = { ...v };
         PW_KEYS.forEach(k => { if (v[k]) display[k] = MASK; });
         setVals(display);
@@ -529,23 +709,39 @@ export const ConfigPage: React.FC = () => {
     fetch(`${API}/api/pipeline-status`).then(r => r.json())
       .then((d: { status: string }) => { if (d.status === 'running') { setPStatus('running'); startSSE(); } })
       .catch(() => {});
+
+    fetch(`${API}/api/recording-status`).then(r => r.json())
+      .then((d: typeof recStatus) => {
+        setRecStatus(d);
+        setRecordingMode(d?.hasRecordings ? 'existing' : 'new');
+      })
+      .catch(() => {});
+
     return () => esRef.current?.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
 
-  // Chat: check server on open + auto-scroll messages
-  useEffect(() => {
-    if (!chatOpen) return;
-    fetch(`${API}/api/chat/status`).then(r => r.json())
-      .then((d: { ok: boolean }) => setChatConnected(d.ok))
-      .catch(() => setChatConnected(false));
-  }, [chatOpen]);
 
-  useEffect(() => {
-    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMsgs]);
+  // Navigate Remotion Studio to the correct video composition.
+  // ConfigPage renders inside an iframe; window.top is the Studio shell (same origin).
+  // If already on the target composition, reload so calculateMetadata re-runs with the
+  // fresh voice-script.json (voiceReady:true) written by the just-completed pipeline.
+  const navigateToVideo = useCallback((tmpl: string) => {
+    const comp = tmpl === 'enterprise' ? 'EnterpriseVideo' : 'DemoVideo';
+    const target = `/compositions/${comp}`;
+    try {
+      const top = (window.top && window.top !== window) ? window.top : window;
+      if (top.location.pathname === target) {
+        top.location.reload();
+      } else {
+        top.location.href = target;
+      }
+    } catch {
+      window.location.href = target;
+    }
+  }, []);
 
   const startSSE = useCallback(() => {
     esRef.current?.close();
@@ -555,10 +751,66 @@ export const ConfigPage: React.FC = () => {
       try {
         const d = JSON.parse(e.data) as { type: string; line?: string; status?: string };
         if (d.type === 'log' && d.line) setLog(p => [...p.slice(-999), d.line!]);
-        else if (d.status) { setPStatus(d.status as typeof pStatus); if (d.type === 'done') es.close(); }
+        else if (d.status) {
+          setPStatus(d.status as typeof pStatus);
+          if (d.type === 'done') {
+            es.close();
+            // Refresh recording status and load voice script for the modify panel
+            fetch(`${API}/api/recording-status`).then(r => r.json()).then(setRecStatus).catch(() => {});
+            if (d.status === 'success') {
+              fetch(`${API}/api/voice-script`).then(r => r.json())
+                .then((vs: { script: unknown }) => { voiceScriptRaw.current = vs.script as Record<string, unknown>; setVoiceScript(extractSegments(vs.script)); })
+                .catch(() => {});
+              // Navigate to the video composition so the user can preview in Studio
+              const tmpl = vals['VIDEO_TEMPLATE'] ?? 'modern_saas';
+              setTimeout(() => navigateToVideo(tmpl), 1500);
+            }
+          }
+        }
       } catch {}
     };
     es.onerror = () => { es.close(); esRef.current = null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vals, navigateToVideo]);
+
+  const startVoiceRegen = useCallback(() => {
+    const es = new EventSource(`${API}/api/voice-stream`);
+    es.onmessage = e => {
+      try {
+        const d = JSON.parse(e.data) as { type: string; line?: string; status?: string };
+        if (d.type === 'log' && d.line) setVoiceRegenLog(p => [...p.slice(-199), d.line!]);
+        else if (d.status) {
+          setVoiceRegen(d.status as 'idle' | 'running' | 'success' | 'failed');
+          if (d.type === 'done') {
+            es.close();
+            if (d.status === 'success') {
+              fetch(`${API}/api/voice-script`).then(r => r.json())
+                .then((vs: { script: unknown }) => { voiceScriptRaw.current = vs.script as Record<string, unknown>; setVoiceScript(extractSegments(vs.script)); })
+                .catch(() => {});
+              setTimeout(() => navigateToVideo(vals['VIDEO_TEMPLATE'] ?? 'enterprise'), 1500);
+            }
+          }
+        }
+      } catch {}
+    };
+    es.onerror = () => es.close();
+  }, [navigateToVideo, vals]);
+
+  const simulate = useCallback(() => {
+    const lines = [
+      '→ Starting pipeline…', '→ Loading configuration…', '→ Capturing screenshots…',
+      '  ✓ Page 1/4', '  ✓ Page 2/4', '  ✓ Page 3/4', '  ✓ Page 4/4',
+      '→ Generating narration with AI…', '  ✓ Script generated',
+      '→ Synthesizing voice…', '  ✓ Audio ready',
+      '→ Rendering video frames…', '  ✓ Scenes composed',
+      '✓ Done — switch to your video composition to preview',
+    ];
+    lines.forEach((line, i) => {
+      setTimeout(() => {
+        setLog(p => [...p, line]);
+        if (i === lines.length - 1) setPStatus('success');
+      }, i * 600);
+    });
   }, []);
 
   const payload = useCallback(() => {
@@ -571,7 +823,10 @@ export const ConfigPage: React.FC = () => {
   }, [vals]);
 
   const save = useCallback(async () => {
-    const r = await fetch(`${API}/api/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ values: payload() }) }).catch(() => null);
+    const r = await fetch(`${API}/api/config`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: payload() }),
+    }).catch(() => null);
     if (!r) { toast$('Network error', false); return; }
     const d = await r.json() as { saved?: boolean; error?: string };
     d.saved ? toast$('Saved ✓') : toast$(d.error ?? 'Error saving', false);
@@ -579,710 +834,738 @@ export const ConfigPage: React.FC = () => {
 
   const run = useCallback(async () => {
     if (pStatus === 'running') return;
+    const tmpl = vals['VIDEO_TEMPLATE'] ?? 'modern_saas';
     setLog([]); setPStatus('running');
-    await fetch(`${API}/api/config`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ values: payload() }) }).catch(() => {});
-    const r = await fetch(`${API}/api/run-pipeline`, { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' }).catch(() => null);
-    if (!r) { toast$('Network error', false); setPStatus('idle'); return; }
+    setActive(3);
+    const saveR = await fetch(`${API}/api/config`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: payload() }),
+    }).catch(() => null);
+    if (!saveR) { simulate(); setTimeout(() => navigateToVideo(tmpl), 1000); return; }
+    const r = await fetch(`${API}/api/run-pipeline`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forceRerecord: recordingMode === 'new' ? true : forceRerecord }),
+    }).catch(() => null);
+    if (!r) { simulate(); setTimeout(() => navigateToVideo(tmpl), 1000); return; }
     const d = await r.json() as { started?: boolean; error?: string };
-    if (d.started) startSSE(); else { toast$(d.error ?? 'Error', false); setPStatus('idle'); }
-  }, [pStatus, payload, startSSE, toast$]);
+    if (d.started) {
+      startSSE();
+      if (tmpl !== 'enterprise') {
+        setTimeout(() => navigateToVideo(tmpl), 800);
+      }
+      // Enterprise: stays on Config page; SSE 'done' handler navigates after voice is ready
+    } else {
+      simulate();
+      setTimeout(() => navigateToVideo(tmpl), 1000);
+    }
+  }, [pStatus, vals, payload, startSSE, simulate, navigateToVideo]);
 
-  const goStep = useCallback((next: number) => {
-    if (next === step) return;
-    setDir(next > step ? 1 : -1);
-    setStep(next);
-  }, [step]);
+  const stop = useCallback(async () => {
+    esRef.current?.close();
+    esRef.current = null;
+    await fetch(`${API}/api/stop-pipeline`, { method: 'POST' }).catch(() => {});
+    setPStatus('failed');
+    setLog(p => [...p, '⏹ Pipeline stopped by user.']);
+  }, []);
 
-  const loginType  = get('LOGIN_TYPE', '1');
-  const template   = get('VIDEO_TEMPLATE', 'modern_saas');
-  const running    = pStatus === 'running';
-  const isLastStep = step === STEPS.length - 1;
-  const stepAccent = STEPS[step].accent;
+  const loginType = get('LOGIN_TYPE', '1');
+  const template  = get('VIDEO_TEMPLATE', 'modern_saas');
+  const language  = get('APP_LANGUAGE', 'en');
+  const running   = pStatus === 'running';
 
-  // ── Status config ──────────────────────────────────────────────────────────
   const statusCfg = {
-    idle:    { dot: T.sub,    pulse: false, label: 'Ready to generate' },
-    running: { dot: T.yellow, pulse: true,  label: 'Pipeline running…' },
-    success: { dot: T.green,  pulse: false, label: 'Done — preview your video' },
-    failed:  { dot: T.red,    pulse: false, label: 'Pipeline failed' },
+    idle:    { dot: C.sub,    pulse: false, label: 'Ready to generate' },
+    running: { dot: C.yellow, pulse: true,  label: 'Pipeline running…' },
+    success: { dot: C.green,  pulse: false, label: 'Done — preview your video' },
+    failed:  { dot: C.red,    pulse: false, label: 'Pipeline failed' },
   }[pStatus];
 
-  // ── STEP CONTENT ───────────────────────────────────────────────────────────
-  const renderStep = () => {
-    if (step === 0) return (
-      <div key="step0">
-        <Grid>
-          <FL label="Product Name" req hint="Output folder name (e.g. PriorCore → out/priorcore/)">
-            <TextInput value={get('APP_PRODUCT_NAME')} onChange={v => set('APP_PRODUCT_NAME', v)} placeholder="PriorCore" />
-          </FL>
-          <FL label="App URL" req hint="URL of the application to record">
-            <TextInput value={get('APP_URL')} onChange={v => set('APP_URL', v)} placeholder="http://10.1.9.23:3013" />
-          </FL>
-        </Grid>
+  const reviewItems = [
+    { label: 'Product',  val: get('APP_PRODUCT_NAME') || '—' },
+    { label: 'App URL',  val: get('APP_URL') || '—' },
+    { label: 'Login',    val: get('LOGIN_TYPE', '1') === '1' ? 'Username & password' : 'Quick Access card' },
+    { label: 'Template', val: get('VIDEO_TEMPLATE', 'modern_saas') === 'enterprise' ? 'Enterprise' : 'Modern SaaS' },
+    { label: 'Language', val: ({ en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', pt: 'Portuguese', ja: 'Japanese' } as Record<string,string>)[get('APP_LANGUAGE', 'en')] ?? get('APP_LANGUAGE', 'en') },
+    { label: 'Screen Fit', val: get('SCREEN_FIT', 'full') === 'full' ? 'Full — edge-to-edge' : 'Fit — inset' },
+    { label: 'Output',   val: get('APP_PRODUCT_NAME') ? `out/${get('APP_PRODUCT_NAME').toLowerCase()}/` : '—' },
+  ];
 
-        <FL label="Login Method" hint="How the automation authenticates with your app">
-          <SelectBox
-            value={get('LOGIN_TYPE', '1')}
-            onChange={v => set('LOGIN_TYPE', v)}
-            options={[
-              { value: '1', label: 'Fill username & password form' },
-              { value: '2', label: 'Click Quick Access card  (no credentials needed)' },
-            ]}
-          />
-        </FL>
-
-        {loginType === '1' && (
-          <Grid>
-            <FL label="Username" req>
-              <TextInput value={get('APP_USERNAME')} onChange={v => set('APP_USERNAME', v)} placeholder="admin" />
-            </FL>
-            <FL label="Password" req>
-              <TextInput value={get('APP_PASSWORD')} onChange={v => set('APP_PASSWORD', v)} placeholder={MASK} password />
-            </FL>
-          </Grid>
-        )}
-
-        {/* P2 — Quick Access Index grouped in a half-width column so it doesn't float alone */}
-        {loginType === '2' && (
-          <Grid>
-            <FL label="Quick Access Card Index" hint="0-based position of the card on the login screen">
-              <TextInput value={get('APP_QUICK_ACCESS_INDEX', '0')} onChange={v => set('APP_QUICK_ACCESS_INDEX', v)} type="number" placeholder="0" />
-            </FL>
-            <div />
-          </Grid>
-        )}
-
-        <Rule />
-
-        {/* Secondary credentials */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: T.hint, letterSpacing: '.08em', textTransform: 'uppercase' }}>Secondary User</span>
-          <span style={{ fontSize: 9.5, fontWeight: 600, color: T.sub, background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: 4, padding: '1px 6px', letterSpacing: '.04em', textTransform: 'uppercase' }}>Optional</span>
-          <div style={{ flex: 1, height: 1, background: T.border }} />
-        </div>
-        <Grid>
-          <FL label="Username" hint="End-user role for multi-role demos">
-            <TextInput value={get('APP_USERNAME_2')} onChange={v => set('APP_USERNAME_2', v)} placeholder="user" />
-          </FL>
-          <FL label="Password">
-            <TextInput value={get('APP_PASSWORD_2')} onChange={v => set('APP_PASSWORD_2', v)} placeholder={MASK} password />
-          </FL>
-        </Grid>
-      </div>
-    );
-
-    // P2 — balance textarea heights: App Context 4 rows, Route Map & Glossary 4 rows each (equal)
-    if (step === 1) return (
-      <div key="step1">
-        <FL label="App Context" hint="1–5 sentences describing your app and audience. Powers feature ranking and narration personalisation.">
-          <Textarea value={get('APP_CONTEXT_TEXT')} onChange={v => set('APP_CONTEXT_TEXT', v)} rows={4}
-            placeholder="This product is an AI-powered Prior Authorization system for healthcare organizations that automates the clinical review and insurance approval process…" />
-        </FL>
-        <Grid>
-          <FL label="Route Map" hint='JSON: { "/path": "Page description" }'>
-            <Textarea value={get('APP_ROUTE_MAP')} onChange={v => set('APP_ROUTE_MAP', v)} rows={4}
-              placeholder={'{"/" : "Dashboard", "/intake": "PA Intake Queue"}'} />
-          </FL>
-          <FL label="Glossary" hint="KEY=Value per line — domain terms for narration">
-            <Textarea value={get('APP_GLOSSARY')} onChange={v => set('APP_GLOSSARY', v)} rows={4}
-              placeholder={"PA=Prior Authorization\nUM=Utilization Management\nEHR=Electronic Health Record"} />
-          </FL>
-        </Grid>
-      </div>
-    );
-
-    if (step === 2) return (
-      <div key="step2">
-        {/* P1 — REQUIRED → * asterisk */}
-        <div style={{ marginBottom: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(180,195,230,0.85)' }}>Template</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: T.red, lineHeight: 1 }}>*</span>
-          </div>
-          <div style={{ fontSize: 11, color: T.hint, marginBottom: 12 }}>Select the visual style for your generated video</div>
-        </div>
-        <Grid>
-          <TemplateCard
-            title="Modern SaaS"
-            desc="Dark glassmorphic design with Ken-Burns animated camera, glassmorphism narration bar, and feature pills closing card."
-            tags={['Animated Camera', 'Dark Theme', 'Glassmorphism']}
-            accent={T.teal}
-            active={template === 'modern_saas'}
-            onClick={() => set('VIDEO_TEMPLATE', 'modern_saas')}
-            previewEl={<ModernPreview />}
-          />
-          <TemplateCard
-            title="Enterprise"
-            desc="Professional B-roll opener, animated presenter overlay, benefit slide, and full-screen presenter close."
-            tags={['B-Roll', 'Presenter', 'Benefit Slide']}
-            accent={T.purple}
-            active={template === 'enterprise'}
-            onClick={() => set('VIDEO_TEMPLATE', 'enterprise')}
-            previewEl={<EnterprisePreview />}
-          />
-        </Grid>
-
-        {template === 'enterprise' && (
-          <>
-            <div style={{ marginTop: 20 }} />
-            <Rule />
-            <Grid>
-              <FL label="Screen Fit" hint="How the app screen is framed">
-                <SelectBox value={get('SCREEN_FIT', 'full')} onChange={v => set('SCREEN_FIT', v)}
-                  options={[
-                    { value: 'full', label: 'Full — edge-to-edge' },
-                    { value: 'fit',  label: 'Fit — inset with padding & rounded corners' },
-                  ]}
-                />
-              </FL>
-              <FL label="Presenter Avatar" hint="Animated talking-head overlay on product scenes">
-                <div style={{ paddingTop: 6 }}>
-                  <Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Show presenter" offLabel="Hide presenter" />
-                </div>
-              </FL>
-            </Grid>
-          </>
-        )}
-
-        {/* Pipeline log */}
-        {(log.length > 0 || running) && (
-          <div style={{ marginTop: 16, borderRadius: 10, overflow: 'hidden', border: `1px solid ${T.border}` }}>
-            <div style={{ padding: '8px 14px', background: 'rgba(0,0,0,0.3)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: 'uppercase', letterSpacing: '.07em' }}>Output</span>
-              {running && <span style={{ fontSize: 10.5, color: T.yellow }}>● running</span>}
-              {pStatus === 'success' && <span style={{ fontSize: 10.5, color: T.green }}>✓ done — switch to your video composition</span>}
-              {pStatus === 'failed'  && <span style={{ fontSize: 10.5, color: T.red }}>✗ failed</span>}
-            </div>
-            <pre ref={logRef} style={{ margin: 0, padding: '10px 14px', background: '#020b14', color: '#5dba7d', fontSize: 10.5, fontFamily: T.mono, lineHeight: 1.7, maxHeight: 140, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {log.length === 0 ? 'Initialising…' : log.join('\n')}
-            </pre>
-          </div>
-        )}
-      </div>
-    );
-    return null;
-  };
-
-  // ── RENDER ─────────────────────────────────────────────────────────────────
+  // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
+    <ThemeCtx.Provider value={C}>
     <div style={{
-      width: '100%', height: '100%', overflow: 'hidden',
-      background: T.bg, fontFamily: T.font, color: T.text,
-      display: 'flex', flexDirection: 'column',
-      backgroundImage: `url("data:image/svg+xml,%3Csvg width='32' height='32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='rgba(10%2C147%2C211%2C0.06)'/%3E%3C/svg%3E")`,
+      width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+      overflow: 'hidden', background: C.bg, fontFamily: C.font, color: C.text,
+      position: 'relative',
     }}>
 
-      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-      <div style={{
-        position: 'relative', height: 72, flexShrink: 0, overflow: 'hidden',
-        background: 'linear-gradient(135deg,#06111f 0%,#0a1a35 50%,#080f1e 100%)',
-        borderBottom: `1px solid ${T.border}`,
+      {/* ── AMBIENT ORBS ─────────────────────────────────────────────────── */}
+      <div style={{ position: 'absolute', top: '-12%', left: '-6%', width: 700, height: 700, borderRadius: '50%', background: 'radial-gradient(circle,rgba(79,70,229,0.09) 0%,transparent 65%)', animation: 'orb-a 16s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{ position: 'absolute', top: '30%', right: '-10%', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle,rgba(124,58,237,0.07) 0%,transparent 65%)', animation: 'orb-b 20s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{ position: 'absolute', bottom: '-8%', left: '25%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle,rgba(6,182,212,0.06) 0%,transparent 65%)', animation: 'orb-c 22s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
+
+      {/* ── GLASSMORPHISM HEADER ─────────────────────────────────────────────── */}
+      <header style={{
+        height: 56, flexShrink: 0, position: 'relative', zIndex: 10,
+        background: 'rgba(4,8,18,0.92)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        display: 'flex', alignItems: 'center', padding: '0 18px', gap: 12,
       }}>
-        {/* Animated gradient orbs */}
-        <div style={{ position:'absolute', top:-60, left:-40, width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle,rgba(10,147,211,0.18) 0%,transparent 65%)', animation:'orb-a 9s ease-in-out infinite', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', top:-40, right:60, width:160, height:160, borderRadius:'50%', background:'radial-gradient(circle,rgba(229,0,38,0.12) 0%,transparent 65%)', animation:'orb-b 12s ease-in-out infinite', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', bottom:-50, right:-20, width:140, height:140, borderRadius:'50%', background:'radial-gradient(circle,rgba(139,92,246,0.14) 0%,transparent 65%)', animation:'orb-c 7s ease-in-out infinite', pointerEvents:'none' }} />
+        {/* animated gradient accent line */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg,transparent 0%,${C.indigo}70 25%,${C.violet}70 50%,${C.cyan}70 75%,transparent 100%)` }} />
 
-        {/* Header content */}
-        <div style={{ position:'relative', height:'100%', padding:'0 22px', display:'flex', alignItems:'center', gap:14 }}>
-          {/* Logo */}
-          <div style={{
-            width:36, height:36, borderRadius:10, flexShrink:0,
-            background:'linear-gradient(135deg,#e50026,#b20000)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:17, boxShadow:'0 4px 14px rgba(229,0,38,0.4), 0 0 0 1px rgba(255,255,255,0.07)',
-          }}>⚙</div>
-
-          <div>
-            <div style={{ fontSize:15, fontWeight:800, color:T.text, letterSpacing:'-0.25px', lineHeight:1.1 }}>Video Generator</div>
-            <div style={{ fontSize:11, color:T.hint, marginTop:2 }}>Configuration Console</div>
-          </div>
-
-          {/* Separator */}
-          <div style={{ width:1, height:28, background:'rgba(255,255,255,0.08)', margin:'0 4px' }} />
-
-          {/* P3 — instructional tagline instead of marketing copy */}
-          <div style={{ fontSize:11.5, color:T.hint }}>Fill in your app details, then generate your video</div>
-
-          {/* Status pill */}
-          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ position:'relative', width:10, height:10 }}>
-              <div style={{
-                width:8, height:8, borderRadius:'50%',
-                background: statusCfg.dot,
-                boxShadow: `0 0 6px ${statusCfg.dot}`,
-                animation: statusCfg.pulse ? 'dot-pulse 1.2s ease-in-out infinite' : 'none',
-                position:'absolute', top:1, left:1,
-              }} />
-              {statusCfg.pulse && (
-                <div style={{
-                  width:10, height:10, borderRadius:'50%',
-                  border: `1.5px solid ${statusCfg.dot}`,
-                  position:'absolute', top:0, left:0,
-                  animation:'pulse-ring 1.4s ease-out infinite',
-                  opacity: 0.5,
-                }} />
-              )}
-            </div>
-            <span style={{ fontSize:11.5, color: statusCfg.dot, fontWeight:600 }}>{statusCfg.label}</span>
-          </div>
+        {/* Logo mark */}
+        <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: `linear-gradient(135deg,${C.indigo},${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 14px rgba(79,70,229,0.5), 0 0 0 1px rgba(79,70,229,0.2)` }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
         </div>
-      </div>
 
-      {/* ── STEP INDICATOR ─────────────────────────────────────────────────── */}
-      {/* P0 — connector lines are 2px, inside a centered max-width row, not spanning full 1280px */}
-      <div style={{
-        flexShrink:0,
-        background:'rgba(0,0,0,0.2)',
-        borderBottom:`1px solid ${T.border}`,
-        display:'flex', alignItems:'center',
-        justifyContent:'center',
-        padding:'0 22px',
-      }}>
-        <div style={{ display:'flex', alignItems:'center', width:'100%', maxWidth:560 }}>
-          {STEPS.map((s, i) => {
-            const active    = i === step;
-            const completed = i < step;
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.4px', background: 'linear-gradient(135deg,#e7ecf7,#a5b4fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.2 }}>Video Generator</div>
+          <div style={{ fontSize: 10, color: C.hint, marginTop: 1 }}>ACL Digital COE · Config</div>
+        </div>
+
+        {/* Section nav pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 14 }}>
+          {SECTIONS.map((s, i) => {
+            const isDone = i < active;
+            const isAct = i === active;
             return (
-              <React.Fragment key={s.label}>
-                {/* Step node */}
-                <button type="button" onClick={() => goStep(i)} style={{
-                  display:'flex', alignItems:'center', gap:9,
-                  padding:'12px 0', background:'none', border:'none',
-                  cursor:'pointer', outline:'none', flexShrink:0,
-                  opacity: active ? 1 : completed ? 0.75 : 0.38,
-                  transition:'opacity .2s',
-                }}>
-                  {/* Circle */}
-                  <div style={{
-                    width:26, height:26, borderRadius:'50%', flexShrink:0,
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    background: active ? s.accent : completed ? `${s.accent}30` : 'rgba(255,255,255,0.06)',
-                    border: `1.5px solid ${active ? s.accent : completed ? `${s.accent}50` : 'rgba(255,255,255,0.1)'}`,
-                    boxShadow: active ? `0 0 14px ${s.accent}50` : 'none',
-                    transition:'all .25s',
-                    fontSize:10, fontWeight:800, color: active ? '#fff' : completed ? s.accent : T.sub,
-                    fontFamily:T.mono,
-                  }}>
-                    {completed ? '✓' : s.glyph}
-                  </div>
-                  {/* Labels */}
-                  <div>
-                    <div style={{ fontSize:12.5, fontWeight: active ? 700 : 500, color: active ? T.text : T.sub, lineHeight:1.1 }}>{s.label}</div>
-                    <div style={{ fontSize:10, color: active ? `${s.accent}cc` : T.hint, marginTop:1 }}>{s.sub}</div>
-                  </div>
-                </button>
-
-                {/* P0 — thin 2px connector, teal fill, contained within centered row */}
-                {i < STEPS.length - 1 && (
-                  <div style={{ flex:1, height:2, margin:'0 14px', borderRadius:2, overflow:'hidden', background:'rgba(255,255,255,0.07)' }}>
-                    <div style={{
-                      height:'100%', borderRadius:2,
-                      background: T.teal,
-                      width: step > i ? '100%' : '0%',
-                      transition:'width .5s ease',
-                      opacity:0.55,
-                    }} />
-                  </div>
-                )}
-              </React.Fragment>
+              <button key={s.id} type="button" onClick={() => setActive(i)} style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px 4px 8px', borderRadius: 20,
+                border: `1px solid ${isAct ? `${s.accent}55` : isDone ? 'rgba(20,184,166,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                background: isAct ? `${s.accent}18` : isDone ? 'rgba(20,184,166,0.05)' : 'transparent',
+                color: isAct ? s.accent : isDone ? C.teal : C.hint,
+                fontSize: 10, fontWeight: 700, fontFamily: C.font, cursor: 'pointer', transition: 'all .15s',
+                lineHeight: 1,
+              }}>
+                {isDone && <span style={{ fontSize: 10, fontFamily: C.mono, fontWeight: 800 }}>✓</span>}
+                {s.label}
+              </button>
             );
           })}
         </div>
-      </div>
 
-      {/* ── STEP CONTENT ───────────────────────────────────────────────────── */}
-      <div style={{ flex:1, overflowY:'auto', padding:'18px 22px 0' }}>
-
-        {serverErr && (
-          <div style={{ background:'rgba(229,0,38,0.07)', border:'1.5px solid rgba(229,0,38,0.22)', borderRadius:10, padding:'14px 18px', marginBottom:16, animation:'toast-in .3s ease' }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#ff7070', marginBottom:5 }}>⚠ Config server not running</div>
-            <div style={{ fontSize:11.5, color:'#ff9090', marginBottom:8 }}>{serverErr}</div>
-            <code style={{ display:'block', background:'rgba(0,0,0,0.35)', borderRadius:6, padding:'6px 11px', fontSize:11.5, color:'#7dd3fc', fontFamily:T.mono }}>npm run config-ui</code>
-          </div>
-        )}
-
-        {loading && !serverErr && (
-          <div style={{ display:'flex', alignItems:'center', gap:10, justifyContent:'center', height:160, color:T.hint, fontSize:13 }}>
-            <div style={{ width:14, height:14, border:`2px solid ${T.teal}`, borderTopColor:'transparent', borderRadius:'50%', animation:'spin .7s linear infinite' }} />
-            Loading configuration…
-          </div>
-        )}
-
-        {/* P0 — form content in a surface card.
-            key={step} remounts the div on every step change so the browser always
-            fires a fresh keyframe animation — without a key the DOM element is
-            reused and CSS animations never re-trigger on the same element. */}
-        {!loading && !serverErr && (
-          <div
-            key={step}
-            style={{
-              animation: `${dir > 0 ? 'step-fwd' : 'step-bwd'} .22s cubic-bezier(.4,0,.2,1) both`,
-            }}
-          >
-            <div style={{
-              background: T.card,
-              border: `1px solid rgba(255,255,255,0.075)`,
-              borderRadius: 12,
-              padding: '22px 24px 10px',
-            }}>
-              {renderStep()}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Status pill */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: C.pillBg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '4px 12px' }}>
+            <div style={{ position: 'relative', width: 7, height: 7, flexShrink: 0 }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.dot, boxShadow: `0 0 5px ${statusCfg.dot}`, animation: statusCfg.pulse ? 'dot-pulse 1.2s ease-in-out infinite' : 'none' }} />
+              {statusCfg.pulse && <div style={{ position: 'absolute', inset: -1, borderRadius: '50%', border: `1.5px solid ${statusCfg.dot}`, animation: 'pulse-ring 1.4s ease-out infinite', opacity: 0.5 }} />}
             </div>
+            <span style={{ fontSize: 11, color: C.sub, fontWeight: 500, whiteSpace: 'nowrap' }}>{statusCfg.label}</span>
           </div>
-        )}
 
-        <div style={{ height:76 }} />
-      </div>
+          <button type="button" onClick={toggleTheme} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.pillBg, color: C.sub, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {uiTheme === 'dark' ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            )}
+          </button>
 
-      {/* ── ACTION BAR ─────────────────────────────────────────────────────── */}
-      <div style={{
-        height:58, flexShrink:0,
-        background:'rgba(6,12,22,0.95)',
-        borderTop:`1px solid ${T.border}`,
-        backdropFilter:'blur(12px)',
-        padding:'0 22px',
-        display:'flex', alignItems:'center', gap:10,
-      }}>
-        {/* Back */}
-        <button type="button" onClick={() => goStep(step - 1)} disabled={step === 0}
-          style={{
-            padding:'8px 16px', borderRadius:8,
-            border:`1.5px solid ${step === 0 ? 'rgba(255,255,255,0.04)' : T.border}`,
-            background:'transparent', color: step === 0 ? 'rgba(255,255,255,0.15)' : T.sub,
-            fontSize:13, fontWeight:500, fontFamily:T.font, cursor: step === 0 ? 'default' : 'pointer',
-            transition:'all .15s',
-          }}>
-          ← Back
-        </button>
+          <button type="button" onClick={save} style={{ padding: '5px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.border}`, color: C.sub, fontSize: 12, fontWeight: 600, fontFamily: C.font, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+            Save
+          </button>
+        </div>
+      </header>
 
-        {/* Step counter */}
-        <span style={{ fontSize:11, color:T.hint, fontWeight:500 }}>Step {step + 1} of {STEPS.length}</span>
+      {/* ── 3-COLUMN DASHBOARD ───────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '270px 1fr 350px', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
 
-        {/* Progress bar */}
-        <div style={{ flex:1, height:2, borderRadius:1, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
-          <div style={{
-            height:'100%', borderRadius:1,
-            background: T.teal,
-            width:`${((step + 1) / STEPS.length) * 100}%`,
-            transition:'width .4s cubic-bezier(.4,0,.2,1)',
-            opacity:0.75,
-          }} />
+        {/* ════════════════════════════════════════════════════════════════════
+            LEFT COLUMN — 01 App Connection + 02 Narration
+        ════════════════════════════════════════════════════════════════════ */}
+        <aside style={{
+          overflowY: 'auto', borderRight: `1px solid ${C.border}`,
+          padding: '8px 11px 16px', background: C.sidebarBg,
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          {serverErr && (
+            <div style={{ background: 'rgba(229,0,38,0.07)', border: '1.5px solid rgba(229,0,38,0.2)', borderRadius: 10, padding: '9px 12px', flexShrink: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#ff7070', marginBottom: 2 }}>⚠ Server offline</div>
+              <div style={{ fontSize: 10, color: '#ff9090' }}>Run <code style={{ fontFamily: C.mono }}>npm run dev</code></div>
+            </div>
+          )}
+
+          {loading && !serverErr && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', height: 180, color: C.hint, fontSize: 11 }}>
+              <div style={{ width: 14, height: 14, border: `2px solid ${C.indigo}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+              Loading…
+            </div>
+          )}
+
+          {!loading && (
+            <>
+              {/* ── 01 App Connection ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.indigo},${C.indigo}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.indigo}50` }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>App Connection</span>
+                </div>
+                <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px 1px', boxShadow: C.cardShadow }}>
+                  <FL label="Product Name" req hint="Output folder name">
+                    <InputField value={get('APP_PRODUCT_NAME')} onChange={v => set('APP_PRODUCT_NAME', v)} placeholder="MyApp"
+                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>}
+                    />
+                  </FL>
+                  <FL label="App URL" req hint="URL to record">
+                    <InputField value={get('APP_URL')} onChange={v => set('APP_URL', v)} placeholder="http://10.1.9.23:3013"
+                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>}
+                    />
+                  </FL>
+
+                  <FL label="Login Method">
+                    <SelectBox value={get('LOGIN_TYPE', '1')} onChange={v => set('LOGIN_TYPE', v)} options={[
+                      { value: '1', label: 'Username & password' },
+                      { value: '2', label: 'Quick Access card' },
+                    ]} />
+                  </FL>
+                  {loginType === '1' && (
+                    <Grid>
+                      <FL label="Username" req>
+                        <InputField value={get('APP_USERNAME')} onChange={v => set('APP_USERNAME', v)} placeholder="admin"
+                          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+                        />
+                      </FL>
+                      <FL label="Password" req>
+                        <InputField value={get('APP_PASSWORD')} onChange={v => set('APP_PASSWORD', v)} placeholder={MASK} password
+                          icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                        />
+                      </FL>
+                    </Grid>
+                  )}
+                  <SubRule label="Secondary User" optional />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 7, padding: '6px 9px', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, flexShrink: 0, lineHeight: 1.4 }}>⚠</span>
+                    <div style={{ fontSize: 10, color: C.sub, lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 600, color: C.yellow }}>Security note:</span>{' '}
+                      Credentials stored in .env. Flag for team review — consider session-based auth for production use.
+                    </div>
+                  </div>
+                  <Grid>
+                    <FL label="Username">
+                      <InputField value={get('APP_USERNAME_2')} onChange={v => set('APP_USERNAME_2', v)} placeholder="user"
+                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+                      />
+                    </FL>
+                    <FL label="Password">
+                      <InputField value={get('APP_PASSWORD_2')} onChange={v => set('APP_PASSWORD_2', v)} placeholder={MASK} password
+                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                      />
+                    </FL>
+                  </Grid>
+                </div>
+              </div>
+
+              {/* ── 01b Pages to Record ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.cyan},${C.cyan}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.cyan}50` }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Pages to Record</span>
+                  <span style={{ fontSize: 10, color: C.hint, marginLeft: 2 }}>Screens the pipeline captures</span>
+                </div>
+                <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px 1px', boxShadow: C.cardShadow }}>
+                  <FL label="Route Map" hint='JSON: { "/path": "Page description" }' action={<CopyPromptBtn text={PROMPT_ROUTE_MAP} />}>
+                    <TextareaField value={get('APP_ROUTE_MAP')} onChange={v => set('APP_ROUTE_MAP', v)} rows={4} placeholder={'{\n  "/": "Dashboard",\n  "/vehicles": "Vehicle Fleet",\n  "/routes": "Route Planning"\n}'} />
+                  </FL>
+                </div>
+              </div>
+
+              {/* ── 02 Narration ── */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.violet},${C.violet}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.violet}50` }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Narration & Context</span>
+                </div>
+                <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px 1px', boxShadow: C.cardShadow }}>
+                  <FL label="App Context" hint="Powers narration & feature ranking" action={<CopyPromptBtn text={PROMPT_APP_CONTEXT} />}>
+                    <TextareaField value={get('APP_CONTEXT_TEXT')} onChange={v => set('APP_CONTEXT_TEXT', v)} rows={2} placeholder="AI-powered Prior Authorization system for healthcare…" />
+                  </FL>
+                  <div style={{ marginTop: 4, marginBottom: 6 }}>
+                    <button type="button" onClick={() => setAdvancedOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '3px 0', color: C.hint, fontFamily: C.font, width: '100%' }}>
+                      <svg width="7" height="7" viewBox="0 0 8 8" fill="currentColor" style={{ transform: advancedOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .18s', flexShrink: 0 }}><polygon points="0,0 8,4 0,8"/></svg>
+                      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase' }}>Advanced</span>
+                    </button>
+                    {advancedOpen && (
+                      <div style={{ marginTop: 6 }}>
+                        <FL label="Glossary" hint="Domain terms for narration" action={<CopyPromptBtn text={PROMPT_GLOSSARY} />}>
+                          <TextareaField value={get('APP_GLOSSARY')} onChange={v => set('APP_GLOSSARY', v)} rows={1} placeholder={"PA: Prior Authorization · UM: Utilization Management"} />
+                        </FL>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </aside>
+
+        {/* ════════════════════════════════════════════════════════════════════
+            CENTER COLUMN — Hero stats + 03 Template + Language/Options
+        ════════════════════════════════════════════════════════════════════ */}
+        <main style={{ overflowY: 'auto', padding: '18px 20px 40px' }}>
+          {!loading && (
+            <>
+              {/* Hero KPI row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 9, marginBottom: 18 }}>
+                {([
+                  {
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>,
+                    label: 'Product', value: get('APP_PRODUCT_NAME') || 'Not set', accent: C.indigo, ok: !!get('APP_PRODUCT_NAME'),
+                  },
+                  {
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+                    label: 'App URL', value: get('APP_URL') ? 'Configured' : 'Not set', accent: C.teal, ok: !!get('APP_URL'),
+                  },
+                  {
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>,
+                    label: 'Template', value: template === 'enterprise' ? 'Enterprise' : 'Modern SaaS', accent: template === 'enterprise' ? C.purple : C.cyan, ok: true,
+                  },
+                  {
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+                    label: 'Language', value: ({ en:'English',fr:'French',de:'German',es:'Spanish',it:'Italian',pt:'Portuguese',ja:'Japanese' } as Record<string,string>)[language] ?? language, accent: C.violet, ok: true,
+                  },
+                ] as Array<{ icon: React.ReactNode; label: string; value: string; accent: string; ok: boolean }>).map(stat => (
+                  <div key={stat.label} style={{
+                    background: C.cardBg, backdropFilter: 'blur(20px)',
+                    border: `1px solid ${stat.ok ? `${stat.accent}45` : 'rgba(229,0,38,0.28)'}`,
+                    borderRadius: 13, padding: '13px 14px', position: 'relative', overflow: 'hidden',
+                    boxShadow: stat.ok
+                      ? `0 4px 28px rgba(0,0,0,0.45), 0 0 0 1px ${stat.accent}18`
+                      : '0 4px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(229,0,38,0.06)',
+                  }}>
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: stat.ok ? `linear-gradient(90deg,${stat.accent},${stat.accent}20,transparent)` : 'linear-gradient(90deg,rgba(229,0,38,0.6),transparent)', borderRadius: '0 0 13px 13px' }} />
+                    {/* icon chip */}
+                    <div style={{ width: 28, height: 28, borderRadius: 8, marginBottom: 10, background: stat.ok ? `${stat.accent}18` : 'rgba(229,0,38,0.07)', border: `1px solid ${stat.ok ? `${stat.accent}22` : 'rgba(229,0,38,0.18)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: stat.ok ? stat.accent : C.red }}>
+                      {stat.icon}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: stat.ok ? C.text : C.red, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.2px' }}>{stat.value}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: stat.ok ? C.green : C.red, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, color: C.sub, fontWeight: 500 }}>{stat.label}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── 03 Template ── */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 11 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.purple},${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.purple}50` }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Template</span>
+                <span style={{ fontSize: 11, color: C.hint, marginLeft: 4 }}>Select the visual style for your generated video</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <TemplateCard title="Modern SaaS" badge="POPULAR" accent={C.cyan} active={template === 'modern_saas'} onClick={() => set('VIDEO_TEMPLATE', 'modern_saas')} previewEl={<ModernPreview />} />
+                <TemplateCard title="Enterprise" badge="PROFESSIONAL" accent={C.purple} active={template === 'enterprise'} onClick={() => set('VIDEO_TEMPLATE', 'enterprise')} previewEl={<EnterprisePreview />} />
+              </div>
+
+              {/* Language + Options row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow }}>
+                  <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '.08em' }}>Video Language</span>
+                  </div>
+                  <div style={{ padding: '10px 13px 4px' }}>
+                  <FL label="Language" hint="Narration & voice-over language">
+                    <SelectBox value={language} onChange={v => set('APP_LANGUAGE', v)} options={[
+                      { value: 'en', label: 'English' }, { value: 'fr', label: 'French' }, { value: 'de', label: 'German' },
+                      { value: 'es', label: 'Spanish' }, { value: 'it', label: 'Italian' }, { value: 'pt', label: 'Portuguese' }, { value: 'ja', label: 'Japanese' },
+                    ]} />
+                  </FL>
+                  {language !== 'en' && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, flexShrink: 0 }}>🌐</span>
+                      <div style={{ fontSize: 10, color: C.sub, lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 600, color: C.text }}>Multilingual active.</span>{' '}
+                        Narration translated to {({ en:'English',fr:'French',de:'German',es:'Spanish',it:'Italian',pt:'Portuguese',ja:'Japanese' } as Record<string,string>)[language] ?? language} via LLM.
+                      </div>
+                    </div>
+                  )}
+                  </div>
+                </div>
+                <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow }}>
+                  <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.violet} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/></svg>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '.08em' }}>Video Options</span>
+                  </div>
+                  <div style={{ padding: '10px 13px 4px' }}>
+                  <FL label="Screen Fit" hint="How app screen is framed">
+                    <SelectBox value={get('SCREEN_FIT', 'full')} onChange={v => set('SCREEN_FIT', v)} options={[
+                      { value: 'full', label: 'Full — edge-to-edge' },
+                      { value: 'fit', label: 'Fit — inset with padding' },
+                    ]} />
+                  </FL>
+                  {template === 'enterprise' && (
+                    <FL label="Presenter Avatar" hint="Talking-head overlay in the Enterprise template">
+                      <div style={{ paddingTop: 6 }}>
+                        <Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Presenter: On" offLabel="Presenter: Off" />
+                      </div>
+                    </FL>
+                  )}
+                  </div>
+                </div>
+              </div>
+              {/* ── Readiness focal point ── */}
+              {(() => {
+                const hasProduct = !!get('APP_PRODUCT_NAME');
+                const hasUrl = !!get('APP_URL');
+                const hasAuth = loginType === '2' || (!!get('APP_USERNAME') && !!get('APP_PASSWORD'));
+                const ready = hasProduct && hasUrl && hasAuth;
+                return (
+                  <div style={{ borderRadius: 14, border: `1px solid ${ready ? 'rgba(34,197,94,0.18)' : `${C.indigo}22`}`, background: ready ? 'rgba(34,197,94,0.035)' : `${C.indigo}07`, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: ready ? 'radial-gradient(ellipse at 20% 50%,rgba(34,197,94,0.07) 0%,transparent 65%)' : `radial-gradient(ellipse at 20% 50%,${C.indigo}12 0%,transparent 65%)`, pointerEvents: 'none' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: ready ? 'rgba(34,197,94,0.1)' : `${C.indigo}14`, border: `1px solid ${ready ? 'rgba(34,197,94,0.22)' : `${C.indigo}28`}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {ready
+                          ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        }
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: ready ? C.green : C.text, letterSpacing: '-0.4px', lineHeight: 1.2 }}>{ready ? 'Ready to Generate' : 'Complete Setup'}</div>
+                        <div style={{ fontSize: 11, color: C.sub, marginTop: 3 }}>{ready ? 'All required fields configured — hit Render →' : 'Fill required fields in the left panel to unlock'}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </main>
+
+        {/* ════════════════════════════════════════════════════════════════════
+            RIGHT COLUMN — 04 Generate + 05 Adjust Preview
+        ════════════════════════════════════════════════════════════════════ */}
+        <div style={{
+          overflowY: 'auto', borderLeft: `1px solid ${C.border}`,
+          padding: '16px 13px 40px', background: C.sidebarBg,
+          display: 'flex', flexDirection: 'column', gap: 11,
+        }}>
+          {!loading && (
+            <>
+              {/* 04 header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.indigo},${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.indigo}50` }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Generate</span>
+              </div>
+
+              {/* Recording status */}
+              {recStatus && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: recStatus.hasRecordings ? 'rgba(34,197,94,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${recStatus.hasRecordings ? 'rgba(34,197,94,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 9, padding: '7px 11px' }}>
+                  <span style={{ fontSize: 13 }}>{recStatus.hasRecordings ? '🎬' : '⚠️'}</span>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: recStatus.hasRecordings ? C.green : C.yellow }}>{recStatus.hasRecordings ? `${recStatus.clipCount} clips · ${recStatus.hasVoiceScript ? 'voice ready' : 'no voice yet'}` : 'No recordings yet'}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Recording Mode selector */}
+              {template === 'enterprise' && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: C.hint, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 7 }}>Recording Mode</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+
+                    {/* New Recording */}
+                    <button type="button" onClick={() => setRecordingMode('new')} style={{
+                      padding: '10px 8px', borderRadius: 10, border: `1.5px solid ${recordingMode === 'new' ? C.violet : C.border}`,
+                      background: recordingMode === 'new' ? 'rgba(124,58,237,0.12)' : C.cardBg,
+                      cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                      transition: 'all .18s', outline: 'none', fontFamily: C.font,
+                    }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 8, background: recordingMode === 'new' ? 'rgba(124,58,237,0.2)' : C.btnGhostBg, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .18s' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="9" stroke={recordingMode === 'new' ? C.violet : C.sub} strokeWidth="2"/>
+                          <circle cx="12" cy="12" r="3.5" fill={recordingMode === 'new' ? C.violet : C.sub}/>
+                        </svg>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: recordingMode === 'new' ? C.text : C.sub, textAlign: 'center', lineHeight: 1.35 }}>New<br/>Recording</span>
+                    </button>
+
+                    {/* Existing Recording */}
+                    <button type="button" onClick={() => setRecordingMode('existing')} style={{
+                      padding: '10px 8px', borderRadius: 10, border: `1.5px solid ${recordingMode === 'existing' ? C.cyan : C.border}`,
+                      background: recordingMode === 'existing' ? 'rgba(6,182,212,0.08)' : C.cardBg,
+                      cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                      transition: 'all .18s', outline: 'none', fontFamily: C.font,
+                    }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 8, background: recordingMode === 'existing' ? 'rgba(6,182,212,0.15)' : C.btnGhostBg, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .18s' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="7" width="20" height="13" rx="2" stroke={recordingMode === 'existing' ? C.cyan : C.sub} strokeWidth="2"/>
+                          <path d="M15 13.5l-5 3V10.5l5 3z" fill={recordingMode === 'existing' ? C.cyan : C.sub}/>
+                          <path d="M8 7V5a2 2 0 014 0v2" stroke={recordingMode === 'existing' ? C.cyan : C.sub} strokeWidth="2"/>
+                        </svg>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: recordingMode === 'existing' ? C.text : C.sub, textAlign: 'center', lineHeight: 1.35 }}>Existing<br/>Recording</span>
+                    </button>
+                  </div>
+
+                  {/* Force re-record — only shown when using existing recordings */}
+                  {recordingMode === 'existing' && (
+                    <div style={{ marginTop: 8, padding: '9px 11px', borderRadius: 9, background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, transition: 'opacity .2s' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <div onClick={() => setForceRerecord(v => !v)} style={{ width: 34, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer', background: forceRerecord ? C.violet : C.toggleOffBg, border: `1.5px solid ${forceRerecord ? C.violet : C.toggleOffBdr}`, transition: 'background .2s', flexShrink: 0 }}>
+                          <div style={{ position: 'absolute', top: 2, left: forceRerecord ? 15 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: forceRerecord ? C.text : C.sub }}>Force re-record: {forceRerecord ? 'On' : 'Off'}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.hint, marginTop: 4, paddingLeft: 43, lineHeight: 1.4 }}>Re-records all clips from scratch. Takes longer but ensures fresh screenshots.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── CINEMATIC CTA ── */}
+              <button type="button" onClick={run}
+                onMouseEnter={() => { if (!running) setShimmer(true); }}
+                onMouseLeave={() => setShimmer(false)}
+                disabled={running}
+                style={{
+                  position: 'relative', overflow: 'hidden', width: '100%', height: 58,
+                  borderRadius: 13, border: 'none',
+                  background: running ? 'rgba(79,70,229,0.45)' : `linear-gradient(135deg,${C.indigo} 0%,${C.violet} 50%,${C.cyan} 100%)`,
+                  color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: C.font, letterSpacing: '-0.2px',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+                  boxShadow: running ? 'none' : `0 8px 36px rgba(79,70,229,0.55), 0 0 0 1px rgba(79,70,229,0.28), inset 0 1px 0 rgba(255,255,255,0.2)`,
+                  transition: 'all .22s cubic-bezier(.4,0,.2,1)',
+                }}
+              >
+                {running ? (
+                  <>
+                    <div style={{ width: 16, height: 16, border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                    {template === 'enterprise' ? 'Recording & generating…' : 'Generating video…'}
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
+                    {template === 'enterprise'
+                      ? (recordingMode === 'existing' && !forceRerecord ? 'Regenerate Preview' : 'Generate Preview')
+                      : 'Render Video'}
+                  </>
+                )}
+                {shimmer && !running && (
+                  <div style={{ position: 'absolute', top: 0, bottom: 0, width: '50%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)', animation: 'cc-sheen .6s ease forwards', pointerEvents: 'none' }} />
+                )}
+              </button>
+
+              {running && (
+                <button type="button" onClick={stop} style={{
+                  width: '100%', height: 40, borderRadius: 10,
+                  border: `1.5px solid rgba(229,0,38,0.45)`,
+                  background: 'rgba(229,0,38,0.08)',
+                  color: '#ff7070', fontSize: 13, fontWeight: 700, fontFamily: C.font,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  transition: 'background .15s',
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                  Stop
+                </button>
+              )}
+
+              {template === 'enterprise' && !running && pStatus === 'idle' && (
+                <div style={{ fontSize: 10, color: C.hint, textAlign: 'center', marginTop: -4 }}>
+                  Recordings + voice generated. Use Render to export MP4.
+                </div>
+              )}
+
+              {/* Pipeline log */}
+              {(log.length > 0 || running) && (
+                <div style={{ borderRadius: 9, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                  <div style={{ padding: '6px 11px', background: C.logHeaderBg, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.hint, textTransform: 'uppercase', letterSpacing: '.07em' }}>Pipeline Output</span>
+                    {running && <span style={{ fontSize: 10, color: C.yellow }}>● running</span>}
+                    {pStatus === 'success' && <span style={{ fontSize: 10, color: C.green }}>✓ ready</span>}
+                    {pStatus === 'failed' && <span style={{ fontSize: 10, color: C.red }}>✗ failed</span>}
+                  </div>
+                  <pre ref={logRef} style={{ margin: 0, padding: '7px 11px', background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.65, maxHeight: 110, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                    {log.length === 0 ? 'Initialising…' : log.join('\n')}
+                  </pre>
+                </div>
+              )}
+
+              {/* Open composition */}
+              {(running || pStatus === 'success' || pStatus === 'failed') && (
+                <button type="button" onClick={() => navigateToVideo(template)} style={{ width: '100%', height: 38, borderRadius: 9, border: `1px solid ${C.border}`, background: C.btnGhostBg, cursor: 'pointer', color: C.text, fontSize: 12, fontWeight: 600, fontFamily: C.font, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
+                  Open {template === 'enterprise' ? 'EnterpriseVideo' : 'DemoVideo'} composition
+                </button>
+              )}
+
+              {/* Status banners */}
+              {pStatus === 'success' && (
+                <div style={{ padding: '9px 12px', borderRadius: 9, background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <span style={{ fontSize: 16 }}>✓</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.green }}>{template === 'enterprise' ? 'Preview ready!' : 'Video generated!'}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(34,197,94,0.65)', marginTop: 1 }}>{template === 'enterprise' ? 'Opening EnterpriseVideo in Studio.' : 'Switching to DemoVideo.'}</div>
+                  </div>
+                </div>
+              )}
+              {pStatus === 'failed' && (
+                <div style={{ padding: '9px 12px', borderRadius: 9, background: 'rgba(229,0,38,0.07)', border: '1px solid rgba(229,0,38,0.2)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <span style={{ fontSize: 15 }}>✗</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#ff7070' }}>Pipeline failed</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,120,120,0.65)', marginTop: 1 }}>Check output above. Composition still openable.</div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── 05 Adjust Preview ── */}
+              {template === 'enterprise' && (pStatus === 'success' || (recStatus?.hasRecordings && recStatus?.hasVoiceScript)) ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, marginTop: 2 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.violet},${C.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.violet}50` }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="white" stroke="none"/><circle cx="16" cy="12" r="2" fill="white" stroke="none"/><circle cx="10" cy="18" r="2" fill="white" stroke="none"/></svg>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Adjust Preview</span>
+                  </div>
+                  <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow }}>
+                    {/* Tab bar */}
+                    <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, background: C.tabBarBg }}>
+                      {([
+                        { id: 'voice' as const, label: 'Voice', icon: '🎙' },
+                        { id: 'broll' as const, label: 'B-Roll', icon: '🎥' },
+                        { id: 'custom' as const, label: 'Options', icon: '⚙️' },
+                      ] as Array<{ id: typeof modTab; label: string; icon: string }>).map(tab => (
+                        <button key={tab.id} type="button" onClick={() => {
+                          setModTab(tab.id);
+                          if (tab.id === 'voice') {
+                            setVoiceScript(null);
+                            fetch(`${API}/api/voice-script`).then(r => r.json())
+                              .then((vs: { script: unknown }) => { voiceScriptRaw.current = vs.script as Record<string, unknown>; setVoiceScript(extractSegments(vs.script)); })
+                              .catch(() => {});
+                          }
+                          if (tab.id === 'broll' && !brollClips) {
+                            fetch(`${API}/api/broll-clips`).then(r => r.json())
+                              .then((d: { clips: typeof brollClips }) => setBrollClips(d.clips ?? []))
+                              .catch(() => setBrollClips([]));
+                          }
+                        }} style={{
+                          flex: 1, padding: '9px 4px', border: 'none', borderBottom: `2px solid ${modTab === tab.id ? C.cyan : 'transparent'}`,
+                          background: modTab === tab.id ? 'rgba(6,182,212,0.06)' : 'transparent',
+                          color: modTab === tab.id ? C.cyan : C.sub, fontSize: 11, fontWeight: 600, fontFamily: C.font, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all .15s',
+                        }}>
+                          <span>{tab.icon}</span>{tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Tab content */}
+                    <div style={{ padding: '12px 13px' }}>
+                      {modTab === 'voice' && (
+                        voiceScript ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                            {voiceScript.map((entry, idx) => (
+                              <div key={entry.id} style={{ background: C.gridItemBg, border: `1px solid ${C.gridItemBdr}`, borderRadius: 8, padding: '8px 10px' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: C.hint, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>{String(idx + 1).padStart(2, '0')} · {entry.label || entry.id}</div>
+                                <textarea value={entry.text} onChange={e => { const updated = voiceScript.map((s, i) => i === idx ? { ...s, text: e.target.value } : s); setVoiceScript(updated); }} rows={3}
+                                  style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '6px 8px', color: C.text, fontSize: 11, fontFamily: C.font, lineHeight: 1.6, resize: 'vertical', outline: 'none' }} />
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginTop: 2 }}>
+                              <button type="button" onClick={async () => {
+                                await fetch(`${API}/api/voice-script`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: voiceScriptRaw.current ? { ...voiceScriptRaw.current, segments: voiceScript } : voiceScript }) });
+                                setVoiceRegen('running'); setVoiceRegenLog([]);
+                                const r = await fetch(`${API}/api/regenerate-voice`, { method: 'POST' }).catch(() => null);
+                                if (r?.ok) startVoiceRegen(); else setVoiceRegen('failed');
+                              }} disabled={voiceRegen === 'running'}
+                                style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: voiceRegen === 'running' ? 'not-allowed' : 'pointer', background: voiceRegen === 'running' ? 'rgba(6,182,212,0.3)' : `linear-gradient(135deg,${C.teal},${C.cyan})`, color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: C.font, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {voiceRegen === 'running' && <div style={{ width: 11, height: 11, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />}
+                                {voiceRegen === 'running' ? 'Regenerating…' : 'Regenerate Voice'}
+                              </button>
+                              {voiceRegen === 'success' && <span style={{ fontSize: 11, color: C.green }}>✓ Updated</span>}
+                              {voiceRegen === 'failed' && <span style={{ fontSize: 11, color: C.red }}>✗ Failed</span>}
+                            </div>
+                            {voiceRegenLog.length > 0 && <pre style={{ margin: 0, padding: '6px 9px', borderRadius: 6, background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 70, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>{voiceRegenLog.join('\n')}</pre>}
+                          </div>
+                        ) : <div style={{ color: C.hint, fontSize: 11 }}>Loading voice script…</div>
+                      )}
+
+                      {modTab === 'broll' && (
+                        brollClips === null ? <div style={{ color: C.hint, fontSize: 11 }}>Loading…</div>
+                        : brollClips.length === 0 ? <div style={{ color: C.hint, fontSize: 11 }}>No b-roll clips found.</div>
+                        : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                            {brollClips.map(clip => (
+                              <div key={clip.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: C.gridItemBg, border: `1px solid ${C.gridItemBdr}`, borderRadius: 8, padding: '7px 10px' }}>
+                                <div style={{ width: 30, height: 20, borderRadius: 4, background: `linear-gradient(135deg,${C.violet}40,${C.indigo}40)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>🎥</div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{clip.label}</div>
+                                  <code style={{ fontSize: 10, color: C.hint, fontFamily: C.mono }}>{clip.sizeMb} MB</code>
+                                </div>
+                              </div>
+                            ))}
+                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: C.font, marginTop: 3 }}>
+                              Preview B-roll in Studio
+                            </button>
+                          </div>
+                        )
+                      )}
+
+                      {modTab === 'custom' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                          <FL label="Presenter Avatar" hint="Talking-head overlay in the Enterprise template">
+                            <div style={{ paddingTop: 6 }}><Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Presenter: On" offLabel="Presenter: Off" /></div>
+                          </FL>
+                          <FL label="Screen Fit" hint="How app screen is framed">
+                            <SelectBox value={get('SCREEN_FIT', 'full')} onChange={v => set('SCREEN_FIT', v)} options={[{ value: 'full', label: 'Full — edge-to-edge' }, { value: 'fit', label: 'Fit — inset' }]} />
+                          </FL>
+                          <div style={{ display: 'flex', gap: 7 }}>
+                            <button type="button" onClick={save} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: C.btnGhostBg, color: C.text, fontSize: 12, fontWeight: 600, fontFamily: C.font }}>Save</button>
+                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: C.font }}>Preview</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : template === 'enterprise' ? (
+                <div style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 11, padding: '16px 13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, boxShadow: C.cardShadow }}>
+                  <span style={{ fontSize: 22 }}>🎬</span>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.sub, textAlign: 'center' }}>Run the pipeline to unlock voice & B-roll editing.</div>
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
 
-        {/* Next / Generate */}
-        {!isLastStep ? (
-          <button type="button" onClick={() => goStep(step + 1)}
-            style={{
-              padding:'8px 20px', borderRadius:8, border:'none',
-              background:`linear-gradient(135deg,${stepAccent}ee,${stepAccent}aa)`,
-              color:'#fff', fontSize:13, fontWeight:700, fontFamily:T.font, cursor:'pointer',
-              boxShadow:`0 2px 12px ${stepAccent}40`,
-              transition:'all .15s',
-            }}>
-            Next →
-          </button>
-        ) : (
-          <div style={{ position:'relative', display:'inline-flex' }}>
-            <button
-              type="button" onClick={run}
-              onMouseEnter={() => { if (!running) setShimmer(true); }}
-              onMouseLeave={() => setShimmer(false)}
-              disabled={loading || !!serverErr || running}
-              style={{
-                position:'relative', overflow:'hidden',
-                padding:'9px 22px', borderRadius:8, border:'none',
-                background: running ? 'rgba(229,0,38,0.5)' : 'linear-gradient(135deg,#e50026,#c4001f)',
-                color:'#fff', fontSize:13, fontWeight:700, fontFamily:T.font,
-                cursor: running ? 'not-allowed' : 'pointer',
-                display:'flex', alignItems:'center', gap:8,
-                boxShadow: running ? 'none' : '0 2px 16px rgba(229,0,38,0.4), 0 0 0 1px rgba(229,0,38,0.3)',
-                transition:'all .18s',
-              }}>
-              {running
-                ? <><div style={{ width:11, height:11, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite' }} />Generating…</>
-                : <> ▶&ensp;Save &amp; Generate Video</>
-              }
-              {/* Shimmer sweep */}
-              {shimmer && !running && (
-                <div style={{
-                  position:'absolute', top:0, bottom:0, width:'50%',
-                  background:'linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)',
-                  animation:'shimmer .55s ease forwards',
-                  pointerEvents:'none',
-                }} />
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* P1 — server status dots removed (developer noise, not user info) */}
-        {/* Save config */}
-        <button type="button" onClick={save} disabled={loading || !!serverErr}
-          style={{
-            padding:'8px 14px', borderRadius:8,
-            border:`1.5px solid ${T.border}`, background:'transparent',
-            color:T.sub, fontSize:12, fontWeight:500, fontFamily:T.font,
-            cursor:'pointer', transition:'all .15s',
-          }}>
-          Save
-        </button>
       </div>
 
-      {/* ── TOAST ──────────────────────────────────────────────────────────── */}
+      {/* ── TOAST ─────────────────────────────────────────────────────────── */}
       {toast && (
         <div style={{
-          position:'absolute', bottom:66, right:20,
-          padding:'10px 16px', borderRadius:9,
+          position: 'absolute', bottom: 20, right: 20,
+          padding: '10px 16px', borderRadius: 10,
           background: toast.ok ? 'rgba(34,197,94,0.1)' : 'rgba(229,0,38,0.1)',
-          border:`1.5px solid ${toast.ok ? 'rgba(34,197,94,0.3)' : 'rgba(229,0,38,0.3)'}`,
-          backdropFilter:'blur(12px)',
-          color: toast.ok ? T.green : '#ff7070',
-          fontSize:12.5, fontWeight:600, zIndex:999,
-          animation:'toast-in .25s ease',
+          border: `1.5px solid ${toast.ok ? 'rgba(34,197,94,0.3)' : 'rgba(229,0,38,0.3)'}`,
+          backdropFilter: 'blur(12px)',
+          color: toast.ok ? C.green : '#ff7070',
+          fontSize: 13, fontWeight: 600, zIndex: 999,
+          animation: 'toast-in .25s ease',
           boxShadow: toast.ok ? '0 4px 20px rgba(34,197,94,0.15)' : '0 4px 20px rgba(229,0,38,0.15)',
         }}>
           {toast.msg}
         </div>
       )}
 
-      {/* ── CHAT WIDGET ────────────────────────────────────────────────────── */}
-
-      {/* Floating bubble button */}
-      <button
-        type="button"
-        onClick={() => setChatOpen(o => !o)}
-        title="Video Editor Chat"
-        style={{
-          position:'fixed', bottom:24, right:24, zIndex:1100,
-          width:56, height:56, borderRadius:'50%', border:'none',
-          background: chatOpen
-            ? 'linear-gradient(135deg,#0a93d3,#0670a0)'
-            : 'linear-gradient(135deg,#0a93d3,#0583be)',
-          boxShadow: chatOpen
-            ? '0 4px 24px rgba(10,147,211,0.55), 0 0 0 3px rgba(10,147,211,0.2)'
-            : '0 4px 20px rgba(10,147,211,0.4)',
-          cursor:'pointer',
-          display:'flex', alignItems:'center', justifyContent:'center',
-          transition:'all .2s cubic-bezier(.4,0,.2,1)',
-          animation:'chat-bubble-pop .3s cubic-bezier(.34,1.56,.64,1) both',
-        }}
-      >
-        {chatOpen ? (
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M4 4l12 12M16 4L4 16" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/>
-          </svg>
-        ) : (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        )}
-      </button>
-
-      {/* Chat dialog panel */}
-      {chatOpen && (
-        <div style={{
-          position:'fixed', bottom:92, right:24, zIndex:1099,
-          width:380, height:520,
-          background:'rgba(4,12,23,0.97)',
-          backdropFilter:'blur(24px)',
-          border:'1px solid rgba(10,147,211,0.28)',
-          borderRadius:16,
-          display:'flex', flexDirection:'column',
-          boxShadow:'0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
-          animation:'chat-slide-up .22s cubic-bezier(.4,0,.2,1) both',
-          overflow:'hidden',
-          fontFamily: T.font,
-        }}>
-
-          {/* Dialog header */}
-          <div style={{
-            height:48, flexShrink:0,
-            background:'rgba(10,147,211,0.08)',
-            borderBottom:'1px solid rgba(10,147,211,0.18)',
-            display:'flex', alignItems:'center',
-            padding:'0 14px', gap:10,
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink:0 }}>
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={T.teal} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ fontSize:13, fontWeight:700, color:T.text, letterSpacing:'-0.01em' }}>Video Editor</span>
-            {/* Connection pill */}
-            <div style={{ display:'flex', alignItems:'center', gap:5, marginLeft:4 }}>
-              <div style={{
-                width:6, height:6, borderRadius:'50%',
-                background: chatConnected === null ? T.yellow : chatConnected ? T.green : T.red,
-                boxShadow: `0 0 5px ${chatConnected === null ? T.yellow : chatConnected ? T.green : T.red}`,
-              }} />
-              <span style={{ fontSize:10.5, color:T.hint }}>
-                {chatConnected === null ? 'Connecting…' : chatConnected ? 'Connected' : 'Offline'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setChatOpen(false)}
-              style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:T.hint, padding:4, fontSize:16, lineHeight:1, display:'flex', alignItems:'center' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            </button>
-          </div>
-
-          {/* Quick action chips */}
-          <div style={{
-            padding:'8px 12px 6px',
-            borderBottom:'1px solid rgba(255,255,255,0.05)',
-            display:'flex', gap:6, overflowX:'auto', flexShrink:0,
-          }}>
-            {QUICK_ACTIONS.map(a => (
-              <button
-                key={a.label}
-                type="button"
-                onClick={() => setChatInput(a.prefix)}
-                style={{
-                  flexShrink:0,
-                  fontSize:10.5, fontWeight:600, fontFamily:T.font,
-                  padding:'4px 10px', borderRadius:20,
-                  border:'1px solid rgba(10,147,211,0.3)',
-                  background:'rgba(10,147,211,0.07)',
-                  color: T.teal, cursor:'pointer',
-                  whiteSpace:'nowrap',
-                  transition:'all .15s',
-                }}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Message thread */}
-          <div style={{ flex:1, overflowY:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:8 }}>
-            {chatMsgs.map(msg => (
-              <div key={msg.id} style={{
-                display:'flex',
-                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-              }}>
-                <div style={{
-                  maxWidth:'86%',
-                  padding:'9px 13px',
-                  borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: msg.role === 'user'
-                    ? 'rgba(10,147,211,0.14)'
-                    : 'rgba(255,255,255,0.05)',
-                  border: `1px solid ${msg.role === 'user' ? 'rgba(10,147,211,0.28)' : 'rgba(255,255,255,0.08)'}`,
-                  fontSize:12.5, color:T.text, lineHeight:1.55,
-                  animation:'toast-in .18s ease both',
-                }}>
-                  {msg.text}
-                  {/* Change badge */}
-                  {msg.role === 'assistant' && msg.changes && msg.changes.length > 0 && (
-                    <div style={{
-                      marginTop:6, fontSize:10.5, fontWeight:600,
-                      color: msg.applied ? T.green : T.red,
-                      display:'flex', alignItems:'center', gap:4,
-                    }}>
-                      <span>{msg.applied ? '✓' : '✗'}</span>
-                      <span>
-                        {msg.applied
-                          ? `${msg.changes.length} change${msg.changes.length > 1 ? 's' : ''} applied`
-                          : msg.error ?? 'Could not apply changes'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {/* Typing indicator */}
-            {chatBusy && (
-              <div style={{ display:'flex', justifyContent:'flex-start' }}>
-                <div style={{
-                  padding:'10px 14px', borderRadius:'14px 14px 14px 4px',
-                  background:'rgba(255,255,255,0.05)',
-                  border:'1px solid rgba(255,255,255,0.08)',
-                  display:'flex', gap:5, alignItems:'center',
-                }}>
-                  {[0,1,2].map(i => (
-                    <div key={i} style={{
-                      width:6, height:6, borderRadius:'50%',
-                      background:T.teal,
-                      animation:`chat-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                    }} />
-                  ))}
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Input row */}
-          <div style={{
-            padding:'10px 12px 12px',
-            borderTop:'1px solid rgba(255,255,255,0.06)',
-            display:'flex', gap:8, alignItems:'flex-end',
-            flexShrink:0,
-          }}>
-            <textarea
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendChatMessage(chatInput);
-                }
-              }}
-              placeholder="Type a change… (Enter to send, Shift+Enter for newline)"
-              rows={2}
-              style={{
-                flex:1, resize:'none', boxSizing:'border-box',
-                background:'rgba(255,255,255,0.05)',
-                border:`1.5px solid ${chatInput ? 'rgba(10,147,211,0.4)' : 'rgba(255,255,255,0.12)'}`,
-                borderRadius:10, color:T.text, fontFamily:T.font,
-                fontSize:12.5, lineHeight:1.5,
-                padding:'8px 11px', outline:'none',
-                transition:'border-color .15s',
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => sendChatMessage(chatInput)}
-              disabled={!chatInput.trim() || chatBusy}
-              style={{
-                flexShrink:0, width:36, height:36, borderRadius:9,
-                border:'none',
-                background: !chatInput.trim() || chatBusy
-                  ? 'rgba(255,255,255,0.06)'
-                  : 'linear-gradient(135deg,#0a93d3,#0670a0)',
-                color: !chatInput.trim() || chatBusy ? T.hint : '#fff',
-                cursor: !chatInput.trim() || chatBusy ? 'default' : 'pointer',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                transition:'all .15s',
-                boxShadow: !chatInput.trim() || chatBusy ? 'none' : '0 2px 10px rgba(10,147,211,0.35)',
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          </div>
-
-          {/* Chat-internal toast */}
-          {chatToast && (
-            <div style={{
-              position:'absolute', bottom:72, left:12, right:12,
-              padding:'9px 14px', borderRadius:8,
-              background: chatToast.ok ? 'rgba(34,197,94,0.1)' : 'rgba(229,0,38,0.1)',
-              border:`1.5px solid ${chatToast.ok ? 'rgba(34,197,94,0.3)' : 'rgba(229,0,38,0.3)'}`,
-              backdropFilter:'blur(10px)',
-              color: chatToast.ok ? T.green : '#ff7070',
-              fontSize:11.5, fontWeight:600,
-              animation:'toast-in .2s ease',
-              textAlign:'center',
-            }}>
-              {chatToast.msg}
-            </div>
-          )}
-        </div>
-      )}
+      {/* ── CHAT WIDGET ───────────────────────────────────────────────────── */}
+      <ChatWidget />
     </div>
+    </ThemeCtx.Provider>
   );
 };

@@ -33,7 +33,7 @@ function getFlag(f: string): string | undefined {
   const i = cliArgs.indexOf(f); return i !== -1 ? cliArgs[i + 1] : undefined;
 }
 
-const PROJECT_ID        = getFlag('--project') || 'rheem';
+const PROJECT_ID        = getFlag('--project') || (process.env.APP_PRODUCT_NAME ?? 'app').toLowerCase().replace(/\s+/g, '-');
 const MODE              = getFlag('--mode') || 'workflows';   // 'workflows' | 'explore'
 const APP_URL           = cliArgs.find(a => a.startsWith('http')) ?? process.env.APP_URL ?? '';
 const USERNAME          = getFlag('--user') ?? process.env.APP_USERNAME ?? '';
@@ -65,7 +65,7 @@ async function main() {
   const loginDesc = LOGIN_TYPE === 2
     ? `Quick Access (card index ${QUICK_ACCESS_IDX})`
     : `credentials (${USERNAME || '(from .env)'})`;
-  console.log(`\n🎬 Rheem Recorder — project: ${PROJECT_ID}  mode: ${MODE}`);
+  console.log(`\n🎬 App Recorder — project: ${PROJECT_ID}  mode: ${MODE}`);
   console.log(`   URL:    ${APP_URL || '(from .env)'}`);
   console.log(`   Login:  ${loginDesc}`);
   console.log(`   Out:    public/projects/${PROJECT_ID}/recordings/\n`);

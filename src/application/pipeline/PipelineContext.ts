@@ -80,6 +80,15 @@ export interface WorkflowOptions {
    *                 presenter overlay, animated benefit slide, presenter closing.
    */
   videoTemplate?: 'modern_saas' | 'enterprise';
+  /**
+   * BCP-47 locale code controlling the language of all generated content.
+   * Supported: 'en' (default), 'fr', 'de', 'es', 'it', 'ja', 'pt'.
+   * When set to any non-English code, NarrationTranslationStage translates all
+   * storyboard text, and LLM agents are instructed to respond in that language.
+   * TTS providers (Azure/OpenAI) auto-detect language from the translated text.
+   * Maps to APP_LANGUAGE in .env.
+   */
+  locale?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

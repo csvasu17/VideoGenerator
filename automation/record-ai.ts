@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * record-ai.ts — Records ONLY the ai-predict clip using the same infrastructure as record.ts
+ * record-ai.ts — Records ONLY the ai clip using the same infrastructure as record.ts
  *
  * Usage:  npx ts-node --project tsconfig.json record-ai.ts
  */
@@ -14,7 +14,7 @@ import {recordProjectWorkflows} from './workflow-recorder';
 dotenv.config({path: path.resolve(__dirname, '../.env'), override: true});
 
 const ROOT           = path.resolve(__dirname, '..');
-const PROJECT_ID     = 'rheem';
+const PROJECT_ID     = (process.env.APP_PRODUCT_NAME ?? 'app').toLowerCase().replace(/\s+/g, '-');
 const RECORDINGS_DIR = path.join(ROOT, 'public', 'projects', PROJECT_ID, 'recordings');
 const MANIFEST_PATH  = path.join(ROOT, 'projects', PROJECT_ID, 'clipManifest.json');
 const FPS            = 60;
@@ -24,13 +24,13 @@ async function main() {
   const USERNAME = process.env.APP_USERNAME ?? '';
   const PASSWORD = process.env.APP_PASSWORD ?? '';
 
-  console.log(`\n🎬 Re-recording ai-predict clip only`);
+  console.log(`\n🎬 Re-recording ai clip only`);
   console.log(`   URL:  ${APP_URL}`);
   console.log(`   Out:  public/projects/${PROJECT_ID}/recordings/\n`);
 
   fs.mkdirSync(RECORDINGS_DIR, {recursive: true});
 
-  // Load full workflows config and filter to just ai-predict
+  // Load full workflows config and filter to just ai
   const workflowsPath = path.join(ROOT, 'projects', PROJECT_ID, 'config', 'workflows');
   const mod      = require(workflowsPath);
   const wfConfig = mod.default ?? mod[Object.keys(mod).find(k => k.toLowerCase().includes('workflow')) ?? ''] ?? null;
@@ -45,11 +45,11 @@ async function main() {
   if (PASSWORD) wfConfig.credentials = {...(wfConfig.credentials ?? {}), password: PASSWORD};
   if (APP_URL)  wfConfig.appUrl = APP_URL;
 
-  // Filter to ONLY the ai-predict clip
+  // Filter to ONLY the ai clip
   const original = wfConfig.clips;
-  const aiClip   = original.find((c: {id: string}) => c.id === 'ai-predict');
+  const aiClip   = original.find((c: {id: string}) => c.id === 'ai');
   if (!aiClip) {
-    console.error('❌ ai-predict clip not found in workflows config');
+    console.error('❌ ai clip not found in workflows config');
     process.exit(1);
   }
   wfConfig.clips = [aiClip];
@@ -66,7 +66,7 @@ async function main() {
 
   console.log(`\n✅ Recorded ${clips.length} clip(s)`);
 
-  // Update manifest — merge with existing, overwriting just ai-predict
+  // Update manifest — merge with existing, overwriting just ai
   const existing = fs.existsSync(MANIFEST_PATH)
     ? JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'))
     : {generatedAt: '', fps: FPS, clips: [], segments: []};

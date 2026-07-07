@@ -31,6 +31,7 @@ import type {
 } from '../../core/domain/entities/RemotionPackage';
 import { RemotionExporter } from './RemotionExporter';
 import type { RemotionExportInput, RemotionExportResult } from './RemotionExporter';
+import { resolveLocale, isEnglish } from '../../core/domain/types/Locale';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -49,8 +50,10 @@ const ENTERPRISE_PRESENTER_SRC = 'assets/presenter/presenter-default.png';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface EnterpriseExportInput extends RemotionExportInput {
-  storyArc?:           StoryArc;
+  storyArc?:             StoryArc;
   businessValueOutputs?: BusinessValueOutput[];
+  /** BCP-47 locale code — when non-English, enterprise text fields are translated via LLM. */
+  locale?:               string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,6 +155,27 @@ export class EnterpriseRemotionExporter {
     // ── 7. Recompute total frames from the cursor position ───────────────────
     const totalFrames = productCursor + BENEFIT_SLIDE_SEC * fps + PRESENTER_CLOSE_SEC * fps;
 
+    // ── 7b. Translate enterprise-specific text fields when locale is non-English ─
+    // B-roll subtitles, benefit bullets, and the closing tagline are generated
+    // from English templates above and need a separate translation pass.
+    // (Product demo scene narration is already translated by NarrationTranslationStage.)
+    const locale = input.locale ?? process.env['APP_LANGUAGE'] ?? 'en';
+    let translatedBrollScenes     = brollScenes;
+    let translatedBenefitSlide    = benefitSlide;
+    let translatedPresenterClose  = presenterClose;
+
+    if (!isEnglish(locale)) {
+      const translated = await this.translateEnterpriseFields(
+        brollScenes,
+        benefitSlide,
+        presenterClose,
+        locale,
+      );
+      translatedBrollScenes    = translated.brollScenes;
+      translatedBenefitSlide   = translated.benefitSlide;
+      translatedPresenterClose = translated.presenterClose;
+    }
+
     // ── 8. Assemble final enterprise package ─────────────────────────────────
     const enterprisePkg: RemotionPackage = {
       ...basePkg,
@@ -171,9 +195,9 @@ export class EnterpriseRemotionExporter {
         ...basePkg.closingCard,
         from: presenterCloseFrom, // align timing
       },
-      brollScenes,
-      benefitSlide,
-      presenterClose,
+      brollScenes:    translatedBrollScenes,
+      benefitSlide:   translatedBenefitSlide,
+      presenterClose: translatedPresenterClose,
       presenterConfig,
     };
 
@@ -281,6 +305,124 @@ export class EnterpriseRemotionExporter {
     const firstSpace = res.indexOf(' ');
     const afterName  = firstSpace > 0 ? res.slice(firstSpace + 1) : res;
     return this.shortenToPhrase(afterName, 8);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Enterprise field translation
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private async translateEnterpriseFields(
+    brollScenes:    EnterpriseBRollSceneData[],
+    benefitSlide:   EnterpriseBenefitSlideData,
+    presenterClose: EnterprisePresenterCloseData,
+    locale:         string,
+  ): Promise<{
+    brollScenes:    EnterpriseBRollSceneData[];
+    benefitSlide:   EnterpriseBenefitSlideData;
+    presenterClose: EnterprisePresenterCloseData;
+  }> {
+    const languageName = resolveLocale(locale).name;
+
+    // Build a single JSON payload so we make one LLM call
+    const payload = {
+      brollSubtitles: brollScenes.map(b => b.subtitle),
+      benefitTitle:   benefitSlide.title,
+      benefitBullets: benefitSlide.bullets.map(b => ({ label: b.label, description: b.description })),
+      tagline:        presenterClose.tagline,
+    };
+
+    const prompt =
+      `You are a professional B2B marketing translator.\n` +
+      `Translate the following JSON values into ${languageName}.\n` +
+      `Rules: translate values only (not keys), keep concise phrasing, return only valid JSON.\n\n` +
+      JSON.stringify(payload, null, 2);
+
+    const llm = this.createLLMProvider();
+
+    if (!llm) {
+      console.warn(
+        `[EnterpriseExporter] No LLM provider — skipping enterprise field translation to ${languageName}.`,
+      );
+      return { brollScenes, benefitSlide, presenterClose };
+    }
+
+    let responseText: string;
+    try {
+      responseText = await llm.complete(
+        [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+        { maxTokens: 1024 },
+      );
+    } catch (err) {
+      console.warn(
+        `[EnterpriseExporter] Translation LLM call failed: ${(err as Error).message} — keeping English.`,
+      );
+      return { brollScenes, benefitSlide, presenterClose };
+    }
+
+    // Parse response (strip code fences if present)
+    const cleaned = responseText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const start   = cleaned.indexOf('{');
+    const end     = cleaned.lastIndexOf('}');
+
+    if (start === -1 || end === -1) {
+      console.warn('[EnterpriseExporter] LLM returned no JSON — keeping English enterprise fields.');
+      return { brollScenes, benefitSlide, presenterClose };
+    }
+
+    let parsed: typeof payload;
+    try {
+      parsed = JSON.parse(cleaned.slice(start, end + 1)) as typeof payload;
+    } catch {
+      console.warn('[EnterpriseExporter] JSON parse failed — keeping English enterprise fields.');
+      return { brollScenes, benefitSlide, presenterClose };
+    }
+
+    const translatedBrollScenes = brollScenes.map((b, i) => ({
+      ...b,
+      subtitle: (parsed.brollSubtitles?.[i]) || b.subtitle,
+    }));
+
+    const translatedBullets = benefitSlide.bullets.map((b, i) => ({
+      ...b,
+      label:       parsed.benefitBullets?.[i]?.label       || b.label,
+      description: parsed.benefitBullets?.[i]?.description || b.description,
+    }));
+
+    const translatedBenefitSlide: EnterpriseBenefitSlideData = {
+      ...benefitSlide,
+      title:   parsed.benefitTitle || benefitSlide.title,
+      bullets: translatedBullets,
+    };
+
+    const translatedPresenterClose: EnterprisePresenterCloseData = {
+      ...presenterClose,
+      tagline: parsed.tagline || presenterClose.tagline,
+    };
+
+    console.info(`[EnterpriseExporter] Enterprise fields translated to ${languageName}`);
+    return {
+      brollScenes:    translatedBrollScenes,
+      benefitSlide:   translatedBenefitSlide,
+      presenterClose: translatedPresenterClose,
+    };
+  }
+
+  private createLLMProvider() {
+    if (process.env['AZURE_OPENAI_API_KEY'] && process.env['AZURE_OPENAI_ENDPOINT'] && process.env['AZURE_OPENAI_DEPLOYMENT']) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { AzureOpenAIProvider } = require('../../infrastructure/llm/AzureOpenAIProvider');
+        return new AzureOpenAIProvider() as import('../../core/ports/services/ILLMProvider').ILLMProvider;
+      } catch { /* fall through */ }
+    }
+    if (process.env['OPENAI_API_KEY']) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { OpenAIProvider } = require('../../infrastructure/llm/OpenAIProvider');
+        return new OpenAIProvider() as import('../../core/ports/services/ILLMProvider').ILLMProvider;
+      } catch { /* fall through */ }
+    }
+    return null;
   }
 
   // ──────────────────────────────────────────────────────────────────────────

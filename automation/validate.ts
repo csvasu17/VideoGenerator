@@ -8,7 +8,7 @@
 import * as path from 'path';
 import * as fs   from 'fs';
 
-const PROJECT_ID = process.argv[2] || 'rheem';
+const PROJECT_ID = process.argv[2] || (process.env.APP_PRODUCT_NAME ?? 'app').toLowerCase().replace(/\s+/g, '-');
 const ROOT       = path.resolve(__dirname, '..');
 
 function loadSegmentDefs(id: string) {

@@ -266,8 +266,14 @@ export interface VoiceScript {
   model:            string;
   speed:            number;
   fps:              number;
+  /** BCP-47 locale code of the narration language (e.g. 'en', 'fr', 'de'). */
+  locale?:          string;
   totalDurationSec: number;
   segments:         VoiceSegment[];
+  /** Set to true by the pipeline after MP3 files are confirmed on disk. */
+  voiceReady?:      boolean;
+  /** Unix ms timestamp injected by calculateMetadata so Audio src URLs are cache-busted on reload. */
+  loadedAt?:        number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

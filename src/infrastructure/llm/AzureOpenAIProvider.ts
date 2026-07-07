@@ -49,7 +49,7 @@ export class AzureOpenAIProvider implements ILLMProvider {
   async complete(messages: LLMMessage[], options: LLMCompletionOptions = {}): Promise<string> {
     const response = await this.client.chat.completions.create({
       model:      this.modelId,
-      max_tokens: options.maxTokens ?? this.defaultMaxTokens,
+      max_completion_tokens: options.maxTokens ?? this.defaultMaxTokens,
       messages:   buildSdkMessages(messages, options.systemPrompt),
     });
 

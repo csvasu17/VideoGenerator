@@ -10,7 +10,7 @@
  *   --crf   <n>      H.264 CRF quality (0=lossless, 51=worst, default: 23)
  *   --scale <n>      Downscale factor e.g. 0.5 for half-res preview  (default: 1)
  *   --concurrency <n> Chrome tabs per chunk (default: 1)
- *   --chunk-size <n> Frames per chunk for enterprise rendering (default: 250)
+ *   --chunk-size <n> Frames per chunk for enterprise rendering (default: 150)
  *
  * Enterprise template: renders in chunks to avoid Chrome OOM on long videos,
  * then concatenates with FFmpeg. Each chunk restarts Chrome fresh.
@@ -34,7 +34,7 @@ const INPUT_PATH  = getArg('--input',      path.join(OUT_DIR, 'demo-package.json
 const CRF         = getArg('--crf',        '23');
 const SCALE       = getArg('--scale',      '1');
 const CONCURRENCY = getArg('--concurrency', '1');
-const CHUNK_SIZE  = parseInt(getArg('--chunk-size', '250'), 10);
+const CHUNK_SIZE  = parseInt(getArg('--chunk-size', '75'), 10);
 
 // Locate FFmpeg (check PATH first, then common install locations)
 function findFfmpeg(): string {
@@ -72,6 +72,8 @@ function buildRenderCmd(
     `--crf=${CRF}`,
     `--public-dir="${publicDirFwd}"`,
     `--concurrency=${CONCURRENCY}`,
+    '--port=4000',
+    '--timeout=120000',
   ];
   if (parseFloat(SCALE) !== 1) parts.push(`--scale=${SCALE}`);
   if (framesArg) parts.push(`--frames=${framesArg}`);
@@ -182,6 +184,14 @@ function main(): void {
       try {
         execSync(cmd, { cwd: ROOT, stdio: 'inherit' });
       } catch {
+        // Kill any orphaned headless Chrome processes before giving up — they accumulate
+        // across failed chunks and exhaust memory, causing cascading failures.
+        try {
+          execSync(
+            'powershell -NoProfile -Command "Get-Process chrome,chromium -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq \'\' } | Stop-Process -Force"',
+            { stdio: 'ignore' },
+          );
+        } catch { /* ignore */ }
         console.error(`\n  ✗  Chunk ${i + 1} failed`);
         console.error('     Run again to resume from this chunk (completed segments are skipped).');
         process.exit(1);

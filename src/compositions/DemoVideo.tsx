@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { ChatWidget } from './ChatWidget';
 import {
   AbsoluteFill,
   Img,
@@ -589,6 +590,9 @@ export const DemoVideo: React.FC<DemoVideoProps> = ({ openingCard, scenes, closi
           />
         </SceneTransition>
       </Sequence>
+
+      {/* ── Studio-only chat widget — invisible in rendered video ────────── */}
+      <ChatWidget />
 
     </AbsoluteFill>
   );

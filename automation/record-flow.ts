@@ -109,25 +109,27 @@ interface RoleFlow {
 // natural sidebar navigation clicks between them.
 
 // Create Ticket actions for Support roles (L1 & L2) — 5-step wizard.
-const ROLE_FLOWS: RoleFlow[] = [
-  // ── Rheem TotalView — Admin (single LOGIN_TYPE=1 user) ───────────────────────
-  // Uses urlPath for direct navigation because the sidebar is collapsed (icon-only).
-  {
+function buildRoleFlows(): RoleFlow[] {
+  const routes = Object.entries(routeMap);
+  const steps: FlowStep[] = routes.length > 0
+    ? routes.map(([routePath, label]) => ({
+        id:      routePath === '/' ? 'home' : routePath.replace(/^\//, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, ''),
+        navItem: null,
+        urlPath: routePath,
+        label:   String(label),
+        holdSec: 12,
+      }))
+    : [{ id: 'home', navItem: null, urlPath: '/', label: 'Home', holdSec: 12 }];
+
+  return [{
     cardIndex: 0,
-    role:      'Admin',
-    flowId:    'flow-admin',
-    steps: [
-      { id: 'dashboard',  navItem: null,          urlPath: '/dashboard',   label: 'Fleet Dashboard',        holdSec: 12 },
-      { id: 'sites',      navItem: 'Sites',        urlPath: '/sites',       label: 'Multi-Site Map',         holdSec: 12 },
-      { id: 'devices',    navItem: 'Devices',      urlPath: '/devices',     label: 'Device Management',      holdSec: 12 },
-      { id: 'alarms',     navItem: 'Alarms',       urlPath: '/alarms',      label: 'Alarm Management',       holdSec: 12 },
-      { id: 'ai-predict', navItem: 'Predictions',  urlPath: '/ai',          label: 'AI Fault Predictions',   holdSec: 12 },
-      { id: 'insights',   navItem: 'Insights',     urlPath: '/insights',    label: 'Energy Insights',        holdSec: 12 },
-      { id: 'simulator',  navItem: 'Simulator',    urlPath: '/simulator',   label: 'Scenario Simulator',     holdSec: 12 },
-      { id: 'settings',   navItem: 'Settings',     urlPath: '/settings',    label: 'Settings & Users',       holdSec: 10 },
-    ],
-  },
-];
+    role:      'Primary User',
+    flowId:    'flow-primary',
+    steps,
+  }];
+}
+
+const ROLE_FLOWS = buildRoleFlows();
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -281,7 +283,7 @@ async function analyzeFrame(
 
   const response = await azureClient.chat.completions.create({
     model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_tokens: 500,
+    max_completion_tokens: 500,
     messages: [
       { role: 'system', content: sections.join('') },
       {
