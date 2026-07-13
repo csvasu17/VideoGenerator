@@ -14,7 +14,7 @@ import * as path   from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
-function toSlug(value: string): string {
+export function toSlug(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')

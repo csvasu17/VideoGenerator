@@ -194,8 +194,8 @@ async function selectGenreWithLLM(): Promise<string> {
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userPrompt   },
         ],
-        max_tokens:  10,
-        temperature: 0,
+        max_completion_tokens: 200,
+        reasoning_effort:      'low',
       });
       content = res.choices[0]?.message?.content?.trim().toLowerCase() ?? '';
     } else {

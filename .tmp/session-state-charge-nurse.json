@@ -1,0 +1,39 @@
+{
+  "cookies": [
+    {
+      "name": "_streamlit_xsrf",
+      "value": "2|0024905d|dfdcf830b93688d75e65e0a79b2fd8aa|1783921896",
+      "domain": "10.1.123.128",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "icupulse_session",
+      "value": "9TpZwcEQjm0WUw1Yx__9ZTzIwRJo334LkiA6jYPZWFU",
+      "domain": "10.1.123.128",
+      "path": "/",
+      "expires": 1783950698.244864,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://10.1.123.128:8511",
+      "localStorage": [
+        {
+          "name": "stSidebarSectionsState-",
+          "value": "{}"
+        },
+        {
+          "name": "stActiveTheme-/-v2",
+          "value": "\"System\""
+        }
+      ]
+    }
+  ]
+}

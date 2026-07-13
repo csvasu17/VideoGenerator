@@ -28,6 +28,7 @@ import { ensureSession, createAuthContext }      from './utils/session';
 import { OUT_DIR, SCREEN_FIT }                   from './config';
 import { getVideoInfo }                          from './utils/ffprobe';
 import type { RecordingConfig }                  from './types';
+import { GENERIC_NARRATIONS }                    from './utils/constants';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
@@ -240,12 +241,6 @@ async function performFullInteraction(page: Page): Promise<void> {
 
 // ─── AI analysis ──────────────────────────────────────────────────────────────
 
-const GENERIC_NARRATIONS_ENT = new Set([
-  'This feature improves operational efficiency across your team.',
-  'This feature accelerates your workflow.',
-  'Platform Feature',
-]);
-
 async function analyzeFrameTextOnly(
   pagePurpose: string,
   userRole?:   string,
@@ -261,13 +256,13 @@ Based on the product context and current page description above, output a JSON o
 {
   "featureTitle": "short 2-4 word feature name",
   "salesHook": "compelling 6-10 word hook focusing on business value for the active user role",
-  "narration": "one paragraph (2-3 sentences, ~25 words) — address the active user role by name if known, explain what this screen lets them do, and state the specific pain it eliminates"
+  "narration": "four to five sentences (~60 words): (1) open with the specific business pain this screen addresses for the active user role, (2)-(3) explain what the user does here and what the screen shows them, (4)-(5) state the measurable business outcome — time saved, risk reduced, or decision enabled. Be concrete and product-specific."
 }
 Be specific to this product page. Use domain glossary terms accurately.`;
 
   const response = await azureClient.chat.completions.create({
     model:             process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_completion_tokens: 500,
+    max_completion_tokens: 700,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -309,7 +304,7 @@ async function analyzeFrame(
 {
   "featureTitle": "short 2-4 word feature name",
   "salesHook": "compelling 6-10 word hook focusing on business value for the active user role",
-  "narration": "one paragraph (2-3 sentences, ~25 words) — address the active user role by name if known, explain what this screen lets them do, and state the specific pain it eliminates"
+  "narration": "four to five sentences (~60 words): (1) open with the specific business pain this screen addresses for the active user role, (2)-(3) explain what the user does here and what the screen shows them, (4)-(5) state the measurable business outcome — time saved, risk reduced, or decision enabled. Be concrete and product-specific."
 }
 Be specific to what you see. Use domain glossary terms accurately.`);
 
@@ -342,7 +337,7 @@ Be specific to what you see. Use domain glossary terms accurately.`);
   }
 
   // If vision succeeded and returned non-generic narration, use it
-  if (visionResult && visionResult.narration && !GENERIC_NARRATIONS_ENT.has(visionResult.narration)) {
+  if (visionResult && visionResult.narration && !GENERIC_NARRATIONS.has(visionResult.narration)) {
     return visionResult;
   }
 
