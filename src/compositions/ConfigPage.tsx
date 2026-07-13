@@ -5,7 +5,6 @@ import { ChatWidget } from './ChatWidget';
 // KEYFRAMES
 // ─────────────────────────────────────────────────────────────────────────────
 const KEYFRAMES = `
-  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap');
   @keyframes orb-a {
     0%,100% { transform:translate(0,0) scale(1); opacity:.55; }
     40%      { transform:translate(40px,25px) scale(1.12); opacity:.8; }
@@ -49,14 +48,41 @@ const KEYFRAMES = `
   @keyframes cc-play {
     from { left:0%; } to { left:82%; }
   }
-  ::-webkit-scrollbar { display: none; }
-  * { scrollbar-width: none; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--cfg-scroll-thumb, rgba(255,255,255,0.15)); border-radius: 4px; }
+  * { scrollbar-width: thin; scrollbar-color: var(--cfg-scroll-thumb, rgba(255,255,255,0.15)) transparent; }
+  button:focus-visible, [role="button"]:focus-visible, a:focus-visible,
+  textarea:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cfg-anim-decorative { animation: none !important; }
+  }
 `;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPE SCALE — shared across both themes (size/weight are theme-independent)
+// caption vs. label are intentionally close in size: caption is dense metadata/
+// hint text, label is an uppercase tracked eyebrow/section tag. Don't collapse.
+// ─────────────────────────────────────────────────────────────────────────────
+const TYPE_SCALE = {
+  caption:    { fontSize: 10, fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.02em' } as React.CSSProperties,
+  label:      { fontSize: 11, fontWeight: 700, lineHeight: 1.3, letterSpacing: '0.08em', textTransform: 'uppercase' } as React.CSSProperties,
+  fieldLabel: { fontSize: 12, fontWeight: 600, lineHeight: 1.3, letterSpacing: '0.01em' } as React.CSSProperties,
+  body:       { fontSize: 12, fontWeight: 500, lineHeight: 1.5 } as React.CSSProperties,
+  bodyLg:     { fontSize: 13, fontWeight: 600, lineHeight: 1.4 } as React.CSSProperties,
+  input:      { fontSize: 14, fontWeight: 400, lineHeight: 1.4 } as React.CSSProperties,
+  h3:         { fontSize: 14, fontWeight: 700, lineHeight: 1.3, letterSpacing: '-0.2px' } as React.CSSProperties,
+  h2:         { fontSize: 16, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.4px' } as React.CSSProperties,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS — Nexus palette
 // ─────────────────────────────────────────────────────────────────────────────
 const DARK_TOKENS = {
+  type: TYPE_SCALE,
   // Base backgrounds
   bg:          '#060d1a',
   surface:     'rgba(255,255,255,0.025)',
@@ -92,7 +118,7 @@ const DARK_TOKENS = {
   // Typography
   text:        '#e7ecf7',
   sub:         '#7a82a0',
-  hint:        'rgba(122,130,160,0.6)',
+  hint:        '#8b93b8',
   labelColor:  'rgba(180,195,230,0.85)',
   // Accents (unchanged across themes)
   indigo:      '#4f46e5',
@@ -109,6 +135,7 @@ const DARK_TOKENS = {
 };
 
 const LIGHT_TOKENS = {
+  type: TYPE_SCALE,
   // Base backgrounds
   bg:          '#f0f4f8',
   surface:     'rgba(0,0,0,0.025)',
@@ -144,7 +171,7 @@ const LIGHT_TOKENS = {
   // Typography
   text:        '#0f172a',
   sub:         '#475569',
-  hint:        'rgba(71,85,105,0.55)',
+  hint:        '#5a6478',
   labelColor:  '#334155',
   // Accents (unchanged across themes)
   indigo:      '#4f46e5',
@@ -160,7 +187,8 @@ const LIGHT_TOKENS = {
   mono:        '"Consolas","Fira Code",monospace',
 };
 
-const ThemeCtx = React.createContext(DARK_TOKENS);
+export type ThemeTokens = typeof DARK_TOKENS;
+export const ThemeCtx = React.createContext(DARK_TOKENS);
 
 const API  = 'http://localhost:3001';
 const MASK = '••••••••';
@@ -195,7 +223,7 @@ User roles (name, title, screens they use, pain eliminated, demo "aha" moment):`
 
 const PROMPT_ROUTE_MAP = `You are a technical analyst extracting structured metadata from application source code to improve an AI narration system's knowledge of this product.
 
-From the source code I provide, extract the APP_ROUTE_MAP — a JSON object mapping URL path patterns to a human-readable description.
+From the source code provide, extract the APP_ROUTE_MAP — a JSON object mapping URL path patterns to a human-readable description.
 
 Format: {"<url-pattern>": "<role> — <page purpose in one sentence>"}
 
@@ -208,7 +236,7 @@ Return ONLY the JSON object. No explanation, no markdown fences.`;
 
 const PROMPT_GLOSSARY = `You are a technical analyst extracting structured metadata from application source code to improve an AI narration system's knowledge of this product.
 
-From the source code I provide, extract the APP_GLOSSARY — a plain-text list of domain-specific abbreviations, terms, and component names the AI might not know.
+From the source code provide, extract the APP_GLOSSARY — a plain-text list of domain-specific abbreviations, terms, and component names the AI might not know.
 
 Format: TERM: definition (one line each)
 
@@ -219,6 +247,40 @@ Rules:
 - Include 10–30 terms maximum
 
 Return ONLY the glossary lines. No explanation, no markdown fences.`;
+
+// Same fill-in-the-blank style as PROMPT_APP_CONTEXT above — a plain reusable template,
+// not mail-merged with this app's current field values, so the exact same copied text
+// works for any app: paste your own Product Context / Route Map / Glossary into the blanks.
+// Keep this roughly in sync with generateDemoPainPoints()'s prompt in automation/record-app-clips.ts
+// (that one DOES mail-merge live values — it runs automatically inside the pipeline, not copy-pasted).
+const PROMPT_DEMO_PAIN_POINTS = `You are a B2B SaaS demo script writer.
+
+For EACH route listed below, describe the real workflow a user performs on that screen, the specific
+pain point it removes, and an observable "aha moment" outcome. Use domain glossary terms/metric
+names where they fit, but do NOT invent specific fake numbers, device IDs, or names — this text
+will be layered onto a real screenshot later and must not contradict it. Describe the general
+shape of the action and outcome, not invented literal specifics. Return ONLY a JSON object keyed
+by route path (use the exact route paths given below), no markdown fences:
+{ "/route": { "workflow": "...", "painPoint": "...", "ahaMoment": "..." }, ... }
+
+Optionally, for any route where a real multi-step click-through would make a great demo screen,
+add an "actions" array and "durationSec" to that route's entry — but ONLY if you already know the
+exact button text/selectors for that route from inspecting the live app; do not guess selectors.
+
+--- Paste your product details below (copy from App Context / Route Map / Glossary above) ---
+Product context:
+Route map (JSON, path → page description):
+Domain glossary (optional):`;
+
+/** Light, non-blocking check — just enough to catch an obviously-broken paste. */
+function isValidJsonObject(text: string): boolean {
+  try {
+    const parsed = JSON.parse(text);
+    return !!parsed && typeof parsed === 'object' && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FORM PRIMITIVES
@@ -255,7 +317,7 @@ function InputField({ value, onChange, placeholder, type = 'text', password = fa
           height: 44, borderRadius: 11,
           background: focused ? C.inputFocus : C.input,
           border: `1px solid ${focused ? C.ring : C.inputBdr}`,
-          color: C.text, fontFamily: C.font, fontSize: 14,
+          color: C.text, fontFamily: C.font, ...C.type.input,
           padding: `0 ${paddingRight}px 0 ${paddingLeft}px`,
           outline: 'none',
           transition: 'border-color .18s, background .18s, box-shadow .18s',
@@ -263,11 +325,19 @@ function InputField({ value, onChange, placeholder, type = 'text', password = fa
         }}
       />
       {password && (
-        <button type="button" onClick={() => setShow(s => !s)} style={{
-          position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: C.hint, fontSize: 13, padding: 2, lineHeight: 1,
-        }}>{show ? '🙈' : '👁️'}</button>
+        <button type="button" onClick={() => setShow(s => !s)}
+          aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show}
+          style={{
+            position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: C.hint, padding: 2, lineHeight: 1, display: 'flex', alignItems: 'center',
+          }}>
+          {show ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          )}
+        </button>
       )}
     </div>
   );
@@ -288,7 +358,7 @@ function SelectBox({ value, onChange, options }: {
           height: 44, borderRadius: 11,
           background: focused ? C.inputFocus : C.input,
           border: `1px solid ${focused ? C.ring : C.inputBdr}`,
-          color: C.text, fontFamily: C.font, fontSize: 14,
+          color: C.text, fontFamily: C.font, ...C.type.input,
           padding: '0 36px 0 14px', outline: 'none', cursor: 'pointer',
           transition: 'border-color .18s, background .18s, box-shadow .18s',
           boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.22)' : 'none',
@@ -304,26 +374,35 @@ function SelectBox({ value, onChange, options }: {
   );
 }
 
-function TextareaField({ value, onChange, placeholder, rows = 4 }: {
-  value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
+function TextareaField({ value, onChange, placeholder, rows = 4, maxLength }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; rows?: number; maxLength?: number;
 }) {
   const C = React.useContext(ThemeCtx);
   const [focused, setFocused] = useState(false);
   return (
-    <textarea value={value} placeholder={placeholder} rows={rows}
-      onChange={e => onChange(e.target.value)}
-      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-      style={{
-        width: '100%', boxSizing: 'border-box', resize: 'vertical',
-        borderRadius: 11,
-        background: focused ? C.inputFocus : C.input,
-        border: `1px solid ${focused ? C.ring : C.inputBdr}`,
-        color: C.text, fontFamily: C.mono, fontSize: 12, lineHeight: 1.7,
-        padding: '10px 14px', outline: 'none',
-        transition: 'border-color .18s, background .18s, box-shadow .18s',
-        boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.22)' : 'none',
-      }}
-    />
+    <div style={{ position: 'relative' }}>
+      <textarea value={value} placeholder={placeholder} rows={rows} maxLength={maxLength}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        style={{
+          width: '100%', boxSizing: 'border-box', resize: 'vertical',
+          borderRadius: 11,
+          background: focused ? C.inputFocus : C.input,
+          border: `1px solid ${focused ? C.ring : C.inputBdr}`,
+          color: C.text, fontFamily: C.mono, fontSize: 12, lineHeight: 1.7,
+          padding: maxLength ? '10px 14px 18px' : '10px 14px', outline: 'none',
+          transition: 'border-color .18s, background .18s, box-shadow .18s',
+          boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.22)' : 'none',
+          maskImage: !focused ? 'linear-gradient(to bottom, black 82%, transparent)' : 'none',
+          WebkitMaskImage: !focused ? 'linear-gradient(to bottom, black 82%, transparent)' : 'none',
+        }}
+      />
+      {maxLength && (
+        <div style={{ position: 'absolute', right: 10, bottom: 6, ...C.type.caption, color: C.hint, pointerEvents: 'none' }}>
+          {value.length}/{maxLength}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -333,8 +412,8 @@ function Toggle({ value, onChange, onLabel = 'Enabled', offLabel = 'Disabled' }:
   const C = React.useContext(ThemeCtx);
   const on = value !== 'false';
   return (
-    <div onClick={() => onChange(on ? 'false' : 'true')}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+    <button type="button" onClick={() => onChange(on ? 'false' : 'true')} aria-pressed={on}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}>
       <div style={{
         position: 'relative', width: 44, height: 25, borderRadius: 13,
         background: on ? C.teal : C.toggleOffBg,
@@ -349,12 +428,42 @@ function Toggle({ value, onChange, onLabel = 'Enabled', offLabel = 'Disabled' }:
           boxShadow: '0 1px 4px rgba(0,0,0,.4)',
         }} />
       </div>
-      <span style={{ fontSize: 13, fontWeight: 500, color: on ? C.text : C.sub }}>{on ? onLabel : offLabel}</span>
-    </div>
+      <span style={{ ...C.type.bodyLg, fontWeight: 500, color: on ? C.text : C.sub }}>{on ? onLabel : offLabel}</span>
+    </button>
   );
 }
 
-
+// 2-3 option picker (e.g. New/Existing Recording) — distinct from Toggle, which is
+// reserved for true boolean flags. Keeping these as two intentional patterns rather
+// than forcing one component to cover both.
+function SegmentedControl({ value, onChange, options }: {
+  value: string; onChange: (v: string) => void;
+  options: { value: string; label: React.ReactNode; accent: string; icon?: React.ReactNode }[];
+}) {
+  const C = React.useContext(ThemeCtx);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 7 }}>
+      {options.map(opt => {
+        const active = opt.value === value;
+        return (
+          <button key={opt.value} type="button" onClick={() => onChange(opt.value)} aria-pressed={active} style={{
+            padding: '10px 8px', borderRadius: 10, border: `1.5px solid ${active ? opt.accent : C.border}`,
+            background: active ? `${opt.accent}1f` : C.cardBg,
+            cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+            transition: 'all .18s', fontFamily: C.font,
+          }}>
+            {opt.icon && (
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: active ? `${opt.accent}33` : C.btnGhostBg, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .18s' }}>
+                {opt.icon}
+              </div>
+            )}
+            <span style={{ ...C.type.caption, fontWeight: 700, color: active ? C.text : C.sub, textAlign: 'center', lineHeight: 1.35 }}>{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function FL({ label, hint, req, children, full, action }: {
   label: string; hint?: string; req?: boolean; children: React.ReactNode; full?: boolean;
@@ -364,11 +473,11 @@ function FL({ label, hint, req, children, full, action }: {
   return (
     <div style={{ marginBottom: 10, gridColumn: full ? '1/-1' : undefined }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: hint ? 2 : 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: C.labelColor, letterSpacing: '.01em' }}>{label}</span>
+        <span style={{ ...C.type.fieldLabel, color: C.labelColor }}>{label}</span>
         {req && <span style={{ fontSize: 13, fontWeight: 700, color: C.red, lineHeight: 1 }}>*</span>}
         {action && <div style={{ marginLeft: 'auto' }}>{action}</div>}
       </div>
-      {hint && <div style={{ fontSize: 10, color: C.hint, lineHeight: 1.4, marginBottom: 5 }}>{hint}</div>}
+      {hint && <div style={{ ...C.type.caption, color: C.hint, marginBottom: 5 }}>{hint}</div>}
       {children}
     </div>
   );
@@ -382,8 +491,8 @@ function SubRule({ label, optional }: { label: string; optional?: boolean }) {
   const C = React.useContext(ThemeCtx);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, marginTop: 4 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: C.hint, letterSpacing: '.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>
-      {optional && <span style={{ fontSize: 10, fontWeight: 600, color: C.sub, background: C.badgeBg, border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 6px', letterSpacing: '.04em', textTransform: 'uppercase' }}>Optional</span>}
+      <span style={{ ...C.type.label, color: C.hint, whiteSpace: 'nowrap' }}>{label}</span>
+      {optional && <span style={{ ...C.type.caption, fontWeight: 600, color: C.sub, background: C.badgeBg, border: `1px solid ${C.border}`, borderRadius: 4, padding: '1px 6px', letterSpacing: '.04em', textTransform: 'uppercase' }}>Optional</span>}
       <div style={{ flex: 1, height: 1, background: C.border }} />
     </div>
   );
@@ -391,6 +500,8 @@ function SubRule({ label, optional }: { label: string; optional?: boolean }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATE PREVIEW ELEMENTS
+// intentionally miniature — simulated dashboard screenshots at ~4.5-8px, not
+// real UI copy. Excluded from the shared type scale on purpose.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ModernPreview = () => (
@@ -535,7 +646,11 @@ function TemplateCard({ title, badge, accent, active, onClick, previewEl }: {
   const [hovered, setHovered] = useState(false);
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={active}
       onClick={onClick}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -551,6 +666,8 @@ function TemplateCard({ title, badge, accent, active, onClick, previewEl }: {
     >
       <div style={{ height: 110, position: 'relative', overflow: 'hidden', background: 'rgba(0,0,0,0.25)' }}>
         {previewEl}
+        {/* Scrim — keeps the radio/badge legible regardless of the preview content beneath */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 34, zIndex: 1, background: 'linear-gradient(180deg,rgba(0,0,0,0.4),transparent)', pointerEvents: 'none' }} />
         {/* Radio circle — top left */}
         <div style={{
           position: 'absolute', top: 9, left: 9, zIndex: 2,
@@ -568,14 +685,14 @@ function TemplateCard({ title, badge, accent, active, onClick, previewEl }: {
           <div style={{
             position: 'absolute', top: 9, right: 9, zIndex: 2,
             background: accent, color: '#fff',
-            fontSize: 10, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase',
+            ...C.type.caption, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase',
             padding: '3px 7px', borderRadius: 4,
             boxShadow: `0 2px 8px ${accent}60`,
           }}>{badge}</div>
         )}
       </div>
       <div style={{ padding: '11px 13px 13px' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: active ? C.text : 'rgba(200,215,240,0.75)' }}>{title}</div>
+        <div style={{ ...C.type.bodyLg, fontWeight: 700, color: active ? C.text : 'rgba(200,215,240,0.75)', minHeight: 18 }}>{title}</div>
       </div>
     </div>
   );
@@ -596,9 +713,9 @@ function SectionHeader({ s }: { s: typeof SECTIONS[0] }) {
         boxShadow: `0 4px 14px ${s.accent}40`,
       }}>{s.glyph}</div>
       <div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: s.accent, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 3 }}>{s.id.replace('-', ' ')}</div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, letterSpacing: '-0.4px', lineHeight: 1.1 }}>{s.label}</div>
-        <div style={{ fontSize: 12, color: C.sub, marginTop: 3 }}>{s.sub}</div>
+        <div style={{ ...C.type.label, color: s.accent, marginBottom: 3 }}>{s.id.replace('-', ' ')}</div>
+        <div style={{ ...C.type.h2, color: C.text, lineHeight: 1.1 }}>{s.label}</div>
+        <div style={{ ...C.type.body, color: C.sub, marginTop: 3 }}>{s.sub}</div>
       </div>
     </div>
   );
@@ -645,7 +762,6 @@ export const ConfigPage: React.FC = () => {
     localStorage.setItem('configUiTheme', next);
   };
 
-  const [active, setActive]         = useState(0);
   const [vals, setVals]             = useState<Record<string, string>>({});
   const [loading, setLoading]       = useState(true);
   const [serverErr, setServerErr]   = useState<string | null>(null);
@@ -667,8 +783,6 @@ export const ConfigPage: React.FC = () => {
   const esRef      = useRef<EventSource | null>(null);
   // Holds the full voice-script.json object so voice/model/speed settings are preserved on save
   const voiceScriptRaw = useRef<Record<string, unknown> | null>(null);
-  const mainRef = useRef<HTMLElement>(null);
-  const secRefs = useRef<Array<HTMLElement | null>>([null, null, null, null]);
 
   // voice-script.json has { voice, model, segments: [...] } — extract the segments array
   const extractSegments = (raw: unknown): Array<{ id: string; label: string; text: string }> => {
@@ -692,6 +806,26 @@ export const ConfigPage: React.FC = () => {
     el.textContent = KEYFRAMES;
     document.head.appendChild(el);
     return () => { try { document.head.removeChild(el); } catch {} };
+  }, []);
+
+  // Load Manrope via <link> (preconnect + stylesheet) instead of a render-blocking @import
+  useEffect(() => {
+    if (document.querySelector('link[data-config-font]')) return;
+    const links = [
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
+      { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap' },
+    ];
+    const els = links.map(l => {
+      const link = document.createElement('link');
+      link.rel = l.rel;
+      link.href = l.href;
+      if (l.crossOrigin) link.crossOrigin = l.crossOrigin;
+      link.setAttribute('data-config-font', '1');
+      document.head.appendChild(link);
+      return link;
+    });
+    return () => { els.forEach(l => { try { document.head.removeChild(l); } catch {} }); };
   }, []);
 
   // Load config on mount
@@ -836,7 +970,6 @@ export const ConfigPage: React.FC = () => {
     if (pStatus === 'running') return;
     const tmpl = vals['VIDEO_TEMPLATE'] ?? 'modern_saas';
     setLog([]); setPStatus('running');
-    setActive(3);
     const saveR = await fetch(`${API}/api/config`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ values: payload() }),
@@ -873,6 +1006,16 @@ export const ConfigPage: React.FC = () => {
   const language  = get('APP_LANGUAGE', 'en');
   const running   = pStatus === 'running';
 
+  // Real completion state for the header progress rail — no manual step navigation;
+  // Template is always shown as the current step since it's the main working area.
+  const hasProduct    = !!get('APP_PRODUCT_NAME');
+  const hasUrl        = !!get('APP_URL');
+  const hasAuth       = loginType === '2' || (!!get('APP_USERNAME') && !!get('APP_PASSWORD'));
+  const appSetupDone  = hasProduct && hasUrl && hasAuth;
+  const narrationDone = !!get('APP_CONTEXT_TEXT');
+  const generateDone  = pStatus === 'success';
+  const sectionDone   = [appSetupDone, narrationDone, false, generateDone];
+
   const statusCfg = {
     idle:    { dot: C.sub,    pulse: false, label: 'Ready to generate' },
     running: { dot: C.yellow, pulse: true,  label: 'Pipeline running…' },
@@ -891,18 +1034,30 @@ export const ConfigPage: React.FC = () => {
   ];
 
   // ── RENDER ──────────────────────────────────────────────────────────────────
+  // Composition is registered at 960x600 (Root.tsx) so Studio's "100%" zoom fits
+  // typical windows, but every pixel value below is still tuned for 1280x800 —
+  // render at that native size, then scale the whole thing down to fill the
+  // registered box. Internal layout math is completely unaffected.
   return (
     <ThemeCtx.Provider value={C}>
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
     <div style={{
-      width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+      width: 1280, height: 800, transform: 'scale(0.75)', transformOrigin: 'top left',
+      display: 'flex', flexDirection: 'column',
       overflow: 'hidden', background: C.bg, fontFamily: C.font, color: C.text,
       position: 'relative',
-    }}>
+      ['--cfg-scroll-thumb' as string]: uiTheme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)',
+    } as React.CSSProperties}>
+
+      {/* ── Screen-reader status announcer — mirrors the header status pill ── */}
+      <div aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}>
+        {statusCfg.label}
+      </div>
 
       {/* ── AMBIENT ORBS ─────────────────────────────────────────────────── */}
-      <div style={{ position: 'absolute', top: '-12%', left: '-6%', width: 700, height: 700, borderRadius: '50%', background: 'radial-gradient(circle,rgba(79,70,229,0.09) 0%,transparent 65%)', animation: 'orb-a 16s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
-      <div style={{ position: 'absolute', top: '30%', right: '-10%', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle,rgba(124,58,237,0.07) 0%,transparent 65%)', animation: 'orb-b 20s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
-      <div style={{ position: 'absolute', bottom: '-8%', left: '25%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle,rgba(6,182,212,0.06) 0%,transparent 65%)', animation: 'orb-c 22s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
+      <div className="cfg-anim-decorative" style={{ position: 'absolute', top: '-12%', left: '-6%', width: 700, height: 700, borderRadius: '50%', background: 'radial-gradient(circle,rgba(79,70,229,0.09) 0%,transparent 65%)', animation: 'orb-a 16s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
+      <div className="cfg-anim-decorative" style={{ position: 'absolute', top: '30%', right: '-10%', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle,rgba(124,58,237,0.07) 0%,transparent 65%)', animation: 'orb-b 20s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
+      <div className="cfg-anim-decorative" style={{ position: 'absolute', bottom: '-8%', left: '25%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle,rgba(6,182,212,0.06) 0%,transparent 65%)', animation: 'orb-c 22s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
 
       {/* ── GLASSMORPHISM HEADER ─────────────────────────────────────────────── */}
       <header style={{
@@ -922,27 +1077,27 @@ export const ConfigPage: React.FC = () => {
         </div>
 
         <div style={{ flexShrink: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.4px', background: 'linear-gradient(135deg,#e7ecf7,#a5b4fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.2 }}>Video Generator</div>
-          <div style={{ fontSize: 10, color: C.hint, marginTop: 1 }}>ACL Digital COE · Config</div>
+          <div style={{ fontSize: 14, fontWeight: C.type.h3.fontWeight, letterSpacing: C.type.h3.letterSpacing, background: 'linear-gradient(135deg,#e7ecf7,#a5b4fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.2 }}>Video Generator</div>
+          <div style={{ ...C.type.caption, color: C.hint, marginTop: 1 }}>ACL Digital COE · Config</div>
         </div>
 
-        {/* Section nav pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 14 }}>
+        {/* Section progress rail — reflects real completion state, not a clickable wizard */}
+        <div role="list" aria-label="Setup progress" style={{ display: 'flex', alignItems: 'center', gap: 3, marginLeft: 14 }}>
           {SECTIONS.map((s, i) => {
-            const isDone = i < active;
-            const isAct = i === active;
+            const isDone = sectionDone[i];
+            const isAct = i === 2; // Template is always the current working step
             return (
-              <button key={s.id} type="button" onClick={() => setActive(i)} style={{
+              <div key={s.id} role="listitem" aria-current={isAct ? 'step' : undefined} style={{
                 display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px 4px 8px', borderRadius: 20,
                 border: `1px solid ${isAct ? `${s.accent}55` : isDone ? 'rgba(20,184,166,0.2)' : 'rgba(255,255,255,0.06)'}`,
                 background: isAct ? `${s.accent}18` : isDone ? 'rgba(20,184,166,0.05)' : 'transparent',
                 color: isAct ? s.accent : isDone ? C.teal : C.hint,
-                fontSize: 10, fontWeight: 700, fontFamily: C.font, cursor: 'pointer', transition: 'all .15s',
+                ...C.type.caption, fontWeight: 700, fontFamily: C.font, transition: 'all .15s',
                 lineHeight: 1,
               }}>
                 {isDone && <span style={{ fontSize: 10, fontFamily: C.mono, fontWeight: 800 }}>✓</span>}
                 {s.label}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -951,10 +1106,10 @@ export const ConfigPage: React.FC = () => {
           {/* Status pill */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: C.pillBg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '4px 12px' }}>
             <div style={{ position: 'relative', width: 7, height: 7, flexShrink: 0 }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.dot, boxShadow: `0 0 5px ${statusCfg.dot}`, animation: statusCfg.pulse ? 'dot-pulse 1.2s ease-in-out infinite' : 'none' }} />
-              {statusCfg.pulse && <div style={{ position: 'absolute', inset: -1, borderRadius: '50%', border: `1.5px solid ${statusCfg.dot}`, animation: 'pulse-ring 1.4s ease-out infinite', opacity: 0.5 }} />}
+              <div className="cfg-anim-decorative" style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.dot, boxShadow: `0 0 5px ${statusCfg.dot}`, animation: statusCfg.pulse ? 'dot-pulse 1.2s ease-in-out infinite' : 'none' }} />
+              {statusCfg.pulse && <div className="cfg-anim-decorative" style={{ position: 'absolute', inset: -1, borderRadius: '50%', border: `1.5px solid ${statusCfg.dot}`, animation: 'pulse-ring 1.4s ease-out infinite', opacity: 0.5 }} />}
             </div>
-            <span style={{ fontSize: 11, color: C.sub, fontWeight: 500, whiteSpace: 'nowrap' }}>{statusCfg.label}</span>
+            <span style={{ ...C.type.body, color: C.sub, whiteSpace: 'nowrap' }}>{statusCfg.label}</span>
           </div>
 
           <button type="button" onClick={toggleTheme} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.pillBg, color: C.sub, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -965,7 +1120,7 @@ export const ConfigPage: React.FC = () => {
             )}
           </button>
 
-          <button type="button" onClick={save} style={{ padding: '5px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.border}`, color: C.sub, fontSize: 12, fontWeight: 600, fontFamily: C.font, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <button type="button" onClick={save} style={{ padding: '5px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.border}`, color: C.sub, ...C.type.fieldLabel, fontFamily: C.font, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
             Save
           </button>
@@ -985,13 +1140,13 @@ export const ConfigPage: React.FC = () => {
         }}>
           {serverErr && (
             <div style={{ background: 'rgba(229,0,38,0.07)', border: '1.5px solid rgba(229,0,38,0.2)', borderRadius: 10, padding: '9px 12px', flexShrink: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#ff7070', marginBottom: 2 }}>⚠ Server offline</div>
-              <div style={{ fontSize: 10, color: '#ff9090' }}>Run <code style={{ fontFamily: C.mono }}>npm run dev</code></div>
+              <div style={{ ...C.type.fieldLabel, color: '#ff7070', marginBottom: 2 }}>⚠ Server offline</div>
+              <div style={{ ...C.type.caption, color: '#ff9090' }}>Run <code style={{ fontFamily: C.mono }}>npm run dev</code></div>
             </div>
           )}
 
           {loading && !serverErr && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', height: 180, color: C.hint, fontSize: 11 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', height: 180, color: C.hint, ...C.type.body }}>
               <div style={{ width: 14, height: 14, border: `2px solid ${C.indigo}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
               Loading…
             </div>
@@ -1005,7 +1160,7 @@ export const ConfigPage: React.FC = () => {
                   <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.indigo},${C.indigo}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.indigo}50` }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>App Connection</span>
+                  <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>App Connection</span>
                 </div>
                 <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px 1px', boxShadow: C.cardShadow }}>
                   <FL label="Product Name" req hint="Output folder name">
@@ -1042,7 +1197,7 @@ export const ConfigPage: React.FC = () => {
                   <SubRule label="Secondary User" optional />
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 7, padding: '6px 9px', marginBottom: 8 }}>
                     <span style={{ fontSize: 11, flexShrink: 0, lineHeight: 1.4 }}>⚠</span>
-                    <div style={{ fontSize: 10, color: C.sub, lineHeight: 1.5 }}>
+                    <div style={{ ...C.type.caption, color: C.sub }}>
                       <span style={{ fontWeight: 600, color: C.yellow }}>Security note:</span>{' '}
                       Credentials stored in .env. Flag for team review — consider session-based auth for production use.
                     </div>
@@ -1068,8 +1223,8 @@ export const ConfigPage: React.FC = () => {
                   <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.cyan},${C.cyan}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.cyan}50` }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Pages to Record</span>
-                  <span style={{ fontSize: 10, color: C.hint, marginLeft: 2 }}>Screens the pipeline captures</span>
+                  <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Pages to Record</span>
+                  <span style={{ ...C.type.caption, color: C.hint, marginLeft: 2 }}>Screens the pipeline captures</span>
                 </div>
                 <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px 1px', boxShadow: C.cardShadow }}>
                   <FL label="Route Map" hint='JSON: { "/path": "Page description" }' action={<CopyPromptBtn text={PROMPT_ROUTE_MAP} />}>
@@ -1084,21 +1239,29 @@ export const ConfigPage: React.FC = () => {
                   <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.violet},${C.violet}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.violet}50` }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Narration & Context</span>
+                  <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Narration & Context</span>
                 </div>
                 <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px 1px', boxShadow: C.cardShadow }}>
                   <FL label="App Context" hint="Powers narration & feature ranking" action={<CopyPromptBtn text={PROMPT_APP_CONTEXT} />}>
-                    <TextareaField value={get('APP_CONTEXT_TEXT')} onChange={v => set('APP_CONTEXT_TEXT', v)} rows={2} placeholder="AI-powered Prior Authorization system for healthcare…" />
+                    <TextareaField value={get('APP_CONTEXT_TEXT')} onChange={v => set('APP_CONTEXT_TEXT', v)} rows={2} maxLength={5000} placeholder="AI-powered Prior Authorization system for healthcare…" />
                   </FL>
                   <div style={{ marginTop: 4, marginBottom: 6 }}>
                     <button type="button" onClick={() => setAdvancedOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '3px 0', color: C.hint, fontFamily: C.font, width: '100%' }}>
                       <svg width="7" height="7" viewBox="0 0 8 8" fill="currentColor" style={{ transform: advancedOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .18s', flexShrink: 0 }}><polygon points="0,0 8,4 0,8"/></svg>
-                      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase' }}>Advanced</span>
+                      <span style={{ ...C.type.label, fontWeight: 600, letterSpacing: '.04em' }}>Advanced</span>
                     </button>
                     {advancedOpen && (
                       <div style={{ marginTop: 6 }}>
                         <FL label="Glossary" hint="Domain terms for narration" action={<CopyPromptBtn text={PROMPT_GLOSSARY} />}>
-                          <TextareaField value={get('APP_GLOSSARY')} onChange={v => set('APP_GLOSSARY', v)} rows={1} placeholder={"PA: Prior Authorization · UM: Utilization Management"} />
+                          <TextareaField value={get('APP_GLOSSARY')} onChange={v => set('APP_GLOSSARY', v)} rows={1} maxLength={5000} placeholder={"PA: Prior Authorization · UM: Utilization Management"} />
+                        </FL>
+                        <FL label="Demo Pain Points" hint="Optional — per-route workflow/pain-point overrides" action={<CopyPromptBtn text={PROMPT_DEMO_PAIN_POINTS} />}>
+                          <TextareaField value={get('DEMO_PAIN_POINTS')} onChange={v => set('DEMO_PAIN_POINTS', v)} rows={3} placeholder={'{\n  "/maintenance": { "workflow": "...", "painPoint": "...", "ahaMoment": "..." }\n}'} />
+                          {get('DEMO_PAIN_POINTS').trim() !== '' && !isValidJsonObject(get('DEMO_PAIN_POINTS')) && (
+                            <div style={{ ...C.type.caption, color: C.yellow, marginTop: 4 }}>
+                              Doesn't look like valid JSON — the pipeline will ignore this until it is.
+                            </div>
+                          )}
                         </FL>
                       </div>
                     )}
@@ -1148,10 +1311,10 @@ export const ConfigPage: React.FC = () => {
                     <div style={{ width: 28, height: 28, borderRadius: 8, marginBottom: 10, background: stat.ok ? `${stat.accent}18` : 'rgba(229,0,38,0.07)', border: `1px solid ${stat.ok ? `${stat.accent}22` : 'rgba(229,0,38,0.18)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: stat.ok ? stat.accent : C.red }}>
                       {stat.icon}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: stat.ok ? C.text : C.red, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.2px' }}>{stat.value}</div>
+                    <div style={{ ...C.type.h3, color: stat.ok ? C.text : C.red, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stat.value}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: stat.ok ? C.green : C.red, flexShrink: 0 }} />
-                      <span style={{ fontSize: 10, color: C.sub, fontWeight: 500 }}>{stat.label}</span>
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: stat.ok ? C.sub : C.red, flexShrink: 0 }} />
+                      <span style={{ ...C.type.caption, color: C.sub }}>{stat.label}</span>
                     </div>
                   </div>
                 ))}
@@ -1162,8 +1325,8 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.purple},${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.purple}50` }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Template</span>
-                <span style={{ fontSize: 11, color: C.hint, marginLeft: 4 }}>Select the visual style for your generated video</span>
+                <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Template</span>
+                <span style={{ ...C.type.body, color: C.hint, marginLeft: 4 }}>Select the visual style for your generated video</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <TemplateCard title="Modern SaaS" badge="POPULAR" accent={C.cyan} active={template === 'modern_saas'} onClick={() => set('VIDEO_TEMPLATE', 'modern_saas')} previewEl={<ModernPreview />} />
@@ -1175,7 +1338,7 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow }}>
                   <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '.08em' }}>Video Language</span>
+                    <span style={{ ...C.type.label, color: C.sub }}>Video Language</span>
                   </div>
                   <div style={{ padding: '10px 13px 4px' }}>
                   <FL label="Language" hint="Narration & voice-over language">
@@ -1187,7 +1350,7 @@ export const ConfigPage: React.FC = () => {
                   {language !== 'en' && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>
                       <span style={{ fontSize: 12, flexShrink: 0 }}>🌐</span>
-                      <div style={{ fontSize: 10, color: C.sub, lineHeight: 1.5 }}>
+                      <div style={{ ...C.type.caption, color: C.sub }}>
                         <span style={{ fontWeight: 600, color: C.text }}>Multilingual active.</span>{' '}
                         Narration translated to {({ en:'English',fr:'French',de:'German',es:'Spanish',it:'Italian',pt:'Portuguese',ja:'Japanese' } as Record<string,string>)[language] ?? language} via LLM.
                       </div>
@@ -1198,7 +1361,7 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow }}>
                   <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.violet} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/></svg>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '.08em' }}>Video Options</span>
+                    <span style={{ ...C.type.label, color: C.sub }}>Video Options</span>
                   </div>
                   <div style={{ padding: '10px 13px 4px' }}>
                   <FL label="Screen Fit" hint="How app screen is framed">
@@ -1217,30 +1380,23 @@ export const ConfigPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              {/* ── Readiness focal point ── */}
-              {(() => {
-                const hasProduct = !!get('APP_PRODUCT_NAME');
-                const hasUrl = !!get('APP_URL');
-                const hasAuth = loginType === '2' || (!!get('APP_USERNAME') && !!get('APP_PASSWORD'));
-                const ready = hasProduct && hasUrl && hasAuth;
-                return (
-                  <div style={{ borderRadius: 14, border: `1px solid ${ready ? 'rgba(34,197,94,0.18)' : `${C.indigo}22`}`, background: ready ? 'rgba(34,197,94,0.035)' : `${C.indigo}07`, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', inset: 0, background: ready ? 'radial-gradient(ellipse at 20% 50%,rgba(34,197,94,0.07) 0%,transparent 65%)' : `radial-gradient(ellipse at 20% 50%,${C.indigo}12 0%,transparent 65%)`, pointerEvents: 'none' }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: ready ? 'rgba(34,197,94,0.1)' : `${C.indigo}14`, border: `1px solid ${ready ? 'rgba(34,197,94,0.22)' : `${C.indigo}28`}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {ready
-                          ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                          : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        }
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: ready ? C.green : C.text, letterSpacing: '-0.4px', lineHeight: 1.2 }}>{ready ? 'Ready to Generate' : 'Complete Setup'}</div>
-                        <div style={{ fontSize: 11, color: C.sub, marginTop: 3 }}>{ready ? 'All required fields configured — hit Render →' : 'Fill required fields in the left panel to unlock'}</div>
-                      </div>
-                    </div>
+              {/* ── Readiness focal point — the sole "you're good to go" affirmation on
+                   this screen; the KPI cards above stay neutral so this doesn't compete ── */}
+              <div style={{ borderRadius: 14, border: `1px solid ${appSetupDone ? 'rgba(34,197,94,0.18)' : `${C.indigo}22`}`, background: appSetupDone ? 'rgba(34,197,94,0.035)' : `${C.indigo}07`, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', inset: 0, background: appSetupDone ? 'radial-gradient(ellipse at 20% 50%,rgba(34,197,94,0.07) 0%,transparent 65%)' : `radial-gradient(ellipse at 20% 50%,${C.indigo}12 0%,transparent 65%)`, pointerEvents: 'none' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: appSetupDone ? 'rgba(34,197,94,0.1)' : `${C.indigo}14`, border: `1px solid ${appSetupDone ? 'rgba(34,197,94,0.22)' : `${C.indigo}28`}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {appSetupDone
+                      ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    }
                   </div>
-                );
-              })()}
+                  <div>
+                    <div style={{ ...C.type.h2, color: appSetupDone ? C.green : C.text, lineHeight: 1.2 }}>{appSetupDone ? 'Ready to Generate' : 'Complete Setup'}</div>
+                    <div style={{ ...C.type.body, color: C.sub, marginTop: 3 }}>{appSetupDone ? 'All required fields configured — hit Render →' : 'Fill required fields in the left panel to unlock'}</div>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </main>
@@ -1260,7 +1416,7 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.indigo},${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.indigo}50` }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Generate</span>
+                <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Generate</span>
               </div>
 
               {/* Recording status */}
@@ -1268,7 +1424,7 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: recStatus.hasRecordings ? 'rgba(34,197,94,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${recStatus.hasRecordings ? 'rgba(34,197,94,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 9, padding: '7px 11px' }}>
                   <span style={{ fontSize: 13 }}>{recStatus.hasRecordings ? '🎬' : '⚠️'}</span>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: recStatus.hasRecordings ? C.green : C.yellow }}>{recStatus.hasRecordings ? `${recStatus.clipCount} clips · ${recStatus.hasVoiceScript ? 'voice ready' : 'no voice yet'}` : 'No recordings yet'}</div>
+                    <div style={{ ...C.type.fieldLabel, color: recStatus.hasRecordings ? C.green : C.yellow }}>{recStatus.hasRecordings ? `${recStatus.clipCount} clips · ${recStatus.hasVoiceScript ? 'voice ready' : 'no voice yet'}` : 'No recordings yet'}</div>
                   </div>
                 </div>
               )}
@@ -1276,53 +1432,44 @@ export const ConfigPage: React.FC = () => {
               {/* Recording Mode selector */}
               {template === 'enterprise' && (
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: C.hint, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 7 }}>Recording Mode</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-
-                    {/* New Recording */}
-                    <button type="button" onClick={() => setRecordingMode('new')} style={{
-                      padding: '10px 8px', borderRadius: 10, border: `1.5px solid ${recordingMode === 'new' ? C.violet : C.border}`,
-                      background: recordingMode === 'new' ? 'rgba(124,58,237,0.12)' : C.cardBg,
-                      cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                      transition: 'all .18s', outline: 'none', fontFamily: C.font,
-                    }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: recordingMode === 'new' ? 'rgba(124,58,237,0.2)' : C.btnGhostBg, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .18s' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="9" stroke={recordingMode === 'new' ? C.violet : C.sub} strokeWidth="2"/>
-                          <circle cx="12" cy="12" r="3.5" fill={recordingMode === 'new' ? C.violet : C.sub}/>
-                        </svg>
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: recordingMode === 'new' ? C.text : C.sub, textAlign: 'center', lineHeight: 1.35 }}>New<br/>Recording</span>
-                    </button>
-
-                    {/* Existing Recording */}
-                    <button type="button" onClick={() => setRecordingMode('existing')} style={{
-                      padding: '10px 8px', borderRadius: 10, border: `1.5px solid ${recordingMode === 'existing' ? C.cyan : C.border}`,
-                      background: recordingMode === 'existing' ? 'rgba(6,182,212,0.08)' : C.cardBg,
-                      cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                      transition: 'all .18s', outline: 'none', fontFamily: C.font,
-                    }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: recordingMode === 'existing' ? 'rgba(6,182,212,0.15)' : C.btnGhostBg, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .18s' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="2" y="7" width="20" height="13" rx="2" stroke={recordingMode === 'existing' ? C.cyan : C.sub} strokeWidth="2"/>
-                          <path d="M15 13.5l-5 3V10.5l5 3z" fill={recordingMode === 'existing' ? C.cyan : C.sub}/>
-                          <path d="M8 7V5a2 2 0 014 0v2" stroke={recordingMode === 'existing' ? C.cyan : C.sub} strokeWidth="2"/>
-                        </svg>
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: recordingMode === 'existing' ? C.text : C.sub, textAlign: 'center', lineHeight: 1.35 }}>Existing<br/>Recording</span>
-                    </button>
-                  </div>
+                  <div style={{ ...C.type.label, color: C.hint, marginBottom: 7 }}>Recording Mode</div>
+                  <SegmentedControl
+                    value={recordingMode}
+                    onChange={v => setRecordingMode(v as 'new' | 'existing')}
+                    options={[
+                      {
+                        value: 'new', accent: C.violet, label: <>New<br/>Recording</>,
+                        icon: (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="9" stroke={recordingMode === 'new' ? C.violet : C.sub} strokeWidth="2"/>
+                            <circle cx="12" cy="12" r="3.5" fill={recordingMode === 'new' ? C.violet : C.sub}/>
+                          </svg>
+                        ),
+                      },
+                      {
+                        value: 'existing', accent: C.cyan, label: <>Existing<br/>Recording</>,
+                        icon: (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="7" width="20" height="13" rx="2" stroke={recordingMode === 'existing' ? C.cyan : C.sub} strokeWidth="2"/>
+                            <path d="M15 13.5l-5 3V10.5l5 3z" fill={recordingMode === 'existing' ? C.cyan : C.sub}/>
+                            <path d="M8 7V5a2 2 0 014 0v2" stroke={recordingMode === 'existing' ? C.cyan : C.sub} strokeWidth="2"/>
+                          </svg>
+                        ),
+                      },
+                    ]}
+                  />
 
                   {/* Force re-record — only shown when using existing recordings */}
                   {recordingMode === 'existing' && (
                     <div style={{ marginTop: 8, padding: '9px 11px', borderRadius: 9, background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, transition: 'opacity .2s' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <div onClick={() => setForceRerecord(v => !v)} style={{ width: 34, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer', background: forceRerecord ? C.violet : C.toggleOffBg, border: `1.5px solid ${forceRerecord ? C.violet : C.toggleOffBdr}`, transition: 'background .2s', flexShrink: 0 }}>
+                      <button type="button" onClick={() => setForceRerecord(v => !v)} aria-pressed={forceRerecord}
+                        style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        <div style={{ width: 34, height: 20, borderRadius: 10, position: 'relative', background: forceRerecord ? C.violet : C.toggleOffBg, border: `1.5px solid ${forceRerecord ? C.violet : C.toggleOffBdr}`, transition: 'background .2s', flexShrink: 0 }}>
                           <div style={{ position: 'absolute', top: 2, left: forceRerecord ? 15 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: forceRerecord ? C.text : C.sub }}>Force re-record: {forceRerecord ? 'On' : 'Off'}</span>
-                      </div>
-                      <div style={{ fontSize: 10, color: C.hint, marginTop: 4, paddingLeft: 43, lineHeight: 1.4 }}>Re-records all clips from scratch. Takes longer but ensures fresh screenshots.</div>
+                        <span style={{ ...C.type.fieldLabel, color: forceRerecord ? C.text : C.sub }}>Force re-record: {forceRerecord ? 'On' : 'Off'}</span>
+                      </button>
+                      <div style={{ ...C.type.caption, color: C.hint, marginTop: 4, paddingLeft: 43 }}>Re-records all clips from scratch. Takes longer but ensures fresh screenshots.</div>
                     </div>
                   )}
                 </div>
@@ -1337,7 +1484,7 @@ export const ConfigPage: React.FC = () => {
                   position: 'relative', overflow: 'hidden', width: '100%', height: 58,
                   borderRadius: 13, border: 'none',
                   background: running ? 'rgba(79,70,229,0.45)' : `linear-gradient(135deg,${C.indigo} 0%,${C.violet} 50%,${C.cyan} 100%)`,
-                  color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: C.font, letterSpacing: '-0.2px',
+                  color: '#fff', ...C.type.h3, fontWeight: 800, fontFamily: C.font,
                   cursor: running ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
                   boxShadow: running ? 'none' : `0 8px 36px rgba(79,70,229,0.55), 0 0 0 1px rgba(79,70,229,0.28), inset 0 1px 0 rgba(255,255,255,0.2)`,
@@ -1358,7 +1505,7 @@ export const ConfigPage: React.FC = () => {
                   </>
                 )}
                 {shimmer && !running && (
-                  <div style={{ position: 'absolute', top: 0, bottom: 0, width: '50%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)', animation: 'cc-sheen .6s ease forwards', pointerEvents: 'none' }} />
+                  <div className="cfg-anim-decorative" style={{ position: 'absolute', top: 0, bottom: 0, width: '50%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)', animation: 'cc-sheen .6s ease forwards', pointerEvents: 'none' }} />
                 )}
               </button>
 
@@ -1367,7 +1514,7 @@ export const ConfigPage: React.FC = () => {
                   width: '100%', height: 40, borderRadius: 10,
                   border: `1.5px solid rgba(229,0,38,0.45)`,
                   background: 'rgba(229,0,38,0.08)',
-                  color: '#ff7070', fontSize: 13, fontWeight: 700, fontFamily: C.font,
+                  color: '#ff7070', ...C.type.bodyLg, fontWeight: 700, fontFamily: C.font,
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                   transition: 'background .15s',
                 }}>
@@ -1377,7 +1524,7 @@ export const ConfigPage: React.FC = () => {
               )}
 
               {template === 'enterprise' && !running && pStatus === 'idle' && (
-                <div style={{ fontSize: 10, color: C.hint, textAlign: 'center', marginTop: -4 }}>
+                <div style={{ ...C.type.caption, color: C.hint, textAlign: 'center', marginTop: -4 }}>
                   Recordings + voice generated. Use Render to export MP4.
                 </div>
               )}
@@ -1386,10 +1533,10 @@ export const ConfigPage: React.FC = () => {
               {(log.length > 0 || running) && (
                 <div style={{ borderRadius: 9, overflow: 'hidden', border: `1px solid ${C.border}` }}>
                   <div style={{ padding: '6px 11px', background: C.logHeaderBg, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: C.hint, textTransform: 'uppercase', letterSpacing: '.07em' }}>Pipeline Output</span>
-                    {running && <span style={{ fontSize: 10, color: C.yellow }}>● running</span>}
-                    {pStatus === 'success' && <span style={{ fontSize: 10, color: C.green }}>✓ ready</span>}
-                    {pStatus === 'failed' && <span style={{ fontSize: 10, color: C.red }}>✗ failed</span>}
+                    <span style={{ ...C.type.label, color: C.hint }}>Pipeline Output</span>
+                    {running && <span style={{ ...C.type.caption, color: C.yellow }}>● running</span>}
+                    {pStatus === 'success' && <span style={{ ...C.type.caption, color: C.green }}>✓ ready</span>}
+                    {pStatus === 'failed' && <span style={{ ...C.type.caption, color: C.red }}>✗ failed</span>}
                   </div>
                   <pre ref={logRef} style={{ margin: 0, padding: '7px 11px', background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.65, maxHeight: 110, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                     {log.length === 0 ? 'Initialising…' : log.join('\n')}
@@ -1399,7 +1546,7 @@ export const ConfigPage: React.FC = () => {
 
               {/* Open composition */}
               {(running || pStatus === 'success' || pStatus === 'failed') && (
-                <button type="button" onClick={() => navigateToVideo(template)} style={{ width: '100%', height: 38, borderRadius: 9, border: `1px solid ${C.border}`, background: C.btnGhostBg, cursor: 'pointer', color: C.text, fontSize: 12, fontWeight: 600, fontFamily: C.font, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <button type="button" onClick={() => navigateToVideo(template)} style={{ width: '100%', height: 38, borderRadius: 9, border: `1px solid ${C.border}`, background: C.btnGhostBg, cursor: 'pointer', color: C.text, ...C.type.fieldLabel, fontFamily: C.font, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
                   Open {template === 'enterprise' ? 'EnterpriseVideo' : 'DemoVideo'} composition
                 </button>
@@ -1410,8 +1557,8 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ padding: '9px 12px', borderRadius: 9, background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: 9 }}>
                   <span style={{ fontSize: 16 }}>✓</span>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.green }}>{template === 'enterprise' ? 'Preview ready!' : 'Video generated!'}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(34,197,94,0.65)', marginTop: 1 }}>{template === 'enterprise' ? 'Opening EnterpriseVideo in Studio.' : 'Switching to DemoVideo.'}</div>
+                    <div style={{ ...C.type.fieldLabel, fontWeight: 700, color: C.green }}>{template === 'enterprise' ? 'Preview ready!' : 'Video generated!'}</div>
+                    <div style={{ ...C.type.caption, color: 'rgba(34,197,94,0.65)', marginTop: 1 }}>{template === 'enterprise' ? 'Opening EnterpriseVideo in Studio.' : 'Switching to DemoVideo.'}</div>
                   </div>
                 </div>
               )}
@@ -1419,8 +1566,8 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ padding: '9px 12px', borderRadius: 9, background: 'rgba(229,0,38,0.07)', border: '1px solid rgba(229,0,38,0.2)', display: 'flex', alignItems: 'center', gap: 9 }}>
                   <span style={{ fontSize: 15 }}>✗</span>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#ff7070' }}>Pipeline failed</div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,120,120,0.65)', marginTop: 1 }}>Check output above. Composition still openable.</div>
+                    <div style={{ ...C.type.fieldLabel, fontWeight: 700, color: '#ff7070' }}>Pipeline failed</div>
+                    <div style={{ ...C.type.caption, color: 'rgba(255,120,120,0.65)', marginTop: 1 }}>Check output above. Composition still openable.</div>
                   </div>
                 </div>
               )}
@@ -1432,7 +1579,7 @@ export const ConfigPage: React.FC = () => {
                     <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.violet},${C.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.violet}50` }}>
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="white" stroke="none"/><circle cx="16" cy="12" r="2" fill="white" stroke="none"/><circle cx="10" cy="18" r="2" fill="white" stroke="none"/></svg>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Adjust Preview</span>
+                    <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Adjust Preview</span>
                   </div>
                   <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow }}>
                     {/* Tab bar */}
@@ -1458,7 +1605,7 @@ export const ConfigPage: React.FC = () => {
                         }} style={{
                           flex: 1, padding: '9px 4px', border: 'none', borderBottom: `2px solid ${modTab === tab.id ? C.cyan : 'transparent'}`,
                           background: modTab === tab.id ? 'rgba(6,182,212,0.06)' : 'transparent',
-                          color: modTab === tab.id ? C.cyan : C.sub, fontSize: 11, fontWeight: 600, fontFamily: C.font, cursor: 'pointer',
+                          color: modTab === tab.id ? C.cyan : C.sub, ...C.type.fieldLabel, fontFamily: C.font, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all .15s',
                         }}>
                           <span>{tab.icon}</span>{tab.label}
@@ -1472,9 +1619,9 @@ export const ConfigPage: React.FC = () => {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                             {voiceScript.map((entry, idx) => (
                               <div key={entry.id} style={{ background: C.gridItemBg, border: `1px solid ${C.gridItemBdr}`, borderRadius: 8, padding: '8px 10px' }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: C.hint, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>{String(idx + 1).padStart(2, '0')} · {entry.label || entry.id}</div>
+                                <div style={{ ...C.type.label, color: C.hint, letterSpacing: '.06em', marginBottom: 5 }}>{String(idx + 1).padStart(2, '0')} · {entry.label || entry.id}</div>
                                 <textarea value={entry.text} onChange={e => { const updated = voiceScript.map((s, i) => i === idx ? { ...s, text: e.target.value } : s); setVoiceScript(updated); }} rows={3}
-                                  style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '6px 8px', color: C.text, fontSize: 11, fontFamily: C.font, lineHeight: 1.6, resize: 'vertical', outline: 'none' }} />
+                                  style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '6px 8px', color: C.text, ...C.type.body, fontFamily: C.font, lineHeight: 1.6, resize: 'vertical' }} />
                               </div>
                             ))}
                             <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginTop: 2 }}>
@@ -1484,33 +1631,33 @@ export const ConfigPage: React.FC = () => {
                                 const r = await fetch(`${API}/api/regenerate-voice`, { method: 'POST' }).catch(() => null);
                                 if (r?.ok) startVoiceRegen(); else setVoiceRegen('failed');
                               }} disabled={voiceRegen === 'running'}
-                                style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: voiceRegen === 'running' ? 'not-allowed' : 'pointer', background: voiceRegen === 'running' ? 'rgba(6,182,212,0.3)' : `linear-gradient(135deg,${C.teal},${C.cyan})`, color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: C.font, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: voiceRegen === 'running' ? 'not-allowed' : 'pointer', background: voiceRegen === 'running' ? 'rgba(6,182,212,0.3)' : `linear-gradient(135deg,${C.teal},${C.cyan})`, color: '#fff', ...C.type.fieldLabel, fontFamily: C.font, display: 'flex', alignItems: 'center', gap: 6 }}>
                                 {voiceRegen === 'running' && <div style={{ width: 11, height: 11, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />}
                                 {voiceRegen === 'running' ? 'Regenerating…' : 'Regenerate Voice'}
                               </button>
-                              {voiceRegen === 'success' && <span style={{ fontSize: 11, color: C.green }}>✓ Updated</span>}
-                              {voiceRegen === 'failed' && <span style={{ fontSize: 11, color: C.red }}>✗ Failed</span>}
+                              {voiceRegen === 'success' && <span style={{ ...C.type.body, color: C.green }}>✓ Updated</span>}
+                              {voiceRegen === 'failed' && <span style={{ ...C.type.body, color: C.red }}>✗ Failed</span>}
                             </div>
                             {voiceRegenLog.length > 0 && <pre style={{ margin: 0, padding: '6px 9px', borderRadius: 6, background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 70, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>{voiceRegenLog.join('\n')}</pre>}
                           </div>
-                        ) : <div style={{ color: C.hint, fontSize: 11 }}>Loading voice script…</div>
+                        ) : <div style={{ color: C.hint, ...C.type.body }}>Loading voice script…</div>
                       )}
 
                       {modTab === 'broll' && (
-                        brollClips === null ? <div style={{ color: C.hint, fontSize: 11 }}>Loading…</div>
-                        : brollClips.length === 0 ? <div style={{ color: C.hint, fontSize: 11 }}>No b-roll clips found.</div>
+                        brollClips === null ? <div style={{ color: C.hint, ...C.type.body }}>Loading…</div>
+                        : brollClips.length === 0 ? <div style={{ color: C.hint, ...C.type.body }}>No b-roll clips found.</div>
                         : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                             {brollClips.map(clip => (
                               <div key={clip.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: C.gridItemBg, border: `1px solid ${C.gridItemBdr}`, borderRadius: 8, padding: '7px 10px' }}>
                                 <div style={{ width: 30, height: 20, borderRadius: 4, background: `linear-gradient(135deg,${C.violet}40,${C.indigo}40)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>🎥</div>
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{clip.label}</div>
+                                  <div style={{ ...C.type.fieldLabel, color: C.text }}>{clip.label}</div>
                                   <code style={{ fontSize: 10, color: C.hint, fontFamily: C.mono }}>{clip.sizeMb} MB</code>
                                 </div>
                               </div>
                             ))}
-                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: C.font, marginTop: 3 }}>
+                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', ...C.type.fieldLabel, fontFamily: C.font, marginTop: 3 }}>
                               Preview B-roll in Studio
                             </button>
                           </div>
@@ -1526,8 +1673,8 @@ export const ConfigPage: React.FC = () => {
                             <SelectBox value={get('SCREEN_FIT', 'full')} onChange={v => set('SCREEN_FIT', v)} options={[{ value: 'full', label: 'Full — edge-to-edge' }, { value: 'fit', label: 'Fit — inset' }]} />
                           </FL>
                           <div style={{ display: 'flex', gap: 7 }}>
-                            <button type="button" onClick={save} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: C.btnGhostBg, color: C.text, fontSize: 12, fontWeight: 600, fontFamily: C.font }}>Save</button>
-                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: C.font }}>Preview</button>
+                            <button type="button" onClick={save} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: C.btnGhostBg, color: C.text, ...C.type.fieldLabel, fontFamily: C.font }}>Save</button>
+                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', ...C.type.fieldLabel, fontFamily: C.font }}>Preview</button>
                           </div>
                         </div>
                       )}
@@ -1537,7 +1684,7 @@ export const ConfigPage: React.FC = () => {
               ) : template === 'enterprise' ? (
                 <div style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 11, padding: '16px 13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, boxShadow: C.cardShadow }}>
                   <span style={{ fontSize: 22 }}>🎬</span>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: C.sub, textAlign: 'center' }}>Run the pipeline to unlock voice & B-roll editing.</div>
+                  <div style={{ ...C.type.fieldLabel, color: C.sub, textAlign: 'center' }}>Run the pipeline to unlock voice & B-roll editing.</div>
                 </div>
               ) : null}
             </>
@@ -1548,14 +1695,14 @@ export const ConfigPage: React.FC = () => {
 
       {/* ── TOAST ─────────────────────────────────────────────────────────── */}
       {toast && (
-        <div style={{
+        <div role="status" aria-live="polite" aria-atomic="true" style={{
           position: 'absolute', bottom: 20, right: 20,
           padding: '10px 16px', borderRadius: 10,
           background: toast.ok ? 'rgba(34,197,94,0.1)' : 'rgba(229,0,38,0.1)',
           border: `1.5px solid ${toast.ok ? 'rgba(34,197,94,0.3)' : 'rgba(229,0,38,0.3)'}`,
           backdropFilter: 'blur(12px)',
           color: toast.ok ? C.green : '#ff7070',
-          fontSize: 13, fontWeight: 600, zIndex: 999,
+          ...C.type.bodyLg, zIndex: 999,
           animation: 'toast-in .25s ease',
           boxShadow: toast.ok ? '0 4px 20px rgba(34,197,94,0.15)' : '0 4px 20px rgba(229,0,38,0.15)',
         }}>
@@ -1565,6 +1712,7 @@ export const ConfigPage: React.FC = () => {
 
       {/* ── CHAT WIDGET ───────────────────────────────────────────────────── */}
       <ChatWidget />
+    </div>
     </div>
     </ThemeCtx.Provider>
   );

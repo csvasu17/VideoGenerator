@@ -1,0 +1,22 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://10.1.9.23:9024",
+      "localStorage": [
+        {
+          "name": "pulseai_user",
+          "value": "{\"id\":\"u5\",\"name\":\"Dr. Sarah Chen\",\"email\":\"surgeon@pulseai.com\",\"role\":\"surgeon\",\"roleLabel\":\"Attending Surgeon\",\"site\":\"Memorial Hospital North\",\"avatar\":\"SC\",\"surgeonId\":\"s1\"}"
+        },
+        {
+          "name": "theme",
+          "value": "dark"
+        },
+        {
+          "name": "pulseai_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ1NSIsInJvbGUiOiJzdXJnZW9uIiwic2l0ZSI6Ik1lbW9yaWFsIEhvc3BpdGFsIE5vcnRoIiwiaWF0IjoxNzgzNjY4Njg3LCJleHAiOjE3ODM2OTc0ODd9.77U-1Y1UqZbu9ar_43ZJTrAmFapEzdIt0w3NfSUf1sE"
+        }
+      ]
+    }
+  ]
+}

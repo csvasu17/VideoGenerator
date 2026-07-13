@@ -120,6 +120,145 @@ function ffmpegBin(): string {
   return _ffmpegBin;
 }
 
+function findFfprobeBin(): string {
+  const candidates = [
+    path.join(ROOT, 'node_modules', '@remotion', 'compositor-win32-x64-msvc', 'ffprobe.exe'),
+    path.join(ROOT, 'node_modules', '@remotion', 'compositor-darwin-arm64',   'ffprobe'),
+    path.join(ROOT, 'node_modules', '@remotion', 'compositor-darwin-x64',     'ffprobe'),
+    path.join(ROOT, 'node_modules', '@remotion', 'compositor-linux-x64-gnu',  'ffprobe'),
+    path.join(ROOT, 'node_modules', '@remotion', 'compositor-linux-arm64-gnu', 'ffprobe'),
+  ];
+  for (const c of candidates) { if (fs.existsSync(c)) return c; }
+  return 'ffprobe'; // fall back to system PATH
+}
+let _ffprobeBin: string | null = null;
+function ffprobeBin(): string {
+  if (!_ffprobeBin) _ffprobeBin = findFfprobeBin();
+  return _ffprobeBin;
+}
+
+/** Returns actual audio duration in seconds by probing the MP3 file. */
+function getMp3DurationSec(filePath: string): number {
+  const result = spawnSync(ffprobeBin(), [
+    '-v', 'quiet',
+    '-show_entries', 'format=duration',
+    '-of', 'csv=p=0',
+    filePath,
+  ], { encoding: 'utf-8', shell: false });
+  const dur = parseFloat((result.stdout ?? '').trim());
+  return isNaN(dur) ? 0 : dur;
+}
+
+/**
+ * After TTS generation, measure each segment's actual MP3 duration and rebuild
+ * the video timeline so screen scenes are exactly as long as their narration.
+ * Writes updated timings back to demo-package.json and voice-script.json.
+ */
+function syncTimingsToActualDurations(
+  segDir:     string,
+  scriptPath: string,
+): void {
+  const pkgPath = path.join(OUT_DIR, 'demo-package.json');
+  if (!fs.existsSync(pkgPath)) return; // only enterprise pipeline has this
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pkg    = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as any;
+  const script = JSON.parse(fs.readFileSync(scriptPath, 'utf-8')) as {
+    segments: Array<{ id: string; startSec: number; durationSec: number; [k: string]: unknown }>;
+    fps?: number; totalDurationSec?: number; [k: string]: unknown;
+  };
+
+  const fps = pkg.composition?.fps ?? 30;
+
+  // Map segment id → actual MP3 duration
+  const actualDur: Record<string, number> = {};
+  for (const seg of script.segments) {
+    const mp3 = path.join(segDir, `${seg.id}.mp3`);
+    if (fs.existsSync(mp3)) {
+      const d = getMp3DurationSec(mp3);
+      if (d > 0) actualDur[seg.id] = d;
+    }
+  }
+
+  if (Object.keys(actualDur).length === 0) return;
+
+  console.log('\n  ⏱  Syncing scene durations to actual MP3 lengths …');
+
+  const BUFFER_SEC = 2.0; // breathing room after each voice segment ends
+
+  // ── Rebuild brollScenes timeline ────────────────────────────────────────────
+  let cursor = pkg.brollScenes?.[0]?.from ?? 0; // keep original start
+  if (Array.isArray(pkg.brollScenes)) {
+    for (let i = 0; i < pkg.brollScenes.length; i++) {
+      const id  = `broll-${i}`;
+      const dur = actualDur[id];
+      pkg.brollScenes[i].from = cursor;
+      if (dur) {
+        pkg.brollScenes[i].durationInFrames = Math.ceil((dur + BUFFER_SEC) * fps);
+      }
+      cursor += pkg.brollScenes[i].durationInFrames;
+    }
+  }
+
+  // ── Rebuild product scenes timeline ─────────────────────────────────────────
+  if (Array.isArray(pkg.scenes)) {
+    for (let i = 0; i < pkg.scenes.length; i++) {
+      const id  = `scene-${i + 1}`;
+      const dur = actualDur[id];
+      pkg.scenes[i].from = cursor;
+      if (dur) {
+        pkg.scenes[i].durationInFrames = Math.ceil((dur + BUFFER_SEC) * fps);
+      }
+      cursor += pkg.scenes[i].durationInFrames;
+    }
+  }
+
+  // ── Benefit slide & presenter close (keep original duration, shift from) ─────
+  if (pkg.benefitSlide) {
+    pkg.benefitSlide.from = cursor;
+    cursor += pkg.benefitSlide.durationInFrames;
+  }
+  if (pkg.presenterClose) {
+    pkg.presenterClose.from = cursor;
+    cursor += pkg.presenterClose.durationInFrames;
+  }
+
+  // ── Write updated demo-package.json ────────────────────────────────────────
+  if (pkg.composition) pkg.composition.durationInFrames = cursor;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf-8');
+  console.log(`  ✓  demo-package.json updated (total: ${(cursor / fps).toFixed(1)}s)`);
+
+  // ── Recompute voice-script.json startSec based on new from values ───────────
+  const brollScenes = pkg.brollScenes ?? [];
+  const scenes      = pkg.scenes      ?? [];
+
+  for (const seg of script.segments) {
+    if (seg.id.startsWith('broll-')) {
+      const idx   = parseInt(seg.id.replace('broll-', ''), 10);
+      const broll = brollScenes[idx];
+      if (broll) {
+        seg.startSec    = parseFloat((broll.from / fps + 1.5).toFixed(3));
+        seg.durationSec = actualDur[seg.id] ?? seg.durationSec;
+      }
+    } else if (seg.id.startsWith('scene-')) {
+      const idx   = parseInt(seg.id.replace('scene-', ''), 10) - 1;
+      const scene = scenes[idx];
+      if (scene) {
+        seg.startSec    = parseFloat((scene.from / fps + 1.0).toFixed(3));
+        seg.durationSec = actualDur[seg.id] ?? seg.durationSec;
+      }
+    } else if (seg.id === 'benefit-slide' && pkg.benefitSlide) {
+      seg.startSec = parseFloat((pkg.benefitSlide.from / fps + 1.0).toFixed(3));
+    } else if (seg.id === 'presenter-close' && pkg.presenterClose) {
+      seg.startSec = parseFloat((pkg.presenterClose.from / fps + 2.0).toFixed(3));
+    }
+  }
+
+  script.totalDurationSec = parseFloat((cursor / fps).toFixed(1));
+  fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2), 'utf-8');
+  console.log(`  ✓  voice-script.json startSec values updated`);
+}
+
 /**
  * Run ffmpeg with an explicit args array.
  * spawnSync (shell:false) passes args directly to Win32 CreateProcess —
@@ -499,6 +638,13 @@ async function main(): Promise<void> {
   console.log(
     `\n  ✓  Narration : ${NARR_PATH}  (${(narrStat.size / 1_048_576).toFixed(2)} MB)`,
   );
+
+  // Sync scene durations in demo-package.json + voice-script.json to actual MP3 lengths.
+  try {
+    syncTimingsToActualDurations(SEG_DIR, SCRIPT_PATH);
+  } catch (e) {
+    console.warn(`  ⚠️  Timing sync skipped: ${(e as Error).message}`);
+  }
 
   // Stamp voice-script.json so the Remotion composition knows audio is ready.
   try {

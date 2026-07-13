@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "_streamlit_xsrf",
+      "value": "2|dc5e0333|8e49718de91ee473b90f99fbd7b2eb29|1783921831",
+      "domain": "10.1.123.128",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

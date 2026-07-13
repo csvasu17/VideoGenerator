@@ -50,13 +50,21 @@ export const RemotionRoot: React.FC = () => (
       pipeline without leaving Remotion Studio.
       Requires the config API server: npm run config-ui (or npm run dev)
     */}
+    {/*
+      Registered smaller than the component's internal 1280x800 layout —
+      ConfigPage renders that layout at full size into a fixed-size wrapper and
+      scales it down with a CSS transform (see ConfigPage.tsx render root), so
+      Remotion Studio's "100%" zoom has a real chance of fitting inside the
+      preview pane alongside the Compositions/Props side panels. "Fit" always
+      works regardless; this just makes 100% usable too on typical windows.
+    */}
     <Composition
       id="Config"
       component={ConfigPage}
       durationInFrames={1}
       fps={30}
-      width={1280}
-      height={800}
+      width={960}
+      height={600}
     />
 
     {/*

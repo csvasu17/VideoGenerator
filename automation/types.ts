@@ -89,6 +89,12 @@ export interface RecordingConfig {
     loginType?: 1 | 2;
     /** Which Quick Access card to click (0-based). Only used when loginType=2. Default: 0 */
     quickAccessIndex?: number;
+    /**
+     * Preferred visible-text match for the Quick Access card (e.g. "Surgeon").
+     * When set, tried before quickAccessIndex; falls back to quickAccessIndex
+     * when no card's text matches. Only used when loginType=2.
+     */
+    quickAccessRoleName?: string;
   };
   workflows?: WorkflowDef[];
 }

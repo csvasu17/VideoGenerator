@@ -24,9 +24,15 @@ import * as dotenv        from 'dotenv';
 import { AzureOpenAI }   from 'openai';
 import { getVideoInfo }  from './utils/ffprobe';
 import { execSync }      from 'child_process';
-import { OUT_DIR, SCREEN_FIT } from './config';
-import { createAuthContext, performLogin } from './utils/session';
+import { OUT_DIR, SCREEN_FIT, toSlug } from './config';
+import { createAuthContext, performLogin, isQuickAccessScreenShowing } from './utils/session';
 import type { SessionState } from './utils/session';
+import { GENERIC_NARRATIONS } from './utils/constants';
+import { extractPrimaryRole } from './utils/roleLabel';
+import {
+  validateDemoScenes, printValidationReport,
+  detectUrlMismatches, detectDuplicateFrames,
+} from './utils/demoValidation';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
@@ -106,16 +112,70 @@ const LANGUAGE_NAME = LANGUAGE_NAMES[APP_LANGUAGE.split('-')[0].toLowerCase()] ?
 let routeMap: Record<string, string> = {};
 try { if (APP_ROUTE_MAP_RAW) routeMap = JSON.parse(APP_ROUTE_MAP_RAW); } catch {}
 
+// Optional per-app override for specific routes — e.g. a real multi-step `actions`
+// sequence for a "hero" workflow (discovered by hand against the live app; no AI
+// can invent real selectors), or a hand-tuned workflow/painPoint/ahaMoment wording.
+// Unset routes fall back entirely to the AI-generated defaults from
+// generateDemoPainPoints() below. Generic — same JSON-in-env-var pattern as
+// APP_ROUTE_MAP, works for any app, not specific to this one.
+interface DemoPainPointOverride {
+  workflow?:    string;
+  painPoint?:   string;
+  ahaMoment?:   string;
+  actions?:     ClipAction[];   // if present, replaces defaultActions during recording
+  durationSec?: number;         // recording duration when actions is set (default: HERO_DURATION_SEC)
+}
+let painPointOverrides: Record<string, DemoPainPointOverride> = {};
+try {
+  const raw = process.env['DEMO_PAIN_POINTS'];
+  if (raw) painPointOverrides = JSON.parse(raw);
+} catch {}
+
 // ─── AI: frame analysis ───────────────────────────────────────────────────────
 
-const GENERIC_NARRATIONS = new Set([
-  'This feature accelerates your workflow.',
-  'This feature improves operational efficiency across your team.',
-  'Platform Feature',
-]);
+function formatPainPointBlock(painPoint?: DemoPainPointEntry): string {
+  if (!painPoint) return '';
+  return `\nREAL WORKFLOW ON THIS SCREEN (build narration around this — do not restate generic product framing):\n` +
+    `Workflow: ${painPoint.workflow}\nPain point removed: ${painPoint.painPoint}\nAha moment: ${painPoint.ahaMoment}`;
+}
+
+/** Routes with a hand-authored multi-step `actions` sequence (see DEMO_PAIN_POINTS)
+ *  get a slightly longer narration budget — they have a real click-through to narrate,
+ *  not just a static screen. Every other route stays terse: customer-facing demos lose
+ *  attention fast when narration runs long over a frozen frame. */
+function isHeroRoute(routePath: string): boolean {
+  return (painPointOverrides[routePath]?.actions?.length ?? 0) > 0;
+}
+
+// Tight budgets, strictly enforced — these are ceilings, not targets, because models
+// reliably overshoot a "~N words" suggestion when asked to hit multiple beats.
+// Ceilings are calibrated against generate-voice.ts's actual rate (wordCount / (2.5 * speed),
+// speed=0.95 ≈ 2.375 words/sec) and real recorded clip lengths: non-hero scenes run ~19.6-20.8s,
+// hero scenes ~20-24s (both minus the 2s cross-fade reserve applied in buildVoiceScript). 45 words
+// ≈ 19s (fits non-hero); 50 words ≈ 21s (fits the 20s-available hero routes, comfortably fits the
+// 24s-available one). Models reliably land AT or slightly under a stated ceiling, never under-shoot
+// it by much, so these are set to the tightest real budget rather than an average.
+const NARRATION_INSTRUCTION_TIGHT =
+  `"narration": "STRICT MAXIMUM 45 words, exactly two sentences: (1) the specific pain point from the REAL WORKFLOW block, stated concretely — never generic phrasing like 'streamlines workflows', (2) what the user does on THIS screen and the aha-moment outcome, combined into one sentence. If you can see the actual screenshot, prefer real numbers/labels/names visible on screen over the REAL WORKFLOW block's wording when they differ — never state a specific number, device ID, or name that isn't actually visible on screen. Every word must earn its place; do not pad."`;
+const NARRATION_INSTRUCTION_HERO =
+  `"narration": "STRICT MAXIMUM 50 words, exactly two sentences: (1) the specific pain point from the REAL WORKFLOW block plus the exact click-through action happening on this screen, (2) the aha-moment outcome. If you can see the actual screenshot, prefer real numbers/labels/names visible on screen over the REAL WORKFLOW block's wording when they differ — never state a specific number, device ID, or name that isn't actually visible on screen. Every word must earn its place; do not pad."`;
+const NARRATION_INSTRUCTION_DEFAULT =
+  `"narration": "STRICT MAXIMUM 45 words, exactly two sentences: (1) the specific business pain this screen addresses, (2) what the user does here and the measurable outcome, combined into one sentence. Be concrete and product-specific. Every word must earn its place; do not pad."`;
+// The login/intro clip has no route-map match (no pagePurpose) and is recorded much shorter
+// (~10-12s available) than any real content scene — the 45-word default still overflows it.
+const NARRATION_INSTRUCTION_INTRO =
+  `"narration": "STRICT MAXIMUM 25 words, one sentence introducing the product and inviting the viewer to see how it works. Every word must earn its place; do not pad."`;
+
+function pickNarrationInstruction(painPoint: DemoPainPointEntry | undefined, isHero: boolean, pagePurpose?: string): string {
+  if (!pagePurpose) return NARRATION_INSTRUCTION_INTRO;
+  if (!painPoint) return NARRATION_INSTRUCTION_DEFAULT;
+  return isHero ? NARRATION_INSTRUCTION_HERO : NARRATION_INSTRUCTION_TIGHT;
+}
 
 async function analyzeFrameTextOnly(
   pagePurpose: string,
+  painPoint?:  DemoPainPointEntry,
+  isHero:      boolean = false,
 ): Promise<{ featureTitle: string; salesHook: string; narration: string }> {
   const langInstruction = LANGUAGE_NAME
     ? `\n\nIMPORTANT: Write ALL output text values in ${LANGUAGE_NAME}.`
@@ -123,6 +183,7 @@ async function analyzeFrameTextOnly(
 
   const prompt = `You are a B2B SaaS demo video script writer.
 ${APP_CONTEXT ? `\nPRODUCT CONTEXT:\n${APP_CONTEXT}` : ''}
+${formatPainPointBlock(painPoint)}
 ${pagePurpose ? `\nCURRENT PAGE: ${pagePurpose}` : ''}
 ${APP_GLOSSARY ? `\nDOMAIN GLOSSARY (use these exact terms):\n${APP_GLOSSARY}` : ''}
 
@@ -130,13 +191,14 @@ Based on the product context and the current page description above, output a JS
 {
   "featureTitle": "short 2-4 word feature name",
   "salesHook": "compelling 6-10 word hook focusing on business value",
-  "narration": "one paragraph (2-3 sentences, ~25 words) explaining what this screen does and the business pain it eliminates"
+  ${pickNarrationInstruction(painPoint, isHero, pagePurpose)}
 }
 Be specific to this product page. Use domain glossary terms accurately.${langInstruction}`;
 
   const response = await retryWithBackoff(() => azureClient.chat.completions.create({
     model:             process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-    max_completion_tokens: 500,
+    max_completion_tokens: 1500,
+    reasoning_effort:  'low',
     messages: [{ role: 'user', content: prompt }],
   }));
 
@@ -150,22 +212,30 @@ Be specific to this product page. Use domain glossary terms accurately.${langIns
 }
 
 async function analyzeFrame(
-  framePath:  string,
-  targetUrl?: string,
+  framePath:   string,
+  targetUrl?:  string,
+  painPoints?: DemoPainPoints,
 ): Promise<{ featureTitle: string; salesHook: string; narration: string }> {
   const b64 = fs.readFileSync(framePath).toString('base64');
 
   let pagePurpose = '';
+  let painPoint: DemoPainPointEntry | undefined;
+  let isHero = false;
   if (targetUrl && Object.keys(routeMap).length > 0) {
     try {
       const urlPath = new URL(targetUrl).pathname;
       const key = Object.keys(routeMap).find(k => urlPath.startsWith(k.replace(/\[.*?\]/g, '')));
-      if (key) pagePurpose = routeMap[key];
+      if (key) {
+        pagePurpose = routeMap[key];
+        painPoint   = painPoints?.[key];
+        isHero      = isHeroRoute(key);
+      }
     } catch {}
   }
 
   const sections: string[] = ['You are a B2B SaaS demo video script writer.'];
   if (APP_CONTEXT)  sections.push(`\nPRODUCT CONTEXT:\n${APP_CONTEXT}`);
+  sections.push(formatPainPointBlock(painPoint));
   if (pagePurpose)  sections.push(`\nCURRENT PAGE: ${pagePurpose}`);
   if (APP_GLOSSARY) sections.push(`\nDOMAIN GLOSSARY (use these exact terms in narration):\n${APP_GLOSSARY}`);
   const langInstruction = LANGUAGE_NAME
@@ -177,7 +247,7 @@ Given a product screenshot, output a JSON object (no markdown fences) with exact
 {
   "featureTitle": "short 2-4 word feature name",
   "salesHook": "compelling 6-10 word hook focusing on business value",
-  "narration": "one paragraph (2-3 sentences, ~25 words) explaining what this screen does and the pain it eliminates"
+  ${pickNarrationInstruction(painPoint, isHero, pagePurpose)}
 }
 Be specific to what you see. Use domain glossary terms accurately.${langInstruction}`);
 
@@ -185,7 +255,8 @@ Be specific to what you see. Use domain glossary terms accurately.${langInstruct
   try {
     const response = await retryWithBackoff(() => azureClient.chat.completions.create({
       model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-      max_completion_tokens: 500,
+      max_completion_tokens: 1500,
+      reasoning_effort: 'low',
       messages: [
         { role: 'system', content: sections.join('') },
         {
@@ -217,7 +288,7 @@ Be specific to what you see. Use domain glossary terms accurately.${langInstruct
   // Fall back to text-only narration using page context
   if (pagePurpose || APP_CONTEXT) {
     try {
-      return await analyzeFrameTextOnly(pagePurpose);
+      return await analyzeFrameTextOnly(pagePurpose, painPoint, isHero);
     } catch { /* fall through */ }
   }
 
@@ -250,7 +321,8 @@ async function generateBenefitContent(): Promise<BenefitContent> {
   try {
     const resp = await retryWithBackoff(() => azureClient.chat.completions.create({
       model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-      max_completion_tokens: 800,
+      max_completion_tokens: 1800,
+      reasoning_effort: 'low',
       messages: [{
         role: 'user',
         content: `Product context: "${APP_CONTEXT}"
@@ -289,7 +361,8 @@ async function generateBrollSubtitles(): Promise<string[]> {
   try {
     const resp = await retryWithBackoff(() => azureClient.chat.completions.create({
       model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
-      max_completion_tokens: 400,
+      max_completion_tokens: 1200,
+      reasoning_effort: 'low',
       messages: [{
         role: 'user',
         content: `Product context: "${APP_CONTEXT}"
@@ -306,6 +379,56 @@ Generate 5 punchy B2B problem statements (10-15 words each) describing pain poin
   return DEFAULT;
 }
 
+// ─── AI: per-route workflow & pain point ──────────────────────────────────────
+// Generic for any app — derives a real workflow/pain-point/aha-moment per route
+// from APP_CONTEXT_TEXT + APP_ROUTE_MAP so narration describes what a user
+// actually does on that screen instead of restating the generic product pitch.
+// Apps can override/extend individual routes via DEMO_PAIN_POINTS (see routeMap
+// parsing above) — this function only supplies the automatic default.
+
+interface DemoPainPointEntry {
+  workflow:  string;   // the concrete action a user takes on this screen
+  painPoint: string;   // what this removes/solves
+  ahaMoment: string;   // the observable outcome
+}
+type DemoPainPoints = Record<string, DemoPainPointEntry>;
+
+async function generateDemoPainPoints(): Promise<DemoPainPoints> {
+  if (!APP_CONTEXT || Object.keys(routeMap).length === 0) return {};
+
+  try {
+    const resp = await retryWithBackoff(() => azureClient.chat.completions.create({
+      model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
+      max_completion_tokens: 4000,
+      reasoning_effort: 'low',
+      messages: [{
+        role: 'user',
+        content: `You are a B2B SaaS demo script writer.
+PRODUCT CONTEXT:
+${APP_CONTEXT}
+${APP_GLOSSARY ? `\nDOMAIN GLOSSARY:\n${APP_GLOSSARY}\n` : ''}
+ROUTES:
+${Object.entries(routeMap).map(([path, label]) => `${path}: ${label}`).join('\n')}
+
+For EACH route above, describe the real workflow a user performs on that screen, the specific
+pain point it removes, and an observable "aha moment" outcome. Use domain glossary terms/metric
+NAMES where they fit (e.g. "RUL", "VIB RMS", "COST AVOIDANCE"), but do NOT invent specific fake
+numbers, device IDs, or names (e.g. no "DV-101" or "motor A") — this text will be layered onto a
+real screenshot later and must not contradict it. Describe the general SHAPE of the action and
+outcome (e.g. "reviews the AI-ranked list and accepts the top recommendation to create a work
+order"), not invented literal specifics. Return ONLY a JSON object keyed by route path (use the
+exact route paths above), no markdown fences:
+{ "/route": { "workflow": "...", "painPoint": "...", "ahaMoment": "..." }, ... }`,
+      }],
+    }));
+    const text   = resp.choices[0]?.message?.content ?? '{}';
+    const parsed = JSON.parse(text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '')) as DemoPainPoints;
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch { /* fall through — routes just keep today's plain pagePurpose narration */ }
+
+  return {};
+}
+
 // ─── Suppress notification popups ─────────────────────────────────────────────
 
 const SUPPRESS_CSS = `
@@ -315,7 +438,36 @@ const SUPPRESS_CSS = `
   }
 `;
 
+// First-time-login onboarding/consent gates (e.g. a GDPR "Data Privacy Notice" modal
+// shown once per account) block the real dashboard behind an overlay. Dismiss it so
+// the recorded frame shows the actual page instead of the consent screen.
+const CONSENT_ACCEPT_SELECTOR = [
+  'button:has-text("Accept & Continue")', 'button:has-text("Accept and Continue")',
+  'button:has-text("Accept All & Continue")', 'button:has-text("I Agree & Continue")',
+  'button:has-text("Accept All")', 'button:has-text("I Agree")',
+  'button:has-text("I Understand")', 'button:has-text("Got it")',
+].join(', ');
+
+async function dismissConsentModal(page: Page): Promise<void> {
+  try {
+    const acceptBtn = page.locator(CONSENT_ACCEPT_SELECTOR).first();
+    const visible = await acceptBtn.isVisible({ timeout: 1000 }).catch(() => false);
+    if (!visible) return;
+
+    // Some consent flows disable the button until an "I have read and understood" box is ticked.
+    const checkbox = page.locator('input[type="checkbox"]').first();
+    if (await checkbox.isVisible({ timeout: 500 }).catch(() => false)) {
+      await checkbox.check({ force: true }).catch(() => {});
+    }
+    await acceptBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+  } catch {
+    // best-effort only — never fail the recording over a missed consent gate
+  }
+}
+
 async function suppressPopups(page: Page): Promise<void> {
+  await dismissConsentModal(page);
   await page.addStyleTag({ content: SUPPRESS_CSS }).catch(() => {});
   await page.keyboard.press('Escape').catch(() => {});
   await page.waitForTimeout(200);
@@ -334,6 +486,7 @@ async function tryHeadlessLogin(
   browser:          any,
   storageStatePath: string,
   recDir:           string,
+  roleName?:        string,
 ): Promise<(SessionState & { liveCtx: BrowserContext }) | null> {
   const ctx  = await browser.newContext({
     viewport:    VIEWPORT,
@@ -359,7 +512,10 @@ async function tryHeadlessLogin(
     if (!formFound) return null;
 
     if (LOGIN_TYPE === '2') {
-      await performLogin(page, { loginType: 2, username: APP_USERNAME, password: APP_PASSWORD, quickAccessIndex: 0 });
+      await performLogin(page, {
+        loginType: 2, username: APP_USERNAME, password: APP_PASSWORD,
+        quickAccessIndex: 0, quickAccessRoleName: roleName,
+      });
     } else {
       const emailSel = [
         'input[type="email"]', 'input[name="email"]', 'input[name="username"]',
@@ -391,8 +547,12 @@ async function tryHeadlessLogin(
       await page.locator('input[type="password"]').first()
         .waitFor({ state: 'detached', timeout: 15000 })
         .catch(() => {});
-      await page.waitForTimeout(3000); // extra wait for tokens/storage to settle
     }
+
+    // Extra settle time for tokens/storage — and for the old login DOM to fully unmount
+    // before we check for it below (quick-access login resolves as soon as the URL
+    // changes, which can race the React unmount of the login form by a few hundred ms).
+    await page.waitForTimeout(3000);
 
     const stillHasForm = await page.locator('input[type="password"]').count().catch(() => 0);
     if (stillHasForm > 0) {
@@ -404,10 +564,17 @@ async function tryHeadlessLogin(
     const postLoginUrl = page.url();
 
     // Detect "login redirect loop": the app cleared the form but bounced us back to login.
-    // Also catches APP_LOGIN_PATH=/ where the login lives at the root URL.
-    const isStillLoginPage =
-      postLoginUrl.includes('/login') || postLoginUrl.includes('/signin') ||
-      postLoginUrl.replace(/\/$/, '') === LOGIN_URL.replace(/\/$/, '');
+    const backAtLoginRoot = postLoginUrl.replace(/\/$/, '') === LOGIN_URL.replace(/\/$/, '');
+    let isStillLoginPage = postLoginUrl.includes('/login') || postLoginUrl.includes('/signin');
+    if (!isStillLoginPage && backAtLoginRoot) {
+      // Being back at the bare login URL (APP_LOGIN_PATH=/) doesn't always mean the
+      // login failed — some single-page apps (e.g. Streamlit) render the authenticated
+      // dashboard at that same root URL instead of navigating away. For quick-access
+      // apps, only call it a failure if the role-picker screen is still actually showing.
+      isStillLoginPage = LOGIN_TYPE === '2'
+        ? await isQuickAccessScreenShowing(page, roleName)
+        : true;
+    }
     if (isStillLoginPage) {
       console.warn(`  ↳ Post-login URL is still the login page (${postLoginUrl}) — login failed silently.`);
       return null;
@@ -423,11 +590,14 @@ async function tryHeadlessLogin(
 }
 
 // ── Layer 3: visible browser — user logs in manually ──
-async function tryInteractiveLogin(storageStatePath: string): Promise<SessionState | null> {
+async function tryInteractiveLogin(storageStatePath: string, roleName?: string): Promise<SessionState | null> {
   console.log('\n  ┌──────────────────────────────────────────────────────────────────┐');
   console.log('  │  MANUAL LOGIN REQUIRED                                           │');
   console.log('  │  A browser window will open. Please log in to the app.          │');
   console.log(`  │  URL: ${LOGIN_URL.padEnd(62)}│`);
+  if (roleName) {
+    console.log(`  │  Log in as role: ${roleName.padEnd(51)}│`);
+  }
   console.log('  │  The pipeline continues automatically after you log in.         │');
   console.log('  │  You have 3 minutes.                                            │');
   console.log('  └──────────────────────────────────────────────────────────────────┘\n');
@@ -441,11 +611,30 @@ async function tryInteractiveLogin(storageStatePath: string): Promise<SessionSta
     const page = await ctx.newPage();
     await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    // Wait up to 3 minutes for the user to complete login
-    await page.waitForURL(
-      (u: URL) => !u.href.includes('/login') && !u.href.includes('/signin'),
-      { timeout: 180000 },
-    );
+    if (LOGIN_TYPE === '2') {
+      // Quick-access apps have no password field, and single-page apps (e.g. Streamlit)
+      // never navigate to a distinct /login URL either — so neither generic signal below
+      // can detect a real login here. Poll for the role-picker screen itself to go away.
+      const deadline = Date.now() + 180000;
+      while (Date.now() < deadline && await isQuickAccessScreenShowing(page, roleName)) {
+        await page.waitForTimeout(1000);
+      }
+    } else {
+      // Wait for the login form to actually appear first — if LOGIN_URL is the app root
+      // (APP_LOGIN_PATH=/), the SPA client-side redirects to /login shortly after this
+      // goto resolves, so checking "URL moved away from login" before that redirect
+      // happens would be trivially true and resolve instantly without any real login.
+      await page.waitForSelector('input[type="password"]', { timeout: 20000 }).catch(() => {});
+
+      // Wait up to 3 minutes for the user to complete login
+      await Promise.race([
+        page.waitForSelector('input[type="password"]', { state: 'detached', timeout: 180000 }),
+        page.waitForURL(
+          (u: URL) => !u.href.includes('/login') && !u.href.includes('/signin'),
+          { timeout: 180000 },
+        ),
+      ]);
+    }
 
     const postLoginUrl = page.url();
     await ctx.storageState({ path: storageStatePath });
@@ -462,11 +651,16 @@ async function tryInteractiveLogin(storageStatePath: string): Promise<SessionSta
 async function acquireSession(
   browser: any,
   recDir:  string,
+  opts?:   { roleName?: string },
 ): Promise<{ session: SessionState; liveCtx: BrowserContext } | null> {
   fs.mkdirSync(TMP_DIR,  { recursive: true });
   fs.mkdirSync(REC_DIR,  { recursive: true });
   fs.mkdirSync(recDir,   { recursive: true });
-  const storageStatePath = path.join(TMP_DIR, 'session-state.json');
+  const roleName = opts?.roleName;
+  const storageStatePath = path.join(
+    TMP_DIR,
+    roleName ? `session-state-${toSlug(roleName)}.json` : 'session-state.json',
+  );
   const origin = new URL(APP_URL).origin;
 
   // ── Layer 1: reuse cached session if < 8 h old and still authenticated ──
@@ -475,7 +669,10 @@ async function acquireSession(
     if (ageMs < 8 * 60 * 60 * 1000) {
       console.log(`  Cached session found (${Math.round(ageMs / 60000)}m old) — verifying…`);
       try {
-        const firstRoute = Object.keys(routeMap)[0] ?? '/';
+        const roleRoute  = roleName
+          ? Object.keys(routeMap).find(r => extractPrimaryRole(routeMap[r]) === roleName)
+          : undefined;
+        const firstRoute = roleRoute ?? Object.keys(routeMap)[0] ?? '/';
         const verCtx  = await browser.newContext({ storageState: storageStatePath, ignoreHTTPSErrors: true });
         const verPage = await verCtx.newPage();
         await verPage.goto(`${APP_URL}${firstRoute}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
@@ -504,8 +701,8 @@ async function acquireSession(
   }
 
   // ── Layer 2: try headless login ──
-  console.log('  Attempting headless login…');
-  const headlessResult = await tryHeadlessLogin(browser, storageStatePath, recDir);
+  console.log(`  Attempting headless login${roleName ? ` as "${roleName}"` : ''}…`);
+  const headlessResult = await tryHeadlessLogin(browser, storageStatePath, recDir, roleName);
   if (headlessResult) {
     const { liveCtx, ...sessionFields } = headlessResult;
     const session: SessionState = sessionFields;
@@ -515,7 +712,7 @@ async function acquireSession(
   console.log('  ↳ Headless login failed — falling back to manual login…');
 
   // ── Layer 3: interactive (visible) browser ──
-  const interactiveSession = await tryInteractiveLogin(storageStatePath);
+  const interactiveSession = await tryInteractiveLogin(storageStatePath, roleName);
   if (!interactiveSession) return null;
   const liveCtx = await browser.newContext({
     storageState: storageStatePath,
@@ -529,7 +726,7 @@ async function acquireSession(
 // ─── Clip action types ─────────────────────────────────────────────────────────
 
 interface ClipAction {
-  type:         'wait' | 'navigate' | 'click' | 'scroll' | 'evaluate';
+  type:         'wait' | 'navigate' | 'click' | 'scroll' | 'evaluate' | 'hover' | 'waitFor';
   url?:         string;
   selector?:    string;
   text?:        string;
@@ -560,6 +757,7 @@ function buildRecordingPlan(): ClipPlan[] {
     { type: 'scroll', value: 0,   waitAfterMs: 2000 },
     { type: 'wait',   waitAfterMs: 2000 },
   ];
+  const HERO_DURATION_SEC = 24; // vs PRODUCT_SEC — extra time for a multi-step interaction
 
   const plan: ClipPlan[] = [
     // Login page — no auth, always first
@@ -592,14 +790,15 @@ function buildRecordingPlan(): ClipPlan[] {
       const id = routePath === '/'
         ? 'home'
         : routePath.replace(/^\//, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+      const override = painPointOverrides[routePath];
       plan.push({
         id,
         label:            String(label),
         targetUrl:        `${APP_URL}${routePath}`,
-        durationSec:      PRODUCT_SEC,
-        loginAs:          loginUser,
+        durationSec:      override?.actions ? (override.durationSec ?? HERO_DURATION_SEC) : PRODUCT_SEC,
+        loginAs:          extractPrimaryRole(String(label)) ?? loginUser,
         recordingStartSec: LOGIN_SKIP_SEC,
-        actions:          defaultActions,
+        actions:          override?.actions ?? defaultActions,
       });
     }
   }
@@ -639,6 +838,20 @@ async function performAction(page: Page, action: ClipAction): Promise<void> {
       break;
     case 'evaluate':
       await page.evaluate(action.value as string).catch(() => {});
+      if (action.waitAfterMs) await page.waitForTimeout(action.waitAfterMs);
+      break;
+    case 'hover':
+      if (action.selector) {
+        await page.locator(action.selector).first().hover({ timeout: 3000, force: true }).catch(() => {});
+      } else if (action.text) {
+        await page.locator(`text=${action.text}`).first().hover({ timeout: 3000, force: true }).catch(() => {});
+      }
+      if (action.waitAfterMs) await page.waitForTimeout(action.waitAfterMs);
+      break;
+    case 'waitFor':
+      if (action.selector) {
+        await page.waitForSelector(action.selector, { timeout: Number(action.value ?? 8000) }).catch(() => {});
+      }
       if (action.waitAfterMs) await page.waitForTimeout(action.waitAfterMs);
       break;
   }
@@ -692,6 +905,28 @@ interface RecordedClip {
   framePath:        string;
   durationSec:      number;
   recordingStartSec?: number;
+  /** page.url() actually landed on after navigation — used to detect
+   *  role-permission redirects that don't hit /login (see demoValidation.ts). */
+  landedUrl?:       string;
+}
+
+// landedUrl is only known right after a fresh recordClip() call — a cache-hit skips
+// navigation entirely. Persist it alongside the recording so a scene dropped for
+// redirecting to already-shown content (see main()) stays dropped on later cached
+// runs instead of silently reappearing once its video file exists on disk.
+function landedUrlMetaPath(id: string): string {
+  return path.join(REC_DIR, `${id}.meta.json`);
+}
+function readCachedLandedUrl(id: string): string | undefined {
+  try {
+    return JSON.parse(fs.readFileSync(landedUrlMetaPath(id), 'utf-8')).landedUrl;
+  } catch {
+    return undefined;
+  }
+}
+function writeCachedLandedUrl(id: string, landedUrl?: string): void {
+  if (!landedUrl) return;
+  try { fs.writeFileSync(landedUrlMetaPath(id), JSON.stringify({ landedUrl }), 'utf-8'); } catch {}
 }
 
 async function recordClip(
@@ -728,6 +963,7 @@ async function recordClip(
   }
 
   const page = await ctx.newPage();
+  let landedUrl: string | undefined;
 
   if (plan.loginAs) {
     if (!session && !liveCtx) {
@@ -740,7 +976,7 @@ async function recordClip(
 
     // Always verify we didn't land on a login page — liveCtx auth is NOT guaranteed
     // if the headless login silently failed (form flickers off then reappears).
-    const landedUrl = page.url();
+    landedUrl = page.url();
     const loginRedirect =
       landedUrl.includes('/login') || landedUrl.includes('/signin') || landedUrl.includes('/auth') ||
       landedUrl.replace(/\/$/, '') === LOGIN_URL.replace(/\/$/, '');
@@ -762,6 +998,7 @@ async function recordClip(
   } else {
     await page.goto(plan.targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForTimeout(1500);
+    landedUrl = page.url();
   }
 
   await suppressPopups(page);
@@ -771,6 +1008,9 @@ async function recordClip(
     for (const action of plan.actions) {
       await performAction(page, action);
     }
+    // Hero workflow actions (clicks) can cause a real navigation — re-capture so
+    // demoValidation.ts's URL-mismatch check still reflects where we actually ended up.
+    landedUrl = page.url();
   }
 
   if (!plan.skipInteraction) {
@@ -819,6 +1059,7 @@ async function recordClip(
     framePath,
     durationSec:      plan.durationSec,
     recordingStartSec: plan.recordingStartSec,
+    landedUrl,
   };
 }
 
@@ -903,7 +1144,7 @@ function buildDemoPackage(
     presenterClose: {
       from:             presenterFrom,
       durationInFrames: presenterFrames,
-      tagline:          `${PRODUCT_NAME} — every workflow, simplified`,
+      tagline:          `${PRODUCT_NAME} — Every workflow, simplified`,
       presenterSrc: '',
     },
     presenterConfig: {
@@ -1032,6 +1273,7 @@ ${JSON.stringify(payload, null, 2)}`;
     const resp = await retryWithBackoff(() => azureClient.chat.completions.create({
       model:      process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
       max_completion_tokens: 8192,
+      reasoning_effort: 'low',
       messages:   [{ role: 'user', content: prompt }],
     }));
     responseText = resp.choices[0]?.message?.content ?? '';
@@ -1108,30 +1350,58 @@ async function main(): Promise<void> {
   console.log('════════════════════════════════════════════════════════════\n');
 
   // Pre-generate AI content in parallel before recording starts
-  console.log('  Generating benefit and b-roll content from APP_CONTEXT_TEXT…');
-  const [benefitContent, brollSubtitles] = await Promise.all([
+  console.log('  Generating benefit, b-roll, and pain-point content from APP_CONTEXT_TEXT…');
+  const [benefitContent, brollSubtitles, generatedPainPoints] = await Promise.all([
     generateBenefitContent(),
     generateBrollSubtitles(),
+    generateDemoPainPoints(),
   ]);
   console.log(`  ✓ Benefit title: ${benefitContent.title}`);
   console.log(`  ✓ B-roll problem statements: ${brollSubtitles.length}`);
+  console.log(`  ✓ Pain points generated: ${Object.keys(generatedPainPoints).length} route(s)`);
+
+  // Merge AI-generated defaults with any per-route .env override (DEMO_PAIN_POINTS) —
+  // override wins field-by-field so a route can supply just `actions` and still
+  // inherit the generated workflow/painPoint/ahaMoment wording (actions/durationSec
+  // themselves are read directly from painPointOverrides by buildRecordingPlan, not
+  // needed here).
+  const finalPainPoints: DemoPainPoints = {};
+  for (const path of new Set([...Object.keys(generatedPainPoints), ...Object.keys(painPointOverrides)])) {
+    const gen = generatedPainPoints[path];
+    const ovr = painPointOverrides[path];
+    const workflow  = ovr?.workflow  ?? gen?.workflow;
+    const painPoint = ovr?.painPoint ?? gen?.painPoint;
+    const ahaMoment = ovr?.ahaMoment ?? gen?.ahaMoment;
+    if (workflow && painPoint && ahaMoment) finalPainPoints[path] = { workflow, painPoint, ahaMoment };
+  }
 
   const browser  = await chromium.launch({
     headless: true,
     args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-dev-shm-usage'],
   });
 
-  // Acquire auth session ONCE — keeps an authenticated browser context alive so every
-  // clip recording inherits the same auth state, even for in-memory-only auth.
-  console.log('\n  Acquiring auth session…');
-  const acquired = await acquireSession(browser as any, TMP_REC_DIR);
-  if (!acquired) {
-    console.error('  ✗ Could not log in — check APP_USERNAME / APP_PASSWORD / APP_LOGIN_PATH in .env');
-    console.error(`    Save a debug screenshot: open ${APP_URL} in a browser and verify credentials manually.`);
-    await browser.close();
-    process.exit(1);
+  // Acquire one auth session per role (parsed from each route's APP_ROUTE_MAP label) —
+  // keeps an authenticated browser context alive per role so every clip recording for
+  // that role inherits the same auth state, even for in-memory-only auth. Sessions are
+  // cached so each unique role logs in exactly once regardless of route order.
+  type RoleSession = { session: SessionState; liveCtx: BrowserContext };
+  const roleSessionCache = new Map<string, RoleSession>();
+  // Roles whose login already failed outright this run — avoids repeating a full
+  // (possibly 3-minute manual-login) attempt for every subsequent route needing them.
+  const failedRoles = new Set<string>();
+  async function getSessionForRole(roleName: string): Promise<RoleSession | null> {
+    const cached = roleSessionCache.get(roleName);
+    if (cached) return cached;
+    if (failedRoles.has(roleName)) return null;
+    console.log(`\n  Acquiring auth session for role "${roleName}"…`);
+    const acquired = await acquireSession(browser as any, TMP_REC_DIR, { roleName });
+    if (acquired) {
+      roleSessionCache.set(roleName, acquired);
+    } else {
+      failedRoles.add(roleName);
+    }
+    return acquired;
   }
-  const { session, liveCtx } = acquired;
 
   const forceRerecord = process.env.FORCE_RERECORD === 'true';
   const recorded: RecordedClip[] = [];
@@ -1147,13 +1417,35 @@ async function main(): Promise<void> {
         id: plan.id, label: plan.label, targetUrl: plan.targetUrl, loginAs: plan.loginAs,
         videoPath: `recordings/${plan.id}.mp4`, framePath: frame,
         durationSec: dur, recordingStartSec: plan.recordingStartSec,
+        landedUrl: readCachedLandedUrl(plan.id),
       });
       continue;
     }
 
+    let roleSession: RoleSession | null = null;
+    if (plan.loginAs) {
+      roleSession = await getSessionForRole(plan.loginAs);
+      if (!roleSession) {
+        // Total login failure for this role (not just "no card matched" — that already
+        // degrades gracefully inside acquireSession/clickQuickAccessOption). Fall back
+        // to any already-successful role session rather than skipping the route outright.
+        roleSession = [...roleSessionCache.values()][0] ?? null;
+        if (roleSession) {
+          console.warn(`  ⚠ Could not establish a session for role "${plan.loginAs}" — ` +
+                       `recording "${plan.id}" under a fallback session instead. ` +
+                       `Content for this route may be incorrect.`);
+        } else {
+          console.error(`  ✗ Could not log in for role "${plan.loginAs}" and no fallback session exists — skipping "${plan.id}".`);
+          console.error(`    Check APP_USERNAME / APP_PASSWORD / APP_LOGIN_PATH in .env`);
+          continue;
+        }
+      }
+    }
+
     try {
-      const clip = await recordClip(browser as any, plan, session, liveCtx);
+      const clip = await recordClip(browser as any, plan, roleSession?.session ?? null, roleSession?.liveCtx);
       recorded.push(clip);
+      writeCachedLandedUrl(plan.id, clip.landedUrl);
     } catch (clipErr) {
       console.warn(`\n  ✗ Clip "${plan.id}" failed — skipping. (${(clipErr as Error).message?.slice(0, 120)})`);
       // Fall back to cached file under forceRerecord so existing content is preserved
@@ -1165,21 +1457,92 @@ async function main(): Promise<void> {
           id: plan.id, label: plan.label, targetUrl: plan.targetUrl, loginAs: plan.loginAs,
           videoPath: `recordings/${plan.id}.mp4`, framePath: frame,
           durationSec: dur, recordingStartSec: plan.recordingStartSec,
+          landedUrl: readCachedLandedUrl(plan.id),
         });
       }
     }
   }
 
-  await liveCtx?.close();
+  for (const { liveCtx } of roleSessionCache.values()) {
+    await liveCtx?.close();
+  }
   await browser.close();
+
+  // Drop routes that redirected to an unintended page (e.g. no matching login role,
+  // so the app's route guard bounced to some other page) where that page's content
+  // is already represented by another scene — showing it again would just repeat an
+  // existing screen, worse now with narration that no longer even matches it. Routes
+  // that redirected somewhere NOT already covered are kept (see landedUrl use below).
+  const preCheckInput = recorded.map(c => ({
+    id: c.id, title: '', narration: '', screenshotPath: c.framePath,
+    targetUrl: c.targetUrl, landedUrl: c.landedUrl,
+  }));
+  const urlMismatchFlags    = detectUrlMismatches(preCheckInput);
+  const duplicateFrameFlags = await detectDuplicateFrames(preCheckInput);
+  const mismatchedIds = new Set(urlMismatchFlags.map(f => f.sceneId));
+
+  // Group clips into visual-duplicate clusters (union of all pairwise DUPLICATE_FRAME
+  // flags) so that when 3+ routes collapse onto the same page, we recognise them as ONE
+  // group rather than only catching consecutive pairs.
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    if (!parent.has(id)) parent.set(id, id);
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    parent.set(id, root);
+    return root;
+  };
+  const union = (a: string, b: string): void => {
+    const ra = find(a), rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  for (const clip of recorded) find(clip.id);
+  for (const f of duplicateFrameFlags) {
+    if (f.relatedSceneId) union(f.sceneId, f.relatedSceneId);
+  }
+  const clusters = new Map<string, string[]>();
+  for (const clip of recorded) {
+    const root = find(clip.id);
+    if (!clusters.has(root)) clusters.set(root, []);
+    clusters.get(root)!.push(clip.id);
+  }
+
+  // Within each cluster of visually-duplicate scenes, keep exactly one representative —
+  // preferring a clip that genuinely reached its intended route (no URL mismatch) over
+  // one that only landed there via an unintended redirect — and drop the rest.
+  const dropIds = new Set<string>();
+  const droppedScenes: { id: string; reason: string }[] = [];
+  for (const members of clusters.values()) {
+    if (members.length < 2) continue;
+    const correct  = members.filter(id => !mismatchedIds.has(id));
+    const keepPool = correct.length > 0 ? correct : members;
+    const keepId   = keepPool[0];
+    for (const id of members) {
+      if (id === keepId) continue;
+      dropIds.add(id);
+      const mismatch = urlMismatchFlags.find(f => f.sceneId === id);
+      droppedScenes.push({
+        id,
+        reason: `duplicate of "${keepId}"` +
+          (mismatch ? ` (${mismatch.message})` : ' (same content, redundant)'),
+      });
+    }
+  }
+  const keptClips = recorded.filter(clip => !dropIds.has(clip.id));
+  if (droppedScenes.length > 0) {
+    console.log(`\n  Dropping ${droppedScenes.length} scene(s) that duplicate content shown elsewhere:`);
+    for (const d of droppedScenes) console.log(`    ✗ ${d.id} — ${d.reason}`);
+  }
 
   // AI analysis of captured frames
   console.log('\n  Analysing frames with AI vision…\n');
   const analyzed: AnalyzedClip[] = [];
-  for (const clip of recorded) {
+  for (const clip of keptClips) {
     console.log(`  Analysing [${clip.id}]…`);
     try {
-      const analysis = await analyzeFrame(clip.framePath, clip.targetUrl);
+      // If this route redirected elsewhere but landed somewhere unique (not dropped
+      // above), describe the page actually shown instead of the originally intended one.
+      const analysis = await analyzeFrame(clip.framePath, clip.landedUrl ?? clip.targetUrl, finalPainPoints);
       analyzed.push({ ...clip, ...analysis });
       console.log(`    → ${analysis.featureTitle}: ${analysis.salesHook}`);
     } catch (aiErr) {
@@ -1198,6 +1561,24 @@ async function main(): Promise<void> {
     console.error('\n  ✗ No clips were successfully recorded or cached — demo-package.json NOT updated to avoid losing existing content.');
     process.exit(1);
   }
+
+  // Validate generated content — flags near-duplicate frames/narration and routes that
+  // didn't land where expected. Warns loudly but does NOT block: demo-package.json is
+  // always written below regardless of the report's outcome.
+  const validationReport = await validateDemoScenes(analyzed.map(c => ({
+    id:             c.id,
+    title:          c.featureTitle,
+    narration:      c.narration,
+    screenshotPath: c.framePath,
+    targetUrl:      c.targetUrl,
+    landedUrl:      c.landedUrl,
+  })));
+  printValidationReport(validationReport);
+  fs.writeFileSync(
+    path.join(OUT_DIR, 'validation-report.json'),
+    JSON.stringify({ ...validationReport, droppedScenes }, null, 2),
+    'utf-8',
+  );
 
   // Write outputs
   let pkg   = buildDemoPackage(analyzed, benefitContent, brollSubtitles) as Record<string, any>;

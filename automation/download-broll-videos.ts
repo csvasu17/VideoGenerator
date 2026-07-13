@@ -269,22 +269,30 @@ function downloadViaHttps(url: string, destPath: string, timeoutMs = 120000): Pr
   });
 }
 
-async function pexelsSearch(query: string): Promise<PexelsVideo | null> {
+async function pexelsSearch(query: string, usedIds: Set<number> = new Set()): Promise<PexelsVideo | null> {
   const url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=5&orientation=landscape&size=medium`;
   try {
-    const data = await fetchJson(url, { Authorization: PEXELS_API_KEY }) as PexelsSearchResponse;
-    return data.videos?.[0] ?? null;
+    const data   = await fetchJson(url, { Authorization: PEXELS_API_KEY }) as PexelsSearchResponse;
+    const videos = data.videos ?? [];
+    // Different queries can share a top result (limited stock footage for a niche
+    // topic) — prefer a result not already used by an earlier b-roll scene so two
+    // scenes don't end up showing the identical clip.
+    return videos.find(v => !usedIds.has(v.id)) ?? videos[0] ?? null;
   } catch { return null; }
 }
 
-async function pixabaySearch(query: string): Promise<string | null> {
+async function pixabaySearch(query: string, usedUrls: Set<string> = new Set()): Promise<string | null> {
   if (!PIXABAY_API_KEY) return null;
   const url = `https://pixabay.com/api/videos/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=5&video_type=film`;
   try {
     const data = await fetchJson(url) as PixabayVideoResponse;
-    const hit  = data.hits?.[0];
-    if (!hit) return null;
-    return hit.videos.large?.url ?? hit.videos.medium?.url ?? null;
+    const hits = data.hits ?? [];
+    const urlOf = (h: PixabayVideoResponse['hits'][number]) => h.videos.large?.url ?? h.videos.medium?.url ?? null;
+    for (const hit of hits) {
+      const u = urlOf(hit);
+      if (u && !usedUrls.has(u)) return u;
+    }
+    return hits[0] ? urlOf(hits[0]) : null;
   } catch { return null; }
 }
 
@@ -299,9 +307,9 @@ function fmt(bytes: number): string {
 
 // ─── AI query generation ──────────────────────────────────────────────────────
 
-async function generateBrollQueries(): Promise<string[]> {
+async function generateBrollQueries(brollSubtitles: string[] = []): Promise<string[]> {
   const customTerms = (process.env['BROLL_SEARCH_TERMS'] ?? '').split(',').map(t => t.trim()).filter(Boolean);
-  if (customTerms.length >= 5) return customTerms.slice(0, 5);
+  if (customTerms.length >= 3) return customTerms.slice(0, 5);
 
   const apiKey     = process.env['AZURE_OPENAI_API_KEY']    ?? '';
   const endpoint   = process.env['AZURE_OPENAI_ENDPOINT']   ?? '';
@@ -309,30 +317,38 @@ async function generateBrollQueries(): Promise<string[]> {
 
   if (!apiKey || !endpoint || !deployment) return genericFallbackQueries();
 
-  const prompt = `You are helping select stock video footage for a professional product demo video.
+  const subtitleBlock = brollSubtitles.length > 0
+    ? `\n\nThe video's opening B-roll scenes will show these exact problem statements:\n${brollSubtitles.map((s, i) => `  Scene ${i + 1}: "${s}"`).join('\n')}\nEach query must match the corresponding scene's problem visually.`
+    : '';
+
+  const prompt = `You are helping select stock video footage for a professional B2B SaaS demo video.
 
 Product: ${PRODUCT_NAME}
-Context: ${CONTEXT_TEXT.slice(0, 800)}
+Context: ${CONTEXT_TEXT.slice(0, 800)}${subtitleBlock}
 
-Generate exactly 5 short Pexels video search queries (2-5 words each) that:
-1. Show the PROBLEM this product solves (manual processes, disconnected teams, reactive work)
-2. Show PEOPLE using technology relevant to this product's domain
-3. Show relevant industry settings specific to this product
-4. Are concrete enough to return real stock footage — avoid abstract or metaphorical terms
+Generate exactly ${Math.max(brollSubtitles.length, 3)} short Pexels video search queries (2-5 words each).
+Each query must:
+- Visually represent the problem statement for that scene
+- Show real-world situations: people struggling with manual work, disconnected systems, or operational chaos specific to this product's domain
+- Be concrete enough to return real stock footage (no abstract or metaphorical terms)
+- Be specific to this product's industry (not generic "business people")
 
-Return ONLY a JSON array of 5 strings. Example: ["query one", "query two", "query three", "query four", "query five"]`;
+Return ONLY a JSON array of strings. Example: ["query one", "query two", "query three"]`;
 
   try {
     const client = new AzureOpenAI({ apiKey, endpoint, deployment, apiVersion: process.env['OPENAI_API_VERSION'] ?? '2024-12-01-preview' });
-    const resp   = await client.chat.completions.create({ model: deployment, messages: [{ role: 'user', content: prompt }], max_completion_tokens: 256 });
+    const resp   = await client.chat.completions.create({
+      model: deployment, messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 1200, reasoning_effort: 'low',
+    });
     const text   = resp.choices[0]?.message?.content?.trim() ?? '';
     const match  = text.match(/\[[\s\S]*\]/);
     if (match) {
       const queries: string[] = JSON.parse(match[0]);
-      if (Array.isArray(queries) && queries.length >= 5) {
-        console.log('  AI-generated search queries:');
-        queries.slice(0, 5).forEach((q, i) => console.log(`    broll-${i}: "${q}"`));
-        return queries.slice(0, 5);
+      if (Array.isArray(queries) && queries.length >= Math.max(brollSubtitles.length, 3)) {
+        console.log('  AI-generated search queries (matched to B-roll scenes):');
+        queries.forEach((q, i) => console.log(`    broll-${i}: "${q}"`));
+        return queries;
       }
     }
   } catch (e) {
@@ -372,12 +388,18 @@ async function main() {
   }
 
   const pkg = JSON.parse(fs.readFileSync(PKG_PATH, 'utf-8'));
-  const brollScenes: { id: string; videoPath?: string; [k: string]: unknown }[] = pkg.brollScenes ?? [];
-  const brollIds = ['broll-0', 'broll-1', 'broll-2', 'broll-3', 'broll-4'];
+  const brollScenes: { id: string; subtitle?: string; videoPath?: string; [k: string]: unknown }[] = pkg.brollScenes ?? [];
+  // Use actual broll count from demo-package.json (enterprise may have 3, others 5)
+  const brollCount = Math.max(brollScenes.length, 3);
+  const brollIds   = Array.from({ length: brollCount }, (_, i) => `broll-${i}`);
 
   // ── Step 1: Try Pexels ──────────────────────────────────────────────────────
-  const queries    = await generateBrollQueries();
+  // Pass broll subtitles so AI can generate queries that match the actual problem statements
+  const brollSubtitles = brollScenes.map(s => s.subtitle ?? '').filter(Boolean);
+  const queries = await generateBrollQueries(brollSubtitles);
   const succeeded: string[] = [];
+  const usedPexelsIds = new Set<number>();
+  const usedPixabayUrls = new Set<string>();
 
   console.log('\n  Trying Pexels…');
   for (let i = 0; i < brollIds.length; i++) {
@@ -390,7 +412,7 @@ async function main() {
 
     let ok = false;
 
-    const pexelsVideo = await pexelsSearch(query);
+    const pexelsVideo = await pexelsSearch(query, usedPexelsIds);
     if (pexelsVideo) {
       const pexelsFile = pickBestFile(pexelsVideo.video_files);
       if (pexelsFile) {
@@ -401,6 +423,7 @@ async function main() {
           if (size < 100_000) throw new Error(`too small`);
           console.log(`✓ ${fmt(size)}`);
           ok = true;
+          usedPexelsIds.add(pexelsVideo.id);
         } catch (e) {
           process.stdout.write(`CDN blocked → `);
         }
@@ -408,7 +431,7 @@ async function main() {
     }
 
     if (!ok) {
-      const pixUrl = PIXABAY_API_KEY ? await pixabaySearch(query) : null;
+      const pixUrl = PIXABAY_API_KEY ? await pixabaySearch(query, usedPixabayUrls) : null;
       if (pixUrl) {
         try {
           await downloadViaHttps(pixUrl, destFile);
@@ -416,6 +439,7 @@ async function main() {
           if (size < 100_000) throw new Error('too small');
           console.log(`✓ Pixabay ${fmt(size)}`);
           ok = true;
+          usedPixabayUrls.add(pixUrl);
         } catch {}
       }
       if (!ok) console.log('not available on this network');

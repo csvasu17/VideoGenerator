@@ -10,29 +10,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useRemotionEnvironment } from 'remotion';
+import { ThemeCtx, type ThemeTokens } from './ConfigPage';
 
 const API = 'http://localhost:3001';
 const DW  = 480; // dialog width
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
-const C = {
+// ── Design tokens ────────────────────────────────────────────────────────────
+// Chat-specific accents not present on the shared ConfigPage theme. `font` and
+// `text`/`sub`/`hint`/`border`/`teal`/`green`/`red` come from ThemeCtx below so
+// this widget always matches ConfigPage's font family and palette — falls back
+// to DARK_TOKENS (ThemeCtx's default) if ever rendered outside its provider.
+const CHAT_ACCENTS = {
   bg:         'rgba(8,16,30,0.98)',
   surface:    'rgba(255,255,255,0.045)',
   surfaceHov: 'rgba(255,255,255,0.09)',
-  border:     'rgba(255,255,255,0.1)',
   borderTeal: 'rgba(10,147,211,0.32)',
-  text:       '#dde6f5',
-  sub:        '#7b8fb5',
-  hint:       'rgba(140,165,210,0.5)',
-  teal:       '#0a93d3',
   tealLt:     '#5bc8f5',
   tealDim:    'rgba(10,147,211,0.13)',
   tealMid:    'rgba(10,147,211,0.22)',
   tealGlow:   'rgba(10,147,211,0.38)',
-  green:      '#22c55e',
-  red:        '#ef4444',
   amber:      '#f59e0b',
-  font:       '"Inter","Helvetica Neue",system-ui,sans-serif',
 };
 
 const KF = `
@@ -86,7 +83,9 @@ const CHIPS = [
 ];
 
 // ── Avatars ────────────────────────────────────────────────────────────────────
-const AiAvatar = () => (
+type ChatTheme = ThemeTokens & typeof CHAT_ACCENTS;
+
+const AiAvatar = ({ C }: { C: ChatTheme }) => (
   <div style={{ width:32, height:32, borderRadius:'50%', flexShrink:0, marginTop:2, background:`linear-gradient(135deg,${C.teal},#0670a0)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 10px ${C.tealGlow}` }}>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
       <path d="M12 2a2 2 0 012 2v1h3a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h3V4a2 2 0 012-2z" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -97,7 +96,7 @@ const AiAvatar = () => (
   </div>
 );
 
-const UserAvatar = () => (
+const UserAvatar = ({ C }: { C: ChatTheme }) => (
   <div style={{ width:32, height:32, borderRadius:'50%', flexShrink:0, marginTop:2, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)', display:'flex', alignItems:'center', justifyContent:'center' }}>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="7" r="4" stroke={C.sub} strokeWidth="1.8"/>
@@ -109,6 +108,8 @@ const UserAvatar = () => (
 // ── Main component ─────────────────────────────────────────────────────────────
 export const ChatWidget: React.FC = () => {
   const { isStudio } = useRemotionEnvironment();
+  const theme = React.useContext(ThemeCtx);
+  const C: ChatTheme = { ...theme, ...CHAT_ACCENTS };
 
   const [open,      setOpen]      = useState(false);
   const [minimized, setMinimized] = useState(false);
@@ -257,7 +258,7 @@ export const ChatWidget: React.FC = () => {
       {/* Floating bubble */}
       <div style={{ position:'fixed', bottom:28, right:28, zIndex:2147483646 }}>
         {!open && (
-          <div style={{
+          <div className="cfg-anim-decorative" style={{
             position:'absolute', inset:-2, borderRadius:'50%',
             border:`2px solid ${C.teal}`,
             animation:'cw-ring 2.6s ease-out infinite',
@@ -295,7 +296,7 @@ export const ChatWidget: React.FC = () => {
             width:22, height:22, borderRadius:'50%',
             background:C.red, border:'2px solid #08101e',
             display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:11, fontWeight:700, color:'#fff', fontFamily:C.font,
+            ...C.type.fieldLabel, fontWeight:700, color:'#fff', fontFamily:C.font,
           }}>
             {unread > 9 ? '9+' : unread}
           </div>
@@ -346,12 +347,12 @@ export const ChatWidget: React.FC = () => {
 
             {/* Title + status */}
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:15, fontWeight:700, color:C.text, letterSpacing:'-0.02em', lineHeight:1.2 }}>
+              <div style={{ ...C.type.h3, color:C.text, lineHeight:1.2 }}>
                 Video Editor
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:2 }}>
                 <div style={{ width:6, height:6, borderRadius:'50%', flexShrink:0, background:dotColor, boxShadow:`0 0 5px ${dotColor}` }}/>
-                <span style={{ fontSize:11.5, color:C.sub }}>{dotLabel}</span>
+                <span style={{ ...C.type.body, color:C.sub }}>{dotLabel}</span>
               </div>
             </div>
 
@@ -370,7 +371,7 @@ export const ChatWidget: React.FC = () => {
             {/* Clear */}
             <button type="button" title="Clear history"
               onClick={(e) => { e.stopPropagation(); setMsgs([WELCOME]); }}
-              style={{ background:'none', border:'none', cursor:'pointer', color:C.hint, padding:'4px 7px', borderRadius:6, display:'flex', alignItems:'center', fontSize:11.5, fontFamily:C.font, gap:4 }}>
+              style={{ background:'none', border:'none', cursor:'pointer', color:C.hint, padding:'4px 7px', borderRadius:6, display:'flex', alignItems:'center', ...C.type.body, fontFamily:C.font, gap:4 }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                 <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -401,7 +402,7 @@ export const ChatWidget: React.FC = () => {
             <>
               {/* ── Chips ──────────────────────────────────────────────────── */}
               <div style={{ padding:'10px 14px 8px', borderBottom:`1px solid rgba(255,255,255,0.06)` }}>
-                <div style={{ fontSize:10, fontWeight:700, color:C.hint, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:7 }}>
+                <div style={{ ...C.type.label, color:C.hint, marginBottom:7 }}>
                   Quick edits
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:7 }}>
@@ -411,7 +412,7 @@ export const ChatWidget: React.FC = () => {
                       onMouseLeave={() => setHovChip(null)}
                       onClick={() => { setInput(c.prefix); setChipHint(true); setTimeout(()=>taRef.current?.focus(),40); }}
                       style={{
-                        fontSize:12.5, fontWeight:500, fontFamily:C.font,
+                        ...C.type.body, fontFamily:C.font,
                         padding:'9px 11px', borderRadius:9, textAlign:'left',
                         border:`1px solid ${hovChip===i ? C.teal : C.borderTeal}`,
                         borderLeft:`3px solid ${C.teal}`,
@@ -442,14 +443,14 @@ export const ChatWidget: React.FC = () => {
                     gap:9, alignItems:'flex-start',
                     animation:'cw-msg .2s ease both',
                   }}>
-                    {m.role==='assistant' ? <AiAvatar/> : <UserAvatar/>}
+                    {m.role==='assistant' ? <AiAvatar C={C}/> : <UserAvatar C={C}/>}
                     <div style={{
                       maxWidth:'80%',
                       padding:'10px 13px',
                       borderRadius: m.role==='user' ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
                       background: m.role==='user' ? 'rgba(10,147,211,0.16)' : C.surface,
                       border:`1px solid ${m.role==='user' ? C.borderTeal : C.border}`,
-                      fontSize:13.5, color:C.text, lineHeight:1.65,
+                      ...C.type.bodyLg, fontWeight:400, color:C.text, lineHeight:1.65,
                     }}>
                       <div>{m.text}</div>
                       {m.role==='assistant' && m.changes && m.changes.length>0 && (
@@ -458,7 +459,7 @@ export const ChatWidget: React.FC = () => {
                           marginTop:8, padding:'3px 9px', borderRadius:20,
                           background: m.applied ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
                           border:`1px solid ${m.applied ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                          fontSize:11.5, fontWeight:600,
+                          ...C.type.fieldLabel,
                           color: m.applied ? C.green : C.red,
                         }}>
                           <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
@@ -480,7 +481,7 @@ export const ChatWidget: React.FC = () => {
                   <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:2 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:7 }}>
                       <div style={{ flex:1, height:1, background:'rgba(255,255,255,0.07)' }}/>
-                      <span style={{ fontSize:10.5, color:C.hint }}>Try an example</span>
+                      <span style={{ ...C.type.caption, color:C.hint }}>Try an example</span>
                       <div style={{ flex:1, height:1, background:'rgba(255,255,255,0.07)' }}/>
                     </div>
                     {EXAMPLE_PROMPTS.map((p,i) => (
@@ -493,7 +494,7 @@ export const ChatWidget: React.FC = () => {
                           border:`1px solid ${hovPrompt===i ? C.borderTeal : C.border}`,
                           borderRadius:9, padding:'8px 12px',
                           color: hovPrompt===i ? C.tealLt : C.sub,
-                          fontSize:12, fontFamily:C.font, textAlign:'left',
+                          ...C.type.body, fontFamily:C.font, textAlign:'left',
                           cursor:'pointer', transition:'all .13s',
                           display:'flex', alignItems:'center', gap:7,
                         }}>
@@ -509,7 +510,7 @@ export const ChatWidget: React.FC = () => {
                 {/* Typing dots */}
                 {busy && (
                   <div style={{ display:'flex', gap:9, alignItems:'flex-start', animation:'cw-msg .2s ease both' }}>
-                    <AiAvatar/>
+                    <AiAvatar C={C}/>
                     <div style={{ padding:'12px 15px', borderRadius:'4px 14px 14px 14px', background:C.surface, border:`1px solid ${C.border}`, display:'flex', gap:5, alignItems:'center' }}>
                       {[0,1,2].map(i=>(
                         <div key={i} style={{ width:7, height:7, borderRadius:'50%', background:C.teal, animation:`cw-dot 1.3s ease ${i*0.22}s infinite` }}/>
@@ -523,7 +524,7 @@ export const ChatWidget: React.FC = () => {
               {/* ── Input ──────────────────────────────────────────────────── */}
               <div style={{ padding:'9px 14px 13px', borderTop:`1px solid rgba(255,255,255,0.07)`, background:'rgba(0,0,0,0.2)' }}>
                 {chipHint && input && (
-                  <div style={{ fontSize:11.5, color:C.teal, marginBottom:6, display:'flex', alignItems:'center', gap:4 }}>
+                  <div style={{ ...C.type.body, color:C.teal, marginBottom:6, display:'flex', alignItems:'center', gap:4 }}>
                     <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/><path d="M6 5v4M6 4h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                     Complete the prompt, then press Enter to send
                   </div>
@@ -541,7 +542,7 @@ export const ChatWidget: React.FC = () => {
                       background:'rgba(255,255,255,0.055)',
                       border:`1.5px solid ${input ? C.borderTeal : 'rgba(255,255,255,0.1)'}`,
                       borderRadius:11, color:C.text, fontFamily:C.font,
-                      fontSize:13.5, lineHeight:1.6,
+                      ...C.type.bodyLg, fontWeight:400, lineHeight:1.6,
                       padding:'9px 12px', outline:'none',
                       transition:'border-color .15s, box-shadow .15s',
                       boxShadow: input ? `0 0 0 3px rgba(10,147,211,0.11)` : 'none',
@@ -567,10 +568,10 @@ export const ChatWidget: React.FC = () => {
                     }
                   </button>
                 </div>
-                <div style={{ marginTop:6, fontSize:11, color:C.hint, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ marginTop:6, ...C.type.body, color:C.hint, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <span>Shift+Enter for new line</span>
                   <span style={{ display:'flex', alignItems:'center', gap:3 }}>
-                    <span style={{ padding:'1px 5px', borderRadius:4, border:'1px solid rgba(255,255,255,0.12)', fontSize:10, color:C.sub }}>Enter</span>
+                    <span style={{ padding:'1px 5px', borderRadius:4, border:'1px solid rgba(255,255,255,0.12)', ...C.type.caption, color:C.sub }}>Enter</span>
                     to send
                   </span>
                 </div>
@@ -578,14 +579,14 @@ export const ChatWidget: React.FC = () => {
 
               {/* Toast */}
               {toast && (
-                <div style={{
+                <div role="status" aria-live="polite" aria-atomic="true" style={{
                   position:'absolute', bottom:72, left:10, right:10,
                   padding:'9px 13px', borderRadius:9,
                   background: toast.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
                   border:`1px solid ${toast.ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}`,
                   backdropFilter:'blur(10px)',
                   color: toast.ok ? C.green : C.red,
-                  fontSize:12.5, fontWeight:600, textAlign:'center',
+                  ...C.type.fieldLabel, textAlign:'center',
                   animation:'cw-toast .2s ease', pointerEvents:'none',
                 }}>
                   {toast.ok ? '✓ ' : '✗ '}{toast.msg}

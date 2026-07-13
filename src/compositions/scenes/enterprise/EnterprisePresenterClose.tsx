@@ -191,7 +191,7 @@ const BrandedOutro: React.FC<{ tagline: string }> = ({ tagline }) => {
             Schedule your live demonstration
           </div>
           <span style={{ color: 'rgba(255,255,255,0.42)', fontSize: 14 }}>
-            Contact us at acl-digital.com
+            Contact us at acldigital.com
           </span>
         </div>
       </div>

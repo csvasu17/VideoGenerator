@@ -56,7 +56,7 @@ export async function performLogin(
   creds: NonNullable<RecordingConfig['credentials']>,
 ): Promise<void> {
   if (creds.loginType === 2) {
-    await performQuickAccessLogin(page, creds.quickAccessIndex ?? 0);
+    await performQuickAccessLogin(page, creds.quickAccessIndex ?? 0, creds.quickAccessRoleName);
     return;
   }
 
@@ -83,9 +83,9 @@ export async function performLogin(
 
 const LOGIN_PATH_HINTS = ['/login', '/signin', '/auth', '/account/login', '/user/login'];
 
-async function performQuickAccessLogin(page: Page, index: number): Promise<void> {
+async function performQuickAccessLogin(page: Page, index: number, roleName?: string): Promise<void> {
   // Try the current page first; if not found, walk common login sub-paths
-  let clicked = await clickQuickAccessOption(page, index);
+  let clicked = await clickQuickAccessOption(page, index, roleName);
 
   if (!clicked) {
     const origin = (() => { try { return new URL(page.url()).origin; } catch { return ''; } })();
@@ -93,7 +93,7 @@ async function performQuickAccessLogin(page: Page, index: number): Promise<void>
       try {
         await page.goto(`${origin}${loginPath}`, {waitUntil: 'domcontentloaded', timeout: 15000});
         await page.waitForTimeout(1000);
-        clicked = await clickQuickAccessOption(page, index);
+        clicked = await clickQuickAccessOption(page, index, roleName);
         if (clicked) break;
       } catch {
         // try next path
@@ -121,21 +121,142 @@ async function performQuickAccessLogin(page: Page, index: number): Promise<void>
   ]).catch(() => page.waitForTimeout(3000));
 }
 
-async function clickQuickAccessOption(page: Page, index: number): Promise<boolean> {
+// Matches the section label apps use above pre-filled login shortcuts —
+// wording varies ("Quick Access", "Demo credentials", "Demo accounts",
+// "Choose a role to start", "One-click demo sign-in", ...).
+const QUICK_ACCESS_LABEL_RE = /quick.access|demo.credential|demo.account|demo.user|sample.account|sample.user|test.account|choose.*role|select.*role|one.click|role.*sign.?in/i;
+
+const QUICK_ACCESS_KNOWN_SELECTORS = [
+  '.quick-access-card',               // exact class match
+  '[class="quick-access-card"]',
+  '[data-testid*="quick-access"]',
+  '[data-testid*="quickaccess"]',
+  '[class*="QuickAccess"][class*="Card"]',
+  '[class*="quick-access-card"]',
+  '[class*="quickAccessItem"]',
+  '[class*="QuickAccessItem"]',
+  '[class*="demo-user"]',
+  '[class*="DemoUser"]',
+];
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Try to click the Quick Access card whose visible text matches roleName. */
+async function clickQuickAccessOptionByRole(page: Page, roleName: string): Promise<boolean> {
+  const roleRe = new RegExp(escapeRegExp(roleName), 'i');
+
+  // Strategy 1: any visible button (or role="button") whose text matches roleName
+  // directly. No dependency on app-specific class names or a "quick access"/"demo"
+  // label existing at all — just needs the role name to be the clickable label.
+  // Handles frameworks (e.g. Streamlit) that render role-picker buttons with
+  // generated class names the other strategies below won't recognize.
+  try {
+    const directButtons = page.locator('button, [role="button"]').filter({hasText: roleRe});
+    const directCount = await directButtons.count().catch(() => 0);
+    if (directCount > 0) {
+      await directButtons.first().click();
+      return true;
+    }
+  } catch {
+    // fall through to next strategy
+  }
+
+  // Strategy 2: known class / data-testid patterns
+  for (const sel of QUICK_ACCESS_KNOWN_SELECTORS) {
+    const matched = page.locator(sel).filter({hasText: roleRe});
+    const count = await matched.count().catch(() => 0);
+    if (count > 0) {
+      await matched.first().click();
+      return true;
+    }
+  }
+
+  // Strategy 3: container holding "Quick Access"/"Demo credentials"-style text
+  try {
+    const section = page
+      .locator('div, section, aside, form')
+      .filter({hasText: QUICK_ACCESS_LABEL_RE})
+      .last();
+
+    const isVisible = await section.isVisible({timeout: 2000}).catch(() => false);
+    if (isVisible) {
+      const buttons = section.locator('button, [role="button"]')
+        .filter({hasNotText: QUICK_ACCESS_LABEL_RE})
+        .filter({hasText: roleRe});
+      const btnCount = await buttons.count().catch(() => 0);
+      if (btnCount > 0) {
+        await buttons.first().click();
+        return true;
+      }
+
+      const cards = section.locator('div')
+        .filter({has: page.locator('[class*="user-initials"], [class*="initials"], [class*="avatar"]')})
+        .filter({hasText: roleRe});
+      const cardCount = await cards.count().catch(() => 0);
+      if (cardCount > 0) {
+        await cards.first().click();
+        return true;
+      }
+    }
+  } catch {
+    // fall through to next strategy
+  }
+
+  // Strategy 4: any element visible below the "Quick Access" divider label
+  try {
+    const label = page.locator(`text=${QUICK_ACCESS_LABEL_RE}`).first();
+    const labelVisible = await label.isVisible({timeout: 1000}).catch(() => false);
+    if (labelVisible) {
+      const labelBox = await label.boundingBox().catch(() => null);
+      if (labelBox) {
+        const candidates = page.locator('div[class*="card"], div[class*="Card"], button, div[class*="cursor-pointer"]');
+        const total = await candidates.count().catch(() => 0);
+        for (let i = 0; i < total; i++) {
+          const el = candidates.nth(i);
+          const box = await el.boundingBox().catch(() => null);
+          if (!box || box.y <= labelBox.y + labelBox.height) continue;
+          const text = await el.innerText().catch(() => '');
+          if (roleRe.test(text)) {
+            await el.click();
+            return true;
+          }
+        }
+      }
+    }
+  } catch {
+    // fall through
+  }
+
+  return false;
+}
+
+/**
+ * Is the Quick Access role-picker screen still showing? Used to verify a quick-access
+ * login actually happened, since neither "did a password field disappear" nor "did the
+ * URL leave /login" work for apps that have no password field and/or render the
+ * authenticated dashboard at the same URL as the picker (e.g. single-page apps).
+ */
+export async function isQuickAccessScreenShowing(page: Page, roleName?: string): Promise<boolean> {
+  if (roleName) {
+    const roleRe = new RegExp(escapeRegExp(roleName), 'i');
+    const roleBtn = page.locator('button, [role="button"]').filter({hasText: roleRe}).first();
+    if (await roleBtn.isVisible().catch(() => false)) return true;
+  }
+  const label = page.locator(`text=${QUICK_ACCESS_LABEL_RE}`).first();
+  return label.isVisible({timeout: 1000}).catch(() => false);
+}
+
+async function clickQuickAccessOption(page: Page, index: number, roleName?: string): Promise<boolean> {
+  if (roleName) {
+    const matchedByRole = await clickQuickAccessOptionByRole(page, roleName);
+    if (matchedByRole) return true;
+    console.warn(`  ⚠ No Quick Access card matched role "${roleName}" — using default card index ${index}.`);
+  }
+
   // Strategy 1: known class / data-testid patterns (most-specific first)
-  const knownSelectors = [
-    '.quick-access-card',               // exact class match
-    '[class="quick-access-card"]',
-    '[data-testid*="quick-access"]',
-    '[data-testid*="quickaccess"]',
-    '[class*="QuickAccess"][class*="Card"]',
-    '[class*="quick-access-card"]',
-    '[class*="quickAccessItem"]',
-    '[class*="QuickAccessItem"]',
-    '[class*="demo-user"]',
-    '[class*="DemoUser"]',
-  ];
-  for (const sel of knownSelectors) {
+  for (const sel of QUICK_ACCESS_KNOWN_SELECTORS) {
     const items = page.locator(sel);
     const count = await items.count().catch(() => 0);
     if (count > index) {
@@ -149,13 +270,13 @@ async function clickQuickAccessOption(page: Page, index: number): Promise<boolea
   try {
     const section = page
       .locator('div, section, aside, form')
-      .filter({hasText: /quick.access/i})
+      .filter({hasText: QUICK_ACCESS_LABEL_RE})
       .last();
 
     const isVisible = await section.isVisible({timeout: 2000}).catch(() => false);
     if (isVisible) {
       // Try buttons first, then generic clickable divs with user names
-      const buttons = section.locator('button, [role="button"]').filter({hasNotText: /quick.access/i});
+      const buttons = section.locator('button, [role="button"]').filter({hasNotText: QUICK_ACCESS_LABEL_RE});
       const btnCount = await buttons.count().catch(() => 0);
       if (btnCount > index) {
         await buttons.nth(index).click();
@@ -176,12 +297,12 @@ async function clickQuickAccessOption(page: Page, index: number): Promise<boolea
 
   // Strategy 3: any element visible below the "Quick Access" divider label
   try {
-    const label = page.locator('text=/quick.access/i').first();
+    const label = page.locator(`text=${QUICK_ACCESS_LABEL_RE}`).first();
     const labelVisible = await label.isVisible({timeout: 1000}).catch(() => false);
     if (labelVisible) {
       const labelBox = await label.boundingBox().catch(() => null);
       if (labelBox) {
-        const candidates = page.locator('div[class*="card"], div[class*="Card"], button');
+        const candidates = page.locator('div[class*="card"], div[class*="Card"], button, div[class*="cursor-pointer"]');
         const total = await candidates.count().catch(() => 0);
         let found = 0;
         for (let i = 0; i < total; i++) {
