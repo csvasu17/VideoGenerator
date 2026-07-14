@@ -17,7 +17,7 @@ automation/                 The pipeline (Playwright recording, AI content, TTS,
   download-broll-videos.ts  Pexels stock footage matched to AI-generated queries
   generate-presenter-video.ts  D-ID talking-head presenter overlay
   fetch-background-music.ts Pixabay background music
-  config-server.ts          Express API (port 3001) behind the in-Studio Config UI
+  config-server.ts          Express API (port 4001) behind the in-Studio Config UI
   e2e-test.ts               modern_saas-template pipeline (agent/DDD architecture)
   utils/
     session.ts               Login/session helpers (form login + Quick Access cards)
@@ -56,7 +56,7 @@ public/                    Static assets (logos, fallback images) served to Remo
 npm install
 npm run playwright:install     # one-time: install Chromium
 cp .env.example .env           # fill in APP_URL, credentials, Azure OpenAI keys, etc.
-npm run dev                    # Config UI (:3001) + Remotion Studio (:3000)
+npm run dev                    # Config UI (:4001) + Remotion Studio (:3000)
 ```
 
 Open `http://localhost:3000`, select the **Config** composition, fill in the form (or edit `.env`
@@ -149,7 +149,7 @@ npm run dev       # Studio + Config UI together (recommended)
 
 ## Config UI
 
-`npm run dev` (or `npm run config-ui` alone) starts an Express API on **port 3001**
+`npm run dev` (or `npm run config-ui` alone) starts an Express API on **port 4001**
 (`automation/config-server.ts`), paired with a Remotion composition, **`Config`**
 (`src/compositions/ConfigPage.tsx`), viewed inside Studio at `localhost:3000`.
 

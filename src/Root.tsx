@@ -6,6 +6,12 @@ import {DemoVideo} from './compositions/DemoVideo';
 import type {DemoVideoProps} from './compositions/DemoVideo';
 import {EnterpriseVideo} from './compositions/EnterpriseVideo';
 import type {EnterpriseVideoProps} from './compositions/EnterpriseVideo';
+import {TeaserVideo} from './compositions/TeaserVideo';
+import type {TeaserVideoProps} from './compositions/TeaserVideo';
+import {AppFlowVideo} from './compositions/AppFlowVideo';
+import type {AppFlowVideoProps} from './compositions/AppFlowVideo';
+import {RoleTransitionCard} from './compositions/scenes/agent/RoleTransitionCard';
+import type {RoleTransitionCardProps} from './compositions/scenes/agent/RoleTransitionCard';
 import type {VoiceScript} from './core/domain/entities/RemotionPackage';
 import {ConfigPage} from './compositions/ConfigPage';
 
@@ -229,6 +235,189 @@ export const RemotionRoot: React.FC = () => (
           return { props: stub, durationInFrames: 2010 };
         }
       }}
+    />
+
+    {/*
+      ── TeaserVideo ────────────────────────────────────────────────────────────
+      Teaser template: B-roll hook → real screen-recording feature montage →
+      mid-benefit statement card → client app logo/tagline outro, with a short
+      "quick overview" voiceover read over the beats plus background music.
+      Data source: out/localhost/demo-package.json (meta.templateId === 'teaser')
+      + voice-script.json.
+      Registered fourth — Studio shows DemoVideo by default.
+    */}
+    <Composition
+      id="TeaserVideo"
+      component={TeaserVideo}
+      durationInFrames={240}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{
+        teaserBroll:    [],
+        teaserFeatures: [],
+        teaserOutro:    { from: 90, durationInFrames: 150, productName: 'Your Product', tagline: 'Run the pipeline first' },
+      } as TeaserVideoProps}
+      calculateMetadata={async () => {
+        try {
+          const response = await fetch(staticFile('demo-package.json'));
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pkg = await response.json() as any;
+
+          if (pkg?.meta?.templateId !== 'teaser') {
+            // demo-package.json was produced by a different template — skip.
+            throw new Error('demo-package.json is not a teaser package');
+          }
+
+          // Normalise Windows backslash paths
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const teaserFeatures = (pkg.teaserFeatures ?? []).map((s: any) => ({
+            ...s,
+            screenshotPath: String(s.screenshotPath ?? '').replace(/\\/g, '/'),
+          }));
+
+          // Also load voice-script.json so narration plays in Studio preview
+          // and the script is editable via the Input Props panel.
+          // Cache-bust with timestamp so voice-ready flag is always fresh after pipeline runs.
+          let voiceScript: VoiceScript | undefined;
+          try {
+            const ts = Date.now();
+            const vsRes = await fetch(staticFile('voice-script.json') + '?t=' + ts);
+            if (vsRes.ok) {
+              voiceScript = await vsRes.json() as VoiceScript;
+              voiceScript.loadedAt = ts;
+            }
+          } catch { /* voice-script.json is optional */ }
+
+          const loaded: TeaserVideoProps = {
+            teaserBroll:    pkg.teaserBroll ?? [],
+            teaserFeatures,
+            teaserOutro:    pkg.teaserOutro,
+            teaserMusic:    pkg.teaserMusic,
+            voiceScript,
+          } as unknown as TeaserVideoProps;
+
+          const durationInFrames =
+            loaded.teaserOutro.from + loaded.teaserOutro.durationInFrames;
+          return { props: loaded, durationInFrames };
+        } catch {
+          // Not a teaser package or file missing — degrade to an 8-second stub.
+          const stub: TeaserVideoProps = {
+            teaserBroll:    [],
+            teaserFeatures: [],
+            teaserOutro:    { from: 90, durationInFrames: 150, productName: 'Your Product', tagline: 'Run the pipeline with VIDEO_TEMPLATE=teaser' },
+          };
+          return { props: stub, durationInFrames: 240 };
+        }
+      }}
+    />
+
+    {/*
+      ── AppFlowVideo ─────────────────────────────────────────────────────────
+      Full Application Flow template: animated sitemap of the target app's
+      entire screen tree (every screen, sub-screen) plus each screen's
+      individual data fields — intro cascade → guided branch tour → per-screen
+      field-list dives → outro stats card. Spoken narration over the beats
+      plus optional background music.
+      Data source: out/localhost/demo-package.json (meta.templateId === 'app_flow')
+      + voice-script.json.
+      Registered fifth — Studio shows DemoVideo by default.
+    */}
+    <Composition
+      id="AppFlowVideo"
+      component={AppFlowVideo}
+      durationInFrames={240}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{
+        appFlowNodes:       [],
+        appFlowIntro:       { from: 0, durationInFrames: 90, productName: 'Your Product' },
+        appFlowTourStops:   [],
+        appFlowDetailDives: [],
+        appFlowOutro:       { from: 90, durationInFrames: 150, productName: 'Your Product', screenCount: 0, fieldCount: 0 },
+      } as AppFlowVideoProps}
+      calculateMetadata={async () => {
+        try {
+          const response = await fetch(staticFile('demo-package.json'));
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pkg = await response.json() as any;
+
+          if (pkg?.meta?.templateId !== 'app_flow') {
+            // demo-package.json was produced by a different template — skip.
+            throw new Error('demo-package.json is not an app_flow package');
+          }
+
+          // Normalise Windows backslash paths
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const appFlowNodes = (pkg.appFlowNodes ?? []).map((n: any) => ({
+            ...n,
+            screenshotPath: n.screenshotPath ? String(n.screenshotPath).replace(/\\/g, '/') : null,
+          }));
+
+          // Also load voice-script.json so audio plays in Studio preview
+          // and the script is editable via the Input Props panel.
+          // Cache-bust with timestamp so voice-ready flag is always fresh after pipeline runs.
+          let voiceScript: VoiceScript | undefined;
+          try {
+            const ts = Date.now();
+            const vsRes = await fetch(staticFile('voice-script.json') + '?t=' + ts);
+            if (vsRes.ok) {
+              voiceScript = await vsRes.json() as VoiceScript;
+              voiceScript.loadedAt = ts;
+            }
+          } catch { /* voice-script.json is optional */ }
+
+          const loaded: AppFlowVideoProps = {
+            appFlowNodes,
+            appFlowIntro:       pkg.appFlowIntro,
+            appFlowTourStops:   pkg.appFlowTourStops ?? [],
+            appFlowDetailDives: pkg.appFlowDetailDives ?? [],
+            appFlowOutro:       pkg.appFlowOutro,
+            appFlowMusic:       pkg.appFlowMusic,
+            voiceScript,
+          } as unknown as AppFlowVideoProps;
+
+          const durationInFrames =
+            loaded.appFlowOutro.from + loaded.appFlowOutro.durationInFrames;
+          return { props: loaded, durationInFrames };
+        } catch {
+          // Not an app_flow package or file missing — degrade to an 8-second stub.
+          const stub: AppFlowVideoProps = {
+            appFlowNodes:       [],
+            appFlowIntro:       { from: 0, durationInFrames: 90, productName: 'Your Product' },
+            appFlowTourStops:   [],
+            appFlowDetailDives: [],
+            appFlowOutro: {
+              from: 90, durationInFrames: 150, productName: 'Your Product',
+              screenCount: 0, fieldCount: 0, tagline: 'Run the pipeline with VIDEO_TEMPLATE=app_flow',
+            },
+          };
+          return { props: stub, durationInFrames: 240 };
+        }
+      }}
+    />
+
+    {/*
+      ── RoleTransitionCard ─────────────────────────────────────────────────────
+      Short title card rendered between each role's footage in the exhaustive
+      Agent Recording walkthrough (automation/record-agent-exhaustive.ts).
+      Props are supplied per-render via `--props=<json file>` — no calculateMetadata,
+      no demo-package.json — this composition is used purely as a one-off renderer
+      for a single short clip per role, not a full-package-driven template.
+    */}
+    <Composition
+      id="RoleTransitionCard"
+      component={RoleTransitionCard}
+      durationInFrames={90}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{
+        roleName: 'Role', roleIndex: 0, totalRoles: 1,
+      } as RoleTransitionCardProps}
     />
 
     {/*

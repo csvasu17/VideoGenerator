@@ -24,16 +24,19 @@ import { SalesNarrationEngine }       from './SalesNarrationEngine';
 import { EnterpriseNarrationEngine }  from './EnterpriseNarrationEngine';
 import { HighlightTargetResolver }    from './HighlightTargetResolver';
 import { TransitionSelector }         from './TransitionSelector';
+import type { VideoTemplate }         from '../../video-templates/VideoTemplateStrategy';
 
 /**
  * Creates a fully-wired StoryboardGenerator.
  *
  * @param template  'enterprise' selects EnterpriseNarrationEngine (formal,
  *                  problem-first, short sentences). Any other value or absent
- *                  selects the default SalesNarrationEngine.
+ *                  selects the default SalesNarrationEngine. ('teaser' never
+ *                  reaches this factory in practice — see automation/record-teaser-clips.ts —
+ *                  but the type accepts it for parity with VideoTemplate.)
  */
 export function createStoryboardGenerator(
-  template?: 'modern_saas' | 'enterprise',
+  template?: VideoTemplate,
 ): StoryboardGenerator {
   const narrationEngine = template === 'enterprise'
     ? new EnterpriseNarrationEngine()
