@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -7,10 +8,15 @@ import * as dotenv from 'dotenv';
 import type { Response } from 'express';
 import { chat } from './chat-service';
 import { OUT_DIR } from './config';
+import { getVideoInfo } from './utils/ffprobe';
 
 const ROOT = path.resolve(__dirname, '..');
 const ENV_PATH = path.join(ROOT, '.env');
-const PORT = parseInt(process.env.CONFIG_PORT ?? '3001', 10);
+// Kept outside Remotion's own 3000-3100 auto-port-selection range (see
+// @remotion/renderer's get-port.js) — Studio's in-browser Render feature
+// spins up its own auxiliary server in that range, and a collision with
+// this API here made Render fail with "Cannot GET /index.html".
+const PORT = parseInt(process.env.CONFIG_PORT ?? '4001', 10);
 
 // ── Pipeline singleton state ──────────────────────────────────────────────────
 let pipelineProcess: ChildProcess | null = null;
@@ -23,6 +29,18 @@ let voiceProcess: ChildProcess | null = null;
 let voiceLog: string[] = [];
 let voiceStatus: 'idle' | 'running' | 'success' | 'failed' = 'idle';
 const voiceSseClients = new Set<Response>();
+
+// ── Manual Recording singleton (independent of the template pipeline above) ───
+let mrProcess: ChildProcess | null = null;
+let mrLog: string[] = [];
+let mrStatus: 'idle' | 'running' | 'success' | 'failed' = 'idle';
+const mrSseClients = new Set<Response>();
+
+// ── Agent Recording singleton (independent of both of the above) ──────────────
+let arProcess: ChildProcess | null = null;
+let arLog: string[] = [];
+let arStatus: 'idle' | 'running' | 'success' | 'failed' = 'idle';
+const arSseClients = new Set<Response>();
 
 // ── .env helpers ─────────────────────────────────────────────────────────────
 
@@ -230,10 +248,36 @@ function pushVoiceLog(line: string): void {
   broadcastVoiceSSE({ type: 'log', line, ts: Date.now() });
 }
 
+function broadcastMrSSE(data: object): void {
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of mrSseClients) {
+    try { client.write(message); } catch { mrSseClients.delete(client); }
+  }
+}
+
+function pushMrLog(line: string): void {
+  mrLog.push(line);
+  if (mrLog.length > 500) mrLog.shift();
+  broadcastMrSSE({ type: 'log', line, ts: Date.now() });
+}
+
+function broadcastArSSE(data: object): void {
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of arSseClients) {
+    try { client.write(message); } catch { arSseClients.delete(client); }
+  }
+}
+
+function pushArLog(line: string): void {
+  arLog.push(line);
+  if (arLog.length > 500) arLog.shift();
+  broadcastArSSE({ type: 'log', line, ts: Date.now() });
+}
+
 // ── Express app ───────────────────────────────────────────────────────────────
 
 const app = express();
-app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'] }));
+app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:4001'] }));
 app.use(express.json({ limit: '50mb' }));
 
 // Read current .env values
@@ -436,7 +480,11 @@ app.post('/api/run-pipeline', (req, res) => {
 
   const currentEnv = parseEnvValues();
   const videoTemplate = currentEnv['VIDEO_TEMPLATE'] ?? 'modern_saas';
-  const pipelineScript = videoTemplate === 'enterprise' ? 'pipeline:enterprise' : 'e2e-test';
+  const pipelineScript =
+    videoTemplate === 'enterprise' ? 'pipeline:enterprise' :
+    videoTemplate === 'teaser'     ? 'pipeline:teaser' :
+    videoTemplate === 'app_flow'   ? 'pipeline:app_flow' :
+    'e2e-test';
 
   console.log(`  Pipeline: ${pipelineScript}  (VIDEO_TEMPLATE=${videoTemplate}, forceRerecord=${forceRerecord ?? false})`);
 
@@ -500,6 +548,253 @@ app.get('/api/pipeline-stream', (req, res) => {
   });
 });
 
+// ── Manual Recording — upload + ingest ────────────────────────────────────────
+
+const ALLOWED_UPLOAD_EXT = new Set(['.mp4', '.mov', '.webm', '.mkv', '.avi']);
+
+const mrUploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(getProductOutDir(), 'manual-recording');
+    fs.mkdirSync(dir, { recursive: true });
+    // Clear any previous raw upload / stale outputs so a re-upload always starts clean.
+    for (const f of fs.readdirSync(dir)) {
+      if (/^raw\.[a-z0-9]+$/i.test(f)) {
+        try { fs.unlinkSync(path.join(dir, f)); } catch { /* ignore */ }
+      }
+    }
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.mp4';
+    cb(null, `raw${ext}`);
+  },
+});
+
+const mrUpload = multer({
+  storage: mrUploadStorage,
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_UPLOAD_EXT.has(ext)) {
+      cb(new Error(`Unsupported file type "${ext}". Allowed: ${[...ALLOWED_UPLOAD_EXT].join(', ')}`));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+app.post('/api/manual-recording/upload', (req, res) => {
+  mrUpload.single('file')(req, res, (err: unknown) => {
+    if (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    const file = (req as express.Request & { file?: Express.Multer.File }).file;
+    if (!file) {
+      res.status(400).json({ error: 'No file uploaded (expected multipart field "file")' });
+      return;
+    }
+    try {
+      const info = getVideoInfo(file.path);
+      if (!info.duration || info.duration < 5) {
+        fs.unlinkSync(file.path);
+        res.status(400).json({ error: 'Uploaded file does not look like a valid video (duration too short or unreadable).' });
+        return;
+      }
+      res.json({ uploaded: true, path: file.path, sizeMb: Math.round(file.size / 1024 / 1024), durationSec: Math.round(info.duration) });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+});
+
+app.get('/api/manual-recording/status', (_req, res) => {
+  const dir = path.join(getProductOutDir(), 'manual-recording');
+  const rawFile = fs.existsSync(dir) ? fs.readdirSync(dir).find(f => /^raw\.[a-z0-9]+$/i.test(f)) : undefined;
+  const finalPath = path.join(dir, 'final-demo-video.mp4');
+  res.json({
+    status: mrStatus,
+    hasUpload: !!rawFile,
+    uploadFile: rawFile ?? null,
+    hasFinalVideo: fs.existsSync(finalPath),
+  });
+});
+
+app.post('/api/manual-recording/process', (_req, res) => {
+  if (mrStatus === 'running') {
+    res.status(409).json({ error: 'Manual Recording processing is already running' });
+    return;
+  }
+  const dir = path.join(getProductOutDir(), 'manual-recording');
+  const rawFile = fs.existsSync(dir) ? fs.readdirSync(dir).find(f => /^raw\.[a-z0-9]+$/i.test(f)) : undefined;
+  if (!rawFile) {
+    res.status(400).json({ error: 'No uploaded recording found — upload a video first.' });
+    return;
+  }
+
+  mrLog = [];
+  mrStatus = 'running';
+  broadcastMrSSE({ type: 'status', status: 'running' });
+
+  mrProcess = spawn('npm', ['run', 'manual-recording:process'], {
+    cwd: ROOT,
+    shell: true,
+    env: { ...process.env },
+  });
+
+  mrProcess.stdout?.on('data', (chunk: Buffer) => {
+    String(chunk).split('\n').filter(Boolean).forEach(pushMrLog);
+  });
+  mrProcess.stderr?.on('data', (chunk: Buffer) => {
+    String(chunk).split('\n').filter(Boolean).forEach(pushMrLog);
+  });
+  mrProcess.on('close', (code: number | null) => {
+    mrStatus = code === 0 ? 'success' : 'failed';
+    mrProcess = null;
+    broadcastMrSSE({ type: 'done', status: mrStatus });
+  });
+
+  res.json({ started: true });
+});
+
+app.post('/api/manual-recording/stop', (_req, res) => {
+  if (mrProcess) {
+    mrProcess.kill('SIGTERM');
+    mrProcess = null;
+  }
+  mrStatus = 'failed';
+  broadcastMrSSE({ type: 'done', status: 'failed' });
+  res.json({ stopped: true });
+});
+
+app.get('/api/manual-recording/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  for (const line of mrLog) {
+    res.write(`data: ${JSON.stringify({ type: 'log', line, ts: 0 })}\n\n`);
+  }
+  res.write(`data: ${JSON.stringify({ type: 'status', status: mrStatus })}\n\n`);
+
+  mrSseClients.add(res);
+  const keepalive = setInterval(() => {
+    try { res.write(`data: ${JSON.stringify({ type: 'ping' })}\n\n`); } catch { /* ignore */ }
+  }, 15_000);
+  req.on('close', () => { clearInterval(keepalive); mrSseClients.delete(res); });
+});
+
+// Dynamic (not express.static) because getProductOutDir() depends on .env values
+// that the Config UI can rewrite at runtime without restarting this server — a
+// root bound once at startup would go stale. res.sendFile() still handles Range
+// headers correctly, so <video controls> scrubbing/seeking works.
+app.get('/manual-recording-output/:file', (req, res) => {
+  if (!/^[a-zA-Z0-9._-]+\.mp4$/.test(req.params.file)) {
+    res.status(400).end();
+    return;
+  }
+  const filePath = path.join(getProductOutDir(), 'manual-recording', req.params.file);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).end();
+    return;
+  }
+  res.sendFile(filePath);
+});
+
+// ── Agent Recording — exhaustive, safe, all-roles ─────────────────────────────
+
+app.get('/api/agent-recording/status', (_req, res) => {
+  const outDir = getProductOutDir();
+  const walkthroughPath = path.join(outDir, 'agent-recording', 'agent-walkthrough.mp4');
+  const reportPath = path.join(outDir, 'agent-safety-report.json');
+  let report: unknown = null;
+  if (fs.existsSync(reportPath)) {
+    try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); } catch { /* ignore */ }
+  }
+  res.json({
+    status: arStatus,
+    hasWalkthrough: fs.existsSync(walkthroughPath),
+    hasSafetyReport: fs.existsSync(reportPath),
+    report,
+  });
+});
+
+app.post('/api/agent-recording/run', (req, res) => {
+  if (arStatus === 'running') {
+    res.status(409).json({ error: 'Agent Recording is already running' });
+    return;
+  }
+  const { narrate } = ((req.body ?? {}) as { narrate?: boolean });
+
+  arLog = [];
+  arStatus = 'running';
+  broadcastArSSE({ type: 'status', status: 'running' });
+
+  const script = narrate ? 'record:agent-exhaustive:narrate' : 'record:agent-exhaustive';
+  arProcess = spawn('npm', ['run', script], {
+    cwd: ROOT,
+    shell: true,
+    env: { ...process.env },
+  });
+
+  arProcess.stdout?.on('data', (chunk: Buffer) => {
+    String(chunk).split('\n').filter(Boolean).forEach(pushArLog);
+  });
+  arProcess.stderr?.on('data', (chunk: Buffer) => {
+    String(chunk).split('\n').filter(Boolean).forEach(pushArLog);
+  });
+  arProcess.on('close', (code: number | null) => {
+    arStatus = code === 0 ? 'success' : 'failed';
+    arProcess = null;
+    broadcastArSSE({ type: 'done', status: arStatus });
+  });
+
+  res.json({ started: true });
+});
+
+app.post('/api/agent-recording/stop', (_req, res) => {
+  if (arProcess) {
+    arProcess.kill('SIGTERM');
+    arProcess = null;
+  }
+  arStatus = 'failed';
+  broadcastArSSE({ type: 'done', status: 'failed' });
+  res.json({ stopped: true });
+});
+
+app.get('/api/agent-recording/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  for (const line of arLog) {
+    res.write(`data: ${JSON.stringify({ type: 'log', line, ts: 0 })}\n\n`);
+  }
+  res.write(`data: ${JSON.stringify({ type: 'status', status: arStatus })}\n\n`);
+
+  arSseClients.add(res);
+  const keepalive = setInterval(() => {
+    try { res.write(`data: ${JSON.stringify({ type: 'ping' })}\n\n`); } catch { /* ignore */ }
+  }, 15_000);
+  req.on('close', () => { clearInterval(keepalive); arSseClients.delete(res); });
+});
+
+app.get('/agent-recording-output/:file', (req, res) => {
+  if (!/^[a-zA-Z0-9._-]+\.mp4$/.test(req.params.file)) {
+    res.status(400).end();
+    return;
+  }
+  const filePath = path.join(getProductOutDir(), 'agent-recording', req.params.file);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).end();
+    return;
+  }
+  res.sendFile(filePath);
+});
+
 // ── Chat API ─────────────────────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
@@ -524,9 +819,14 @@ app.get('/api/chat/status', (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n  ┌──────────────────────────────────────────────────────────┐`);
   console.log(`  │  Config UI API server → http://localhost:${PORT}            │`);
   console.log(`  │  Open Remotion Studio and click "Config" in the sidebar.  │`);
   console.log(`  └──────────────────────────────────────────────────────────┘\n`);
 });
+
+// Node's default 5-minute request/headers timeout would kill a large (500MB-2GB+)
+// Manual Recording upload mid-transfer. Disabled (0 = no timeout) for this server only.
+server.requestTimeout = 0;
+server.headersTimeout = 0;

@@ -51,13 +51,23 @@ export async function ensureSession(
   return _cache;
 }
 
+/** Whether a per-role Quick Access login genuinely matched that role's own card,
+ *  or silently fell back to a default card index — surfaced so callers that loop
+ *  over many roles (e.g. exhaustive Agent Recording) can report per-role footage
+ *  provenance instead of only seeing this signal in a console.warn. */
+export type RoleMatchConfidence = 'matched' | 'fallback-default-card' | 'not-applicable';
+
+export interface LoginResult {
+  roleMatchConfidence: RoleMatchConfidence;
+}
+
 export async function performLogin(
   page:  Page,
   creds: NonNullable<RecordingConfig['credentials']>,
-): Promise<void> {
+): Promise<LoginResult> {
   if (creds.loginType === 2) {
-    await performQuickAccessLogin(page, creds.quickAccessIndex ?? 0, creds.quickAccessRoleName);
-    return;
+    const { matchedRole } = await performQuickAccessLogin(page, creds.quickAccessIndex ?? 0, creds.quickAccessRoleName);
+    return { roleMatchConfidence: creds.quickAccessRoleName ? (matchedRole ? 'matched' : 'fallback-default-card') : 'not-applicable' };
   }
 
   const {
@@ -79,13 +89,15 @@ export async function performLogin(
     page.waitForSelector('input[type="password"]', {state: 'detached', timeout: 20000}),
     page.waitForURL((url) => !url.href.includes('login') && !url.href.includes('signin'), {timeout: 20000}),
   ]).catch(() => page.waitForTimeout(3000));
+
+  return { roleMatchConfidence: 'not-applicable' };
 }
 
 const LOGIN_PATH_HINTS = ['/login', '/signin', '/auth', '/account/login', '/user/login'];
 
-async function performQuickAccessLogin(page: Page, index: number, roleName?: string): Promise<void> {
+async function performQuickAccessLogin(page: Page, index: number, roleName?: string): Promise<{ matchedRole: boolean }> {
   // Try the current page first; if not found, walk common login sub-paths
-  let clicked = await clickQuickAccessOption(page, index, roleName);
+  let { clicked, matchedRole } = await clickQuickAccessOption(page, index, roleName);
 
   if (!clicked) {
     const origin = (() => { try { return new URL(page.url()).origin; } catch { return ''; } })();
@@ -93,7 +105,7 @@ async function performQuickAccessLogin(page: Page, index: number, roleName?: str
       try {
         await page.goto(`${origin}${loginPath}`, {waitUntil: 'domcontentloaded', timeout: 15000});
         await page.waitForTimeout(1000);
-        clicked = await clickQuickAccessOption(page, index, roleName);
+        ({ clicked, matchedRole } = await clickQuickAccessOption(page, index, roleName));
         if (clicked) break;
       } catch {
         // try next path
@@ -119,6 +131,8 @@ async function performQuickAccessLogin(page: Page, index: number, roleName?: str
     page.waitForSelector('input[type="password"]', {state: 'detached', timeout: 20000}),
     page.waitForURL((url) => !url.href.includes('login') && !url.href.includes('signin'), {timeout: 20000}),
   ]).catch(() => page.waitForTimeout(3000));
+
+  return { matchedRole };
 }
 
 // Matches the section label apps use above pre-filled login shortcuts —
@@ -248,13 +262,21 @@ export async function isQuickAccessScreenShowing(page: Page, roleName?: string):
   return label.isVisible({timeout: 1000}).catch(() => false);
 }
 
-async function clickQuickAccessOption(page: Page, index: number, roleName?: string): Promise<boolean> {
+async function clickQuickAccessOption(
+  page: Page, index: number, roleName?: string,
+): Promise<{ clicked: boolean; matchedRole: boolean }> {
   if (roleName) {
     const matchedByRole = await clickQuickAccessOptionByRole(page, roleName);
-    if (matchedByRole) return true;
+    if (matchedByRole) return { clicked: true, matchedRole: true };
     console.warn(`  ⚠ No Quick Access card matched role "${roleName}" — using default card index ${index}.`);
   }
+  const clicked = await clickQuickAccessOptionByIndex(page, index);
+  return { clicked, matchedRole: false };
+}
 
+/** Index-based fallback strategies — unchanged logic, extracted so clickQuickAccessOption
+ *  can wrap it with role-match tracking without touching any of these strategies. */
+async function clickQuickAccessOptionByIndex(page: Page, index: number): Promise<boolean> {
   // Strategy 1: known class / data-testid patterns (most-specific first)
   for (const sel of QUICK_ACCESS_KNOWN_SELECTORS) {
     const items = page.locator(sel);

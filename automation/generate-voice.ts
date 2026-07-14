@@ -72,11 +72,24 @@ function getArg(flag: string, fallback: string): string {
 }
 
 const SCRIPT_PATH = getArg('--script', path.join(OUT_DIR, 'voice-script.json'));
-const NARR_PATH   = path.join(OUT_DIR, 'voice-narration.mp3');
+// --video/--output let a caller point this at a non-Remotion-rendered source video
+// (e.g. Agent Recording's real continuous walkthrough footage, or an uploaded Manual
+// Recording) instead of the default demo-video.mp4 — the merge step itself (`-c:v copy`)
+// never cared which produced the input, so this is a pure additive parameterization.
+const OUTPUT_PATH = getArg('--output', path.join(OUT_DIR, 'demo-video-with-voice.mp4'));
+const VIDEO_PATH  = getArg('--video', path.join(OUT_DIR, 'demo-video.mp4'));
+// NARR_PATH lives alongside OUTPUT_PATH rather than always under the global OUT_DIR,
+// so a scoped output dir (e.g. out/<slug>/agent-recording/) keeps its narration mp3
+// next to it instead of leaking into the shared product-level out dir.
+const NARR_PATH   = path.join(path.dirname(OUTPUT_PATH), 'voice-narration.mp3');
 // SEG_DIR is resolved inside main() from script.voiceDir (set after the script is loaded)
-const VIDEO_PATH  = path.join(OUT_DIR, 'demo-video.mp4');
-const OUTPUT_PATH = path.join(OUT_DIR, 'demo-video-with-voice.mp4');
 const NO_MERGE    = process.argv.includes('--no-merge');
+// --no-sync skips syncTimingsToActualDurations() — meaningless against a source video
+// whose timestamps are already real wall-clock cut points (Agent/Manual Recording),
+// and risky if an unrelated demo-package.json for a different template happens to
+// exist for the same product (that function would otherwise try to resync ITS scenes
+// using these narration segment ids).
+const NO_SYNC     = process.argv.includes('--no-sync');
 
 // Background music config (read from .env)
 const MUSIC_VOLUME   = parseFloat(process.env['BACKGROUND_MUSIC_VOLUME']      ?? '0.08');
@@ -150,6 +163,146 @@ function getMp3DurationSec(filePath: string): number {
 }
 
 /**
+ * Teaser-specific variant of the sync below. Teaser's demo-package.json shape
+ * (teaserBroll[]/teaserFeatures[]/teaserOutro) differs from enterprise's
+ * (brollScenes[]/scenes[]/benefitSlide/presenterClose) — each teaser entry
+ * already carries its own explicit `id` (e.g. "broll-hook", "scene-login"), so
+ * entries are looked up directly by id instead of reconstructing an index-based
+ * `broll-${i}`/`scene-${i+1}` id the way the enterprise branch below does.
+ */
+function syncTeaserTimings(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pkg:        Record<string, any>,
+  script:     { segments: Array<{ id: string; startSec: number; durationSec: number; [k: string]: unknown }>; totalDurationSec?: number; [k: string]: unknown },
+  actualDur:  Record<string, number>,
+  fps:        number,
+  bufferSec:  number,
+  pkgPath:    string,
+  scriptPath: string,
+): void {
+  type Beat = { id: string; from: number; durationInFrames: number; [k: string]: unknown };
+  const broll:    Beat[] = Array.isArray(pkg.teaserBroll)    ? pkg.teaserBroll    : [];
+  const features: Beat[] = Array.isArray(pkg.teaserFeatures) ? pkg.teaserFeatures : [];
+  const outro:    Beat | undefined = pkg.teaserOutro;
+
+  // Chronological order = original `from` order across both arrays (broll cards
+  // are interleaved between feature clips, not simply appended after them).
+  const beats = [...broll, ...features].sort((a, b) => a.from - b.from);
+
+  let cursor = beats[0]?.from ?? 0;
+  for (const beat of beats) {
+    const dur = actualDur[beat.id];
+    beat.from = cursor;
+    if (dur) beat.durationInFrames = Math.ceil((dur + bufferSec) * fps);
+    cursor += beat.durationInFrames;
+  }
+
+  if (outro) {
+    const dur = actualDur['outro'];
+    outro.from = cursor;
+    if (dur) outro.durationInFrames = Math.ceil((dur + bufferSec) * fps);
+    cursor += outro.durationInFrames;
+  }
+
+  if (pkg.composition) pkg.composition.durationInFrames = cursor;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf-8');
+  console.log(`  ✓  demo-package.json updated (total: ${(cursor / fps).toFixed(1)}s)`);
+
+  const positionById = new Map<string, Beat>();
+  for (const b of beats) positionById.set(b.id, b);
+  if (outro) positionById.set('outro', outro);
+
+  for (const seg of script.segments) {
+    const pos = positionById.get(seg.id);
+    if (pos) {
+      seg.startSec    = parseFloat((pos.from / fps + 0.5).toFixed(3));
+      seg.durationSec = actualDur[seg.id] ?? seg.durationSec;
+    }
+  }
+
+  script.totalDurationSec = parseFloat((cursor / fps).toFixed(1));
+  fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2), 'utf-8');
+  console.log(`  ✓  voice-script.json startSec values updated`);
+}
+
+/**
+ * App-flow-specific variant of the sync below. Unlike teaser's two parallel
+ * arrays (teaserBroll[]/teaserFeatures[]), app_flow's demo-package.json has
+ * four sequential beats: a single appFlowIntro object, an appFlowTourStops[]
+ * array, an appFlowDetailDives[] array, and a single appFlowOutro object —
+ * all already in chronological order (no interleaving/sorting needed).
+ */
+function syncAppFlowTimings(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pkg:        Record<string, any>,
+  script:     { segments: Array<{ id: string; startSec: number; durationSec: number; [k: string]: unknown }>; totalDurationSec?: number; [k: string]: unknown },
+  actualDur:  Record<string, number>,
+  fps:        number,
+  bufferSec:  number,
+  pkgPath:    string,
+  scriptPath: string,
+): void {
+  type Beat = { id?: string; from: number; durationInFrames: number; [k: string]: unknown };
+
+  const intro:       Beat | undefined = pkg.appFlowIntro;
+  const tourStops:    Beat[] = Array.isArray(pkg.appFlowTourStops)   ? pkg.appFlowTourStops   : [];
+  const detailDives:  Beat[] = Array.isArray(pkg.appFlowDetailDives) ? pkg.appFlowDetailDives : [];
+  const outro:        Beat | undefined = pkg.appFlowOutro;
+
+  let cursor = intro?.from ?? 0;
+
+  if (intro) {
+    const dur = actualDur['app-flow-intro'];
+    intro.from = cursor;
+    if (dur) intro.durationInFrames = Math.ceil((dur + bufferSec) * fps);
+    cursor += intro.durationInFrames;
+  }
+
+  for (const stop of tourStops) {
+    const dur = actualDur[stop.id as string];
+    stop.from = cursor;
+    if (dur) stop.durationInFrames = Math.ceil((dur + bufferSec) * fps);
+    cursor += stop.durationInFrames;
+  }
+
+  for (const dive of detailDives) {
+    const dur = actualDur[dive.id as string];
+    dive.from = cursor;
+    if (dur) dive.durationInFrames = Math.ceil((dur + bufferSec) * fps);
+    cursor += dive.durationInFrames;
+  }
+
+  if (outro) {
+    const dur = actualDur['app-flow-outro'];
+    outro.from = cursor;
+    if (dur) outro.durationInFrames = Math.ceil((dur + bufferSec) * fps);
+    cursor += outro.durationInFrames;
+  }
+
+  if (pkg.composition) pkg.composition.durationInFrames = cursor;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf-8');
+  console.log(`  ✓  demo-package.json updated (total: ${(cursor / fps).toFixed(1)}s)`);
+
+  const positionById = new Map<string, Beat>();
+  if (intro) positionById.set('app-flow-intro', intro);
+  for (const s of tourStops)   positionById.set(s.id as string, s);
+  for (const d of detailDives) positionById.set(d.id as string, d);
+  if (outro) positionById.set('app-flow-outro', outro);
+
+  for (const seg of script.segments) {
+    const pos = positionById.get(seg.id);
+    if (pos) {
+      seg.startSec    = parseFloat((pos.from / fps + 0.5).toFixed(3));
+      seg.durationSec = actualDur[seg.id] ?? seg.durationSec;
+    }
+  }
+
+  script.totalDurationSec = parseFloat((cursor / fps).toFixed(1));
+  fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2), 'utf-8');
+  console.log(`  ✓  voice-script.json startSec values updated`);
+}
+
+/**
  * After TTS generation, measure each segment's actual MP3 duration and rebuild
  * the video timeline so screen scenes are exactly as long as their narration.
  * Writes updated timings back to demo-package.json and voice-script.json.
@@ -159,7 +312,7 @@ function syncTimingsToActualDurations(
   scriptPath: string,
 ): void {
   const pkgPath = path.join(OUT_DIR, 'demo-package.json');
-  if (!fs.existsSync(pkgPath)) return; // only enterprise pipeline has this
+  if (!fs.existsSync(pkgPath)) return; // only enterprise/teaser pipelines have this
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pkg    = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as any;
@@ -185,6 +338,25 @@ function syncTimingsToActualDurations(
   console.log('\n  ⏱  Syncing scene durations to actual MP3 lengths …');
 
   const BUFFER_SEC = 2.0; // breathing room after each voice segment ends
+
+  if (Array.isArray(pkg.teaserBroll) || Array.isArray(pkg.teaserFeatures)) {
+    // Teaser is a short, punchy "quick overview" cut — 2s of dead air after
+    // every single beat (8 beats × 2s ≈ 16s) makes a ~50s video feel sluggish.
+    // A tighter buffer keeps pacing snappy without clipping narration (the
+    // buffer only pads AFTER the measured MP3 duration, never trims it).
+    const TEASER_BUFFER_SEC = 0.8;
+    syncTeaserTimings(pkg, script, actualDur, fps, TEASER_BUFFER_SEC, pkgPath, scriptPath);
+    return;
+  }
+
+  if (pkg.appFlowIntro || Array.isArray(pkg.appFlowTourStops) || Array.isArray(pkg.appFlowDetailDives)) {
+    // A sitemap dive needs a beat for the camera/crossfade to settle before
+    // the next scene starts — tighter than enterprise's 2s, looser than
+    // teaser's 0.8s (which has no camera movement to wait out).
+    const APP_FLOW_BUFFER_SEC = 1.2;
+    syncAppFlowTimings(pkg, script, actualDur, fps, APP_FLOW_BUFFER_SEC, pkgPath, scriptPath);
+    return;
+  }
 
   // ── Rebuild brollScenes timeline ────────────────────────────────────────────
   let cursor = pkg.brollScenes?.[0]?.from ?? 0; // keep original start
@@ -640,10 +812,16 @@ async function main(): Promise<void> {
   );
 
   // Sync scene durations in demo-package.json + voice-script.json to actual MP3 lengths.
-  try {
-    syncTimingsToActualDurations(SEG_DIR, SCRIPT_PATH);
-  } catch (e) {
-    console.warn(`  ⚠️  Timing sync skipped: ${(e as Error).message}`);
+  // Skipped entirely under --no-sync (Agent/Manual Recording's scene timestamps are
+  // already real wall-clock cut points — there's no Remotion-rendered timeline to
+  // resync, and doing so risks rewriting an unrelated demo-package.json from a
+  // different template's prior run against the same product).
+  if (!NO_SYNC) {
+    try {
+      syncTimingsToActualDurations(SEG_DIR, SCRIPT_PATH);
+    } catch (e) {
+      console.warn(`  ⚠️  Timing sync skipped: ${(e as Error).message}`);
+    }
   }
 
   // Stamp voice-script.json so the Remotion composition knows audio is ready.

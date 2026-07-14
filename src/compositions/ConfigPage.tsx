@@ -190,7 +190,7 @@ const LIGHT_TOKENS = {
 export type ThemeTokens = typeof DARK_TOKENS;
 export const ThemeCtx = React.createContext(DARK_TOKENS);
 
-const API  = 'http://localhost:3001';
+const API  = 'http://localhost:4001';
 const MASK = '••••••••';
 const PW_KEYS = ['APP_PASSWORD', 'APP_PASSWORD_2'];
 
@@ -638,6 +638,53 @@ const EnterprisePreview = () => (
   </div>
 );
 
+const TeaserPreview = () => (
+  <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'linear-gradient(160deg,#0d1424 0%,#111a2e 55%,#0a0f1a 100%)' }}>
+    {/* Cinematic vignette */}
+    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 40%, rgba(10,147,211,0.16) 0%, transparent 65%)' }} />
+    {/* Play button */}
+    <div style={{ position: 'absolute', top: '38%', left: '50%', transform: 'translate(-50%,-50%)', width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 0, height: 0, marginLeft: 1.5, borderTop: '3.5px solid transparent', borderBottom: '3.5px solid transparent', borderLeft: '5.5px solid #fff' }} />
+    </div>
+    {/* Headline card, bottom-left — mirrors the teaser's B-roll hook layout */}
+    <div style={{ position: 'absolute', left: 8, bottom: 20, right: 30 }}>
+      <div style={{ fontSize: 6.5, fontWeight: 800, color: '#fff', lineHeight: 1.15, letterSpacing: '-0.2px' }}>Intelligence,<br/>Simplified</div>
+      <div style={{ width: 10, height: 1.5, borderRadius: 1, background: '#0a93d3', marginTop: 3 }} />
+    </div>
+    {/* Music waveform bar */}
+    <div style={{ position: 'absolute', left: 8, bottom: 8, display: 'flex', alignItems: 'flex-end', gap: 1, height: 7 }}>
+      {[3, 5, 4, 7, 3, 6, 4, 2, 5, 3, 6, 4].map((h, i) => (
+        <div key={i} style={{ width: 1.2, height: h, borderRadius: 1, background: 'rgba(255,255,255,0.4)', animation: `cc-bar-${(i % 3) + 1} ${1.6 + i * 0.08}s ease-in-out infinite` }} />
+      ))}
+    </div>
+    {/* Filmstrip progress dots, top */}
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, display: 'flex', gap: 1.5, padding: '0 6px' }}>
+      {[1, 1, 1, 0.3, 0.3].map((o, i) => (
+        <div key={i} style={{ flex: 1, height: '100%', background: `rgba(10,147,211,${o})` }} />
+      ))}
+    </div>
+  </div>
+);
+
+const AppFlowPreview = () => (
+  <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'linear-gradient(160deg,#0d1424 0%,#111a2e 55%,#0a0f1a 100%)' }}>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+      <line x1={50} y1={22} x2={22} y2={52} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
+      <line x1={50} y1={22} x2={50} y2={52} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
+      <line x1={50} y1={22} x2={78} y2={52} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
+      <line x1={22} y1={62} x2={22} y2={82} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
+    </svg>
+    {/* Root screen */}
+    <div style={{ position: 'absolute', left: '44%', top: '12%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(10,147,211,0.35)', border: '1px solid #0a93d3' }} />
+    {/* Depth-1 branches */}
+    <div style={{ position: 'absolute', left: '16%', top: '48%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(124,58,237,0.35)', border: '1px solid #7c3aed' }} />
+    <div style={{ position: 'absolute', left: '44%', top: '48%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(217,119,6,0.35)', border: '1px solid #d97706' }} />
+    <div style={{ position: 'absolute', left: '72%', top: '48%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(5,150,105,0.35)', border: '1px solid #059669' }} />
+    {/* Depth-2 sub-screen */}
+    <div style={{ position: 'absolute', left: '16%', top: '78%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(37,99,235,0.35)', border: '1px solid #2563eb' }} />
+  </div>
+);
+
 function TemplateCard({ title, badge, accent, active, onClick, previewEl }: {
   title: string; badge?: string; accent: string;
   active: boolean; onClick: () => void; previewEl: React.ReactNode;
@@ -779,6 +826,27 @@ export const ConfigPage: React.FC = () => {
   const [brollClips, setBrollClips]   = useState<Array<{ id: string; file: string; index: number; label: string; sizeMb: number; hasFrame: boolean }> | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
+  // ── Agent Recording (exhaustive, safe, all-roles) ────────────────────────────
+  const [arStatus, setArStatus]     = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
+  const [arLog, setArLog]           = useState<string[]>([]);
+  const [arNarrate, setArNarrate]   = useState(false);
+  const [arHasWalkthrough, setArHasWalkthrough] = useState(false);
+  const [arReport, setArReport]     = useState<{ rolesRun: string[]; pagesVisited: number; totalElementsEnumerated: number; totalClicked: number; totalFilled: number; totalSkipped: number } | null>(null);
+  const arSseRef = useRef<EventSource | null>(null);
+  const arLogRef = useRef<HTMLPreElement>(null);
+
+  // ── Manual Recording (upload → ingest → narrate → assemble) ─────────────────
+  const [mrUploadStatus, setMrUploadStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'error'>('idle');
+  const [mrUploadProgress, setMrUploadProgress] = useState(0);
+  const [mrUploadErr, setMrUploadErr] = useState<string | null>(null);
+  const [mrFileName, setMrFileName] = useState<string | null>(null);
+  const [mrStatus, setMrStatus]     = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
+  const [mrLog, setMrLog]           = useState<string[]>([]);
+  const [mrHasFinalVideo, setMrHasFinalVideo] = useState(false);
+  const mrSseRef = useRef<EventSource | null>(null);
+  const mrLogRef = useRef<HTMLPreElement>(null);
+  const mrFileInputRef = useRef<HTMLInputElement>(null);
+
   const logRef     = useRef<HTMLPreElement>(null);
   const esRef      = useRef<EventSource | null>(null);
   // Holds the full voice-script.json object so voice/model/speed settings are preserved on save
@@ -851,11 +919,29 @@ export const ConfigPage: React.FC = () => {
       })
       .catch(() => {});
 
-    return () => esRef.current?.close();
+    fetch(`${API}/api/agent-recording/status`).then(r => r.json())
+      .then((d: { status: string; hasWalkthrough: boolean; report: typeof arReport }) => {
+        setArHasWalkthrough(d.hasWalkthrough);
+        setArReport(d.report ?? null);
+        if (d.status === 'running') { setArStatus('running'); startArSSE(); }
+      })
+      .catch(() => {});
+
+    fetch(`${API}/api/manual-recording/status`).then(r => r.json())
+      .then((d: { status: string; hasUpload: boolean; uploadFile: string | null; hasFinalVideo: boolean }) => {
+        if (d.hasUpload) { setMrUploadStatus('uploaded'); setMrFileName(d.uploadFile); }
+        setMrHasFinalVideo(d.hasFinalVideo);
+        if (d.status === 'running') { setMrStatus('running'); startMrSSE(); }
+      })
+      .catch(() => {});
+
+    return () => { esRef.current?.close(); arSseRef.current?.close(); mrSseRef.current?.close(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
+  useEffect(() => { if (arLogRef.current) arLogRef.current.scrollTop = arLogRef.current.scrollHeight; }, [arLog]);
+  useEffect(() => { if (mrLogRef.current) mrLogRef.current.scrollTop = mrLogRef.current.scrollHeight; }, [mrLog]);
 
 
   // Navigate Remotion Studio to the correct video composition.
@@ -863,7 +949,7 @@ export const ConfigPage: React.FC = () => {
   // If already on the target composition, reload so calculateMetadata re-runs with the
   // fresh voice-script.json (voiceReady:true) written by the just-completed pipeline.
   const navigateToVideo = useCallback((tmpl: string) => {
-    const comp = tmpl === 'enterprise' ? 'EnterpriseVideo' : 'DemoVideo';
+    const comp = tmpl === 'enterprise' ? 'EnterpriseVideo' : tmpl === 'teaser' ? 'TeaserVideo' : tmpl === 'app_flow' ? 'AppFlowVideo' : 'DemoVideo';
     const target = `/compositions/${comp}`;
     try {
       const top = (window.top && window.top !== window) ? window.top : window;
@@ -1001,8 +1087,130 @@ export const ConfigPage: React.FC = () => {
     setLog(p => [...p, '⏹ Pipeline stopped by user.']);
   }, []);
 
+  // ── Agent Recording ──────────────────────────────────────────────────────────
+  const startArSSE = useCallback(() => {
+    arSseRef.current?.close();
+    const es = new EventSource(`${API}/api/agent-recording/stream`);
+    arSseRef.current = es;
+    es.onmessage = e => {
+      try {
+        const d = JSON.parse(e.data) as { type: string; line?: string; status?: string };
+        if (d.type === 'log' && d.line) setArLog(p => [...p.slice(-999), d.line!]);
+        else if (d.status) {
+          setArStatus(d.status as typeof arStatus);
+          if (d.type === 'done') {
+            es.close();
+            fetch(`${API}/api/agent-recording/status`).then(r => r.json())
+              .then((s: { hasWalkthrough: boolean; report: typeof arReport }) => {
+                setArHasWalkthrough(s.hasWalkthrough);
+                setArReport(s.report ?? null);
+              }).catch(() => {});
+          }
+        }
+      } catch {}
+    };
+    es.onerror = () => { es.close(); arSseRef.current = null; };
+  }, []);
+
+  const runAgentRecording = useCallback(async () => {
+    if (arStatus === 'running') return;
+    setArLog([]); setArStatus('running');
+    const r = await fetch(`${API}/api/agent-recording/run`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ narrate: arNarrate }),
+    }).catch(() => null);
+    if (!r) { setArStatus('failed'); return; }
+    const d = await r.json() as { started?: boolean; error?: string };
+    if (d.started) startArSSE();
+    else { setArStatus('failed'); setArLog(p => [...p, d.error ?? 'Failed to start.']); }
+  }, [arStatus, arNarrate, startArSSE]);
+
+  const stopAgentRecording = useCallback(async () => {
+    arSseRef.current?.close();
+    arSseRef.current = null;
+    await fetch(`${API}/api/agent-recording/stop`, { method: 'POST' }).catch(() => {});
+    setArStatus('failed');
+    setArLog(p => [...p, '⏹ Stopped by user.']);
+  }, []);
+
+  // ── Manual Recording ─────────────────────────────────────────────────────────
+  const startMrSSE = useCallback(() => {
+    mrSseRef.current?.close();
+    const es = new EventSource(`${API}/api/manual-recording/stream`);
+    mrSseRef.current = es;
+    es.onmessage = e => {
+      try {
+        const d = JSON.parse(e.data) as { type: string; line?: string; status?: string };
+        if (d.type === 'log' && d.line) setMrLog(p => [...p.slice(-999), d.line!]);
+        else if (d.status) {
+          setMrStatus(d.status as typeof mrStatus);
+          if (d.type === 'done') {
+            es.close();
+            fetch(`${API}/api/manual-recording/status`).then(r => r.json())
+              .then((s: { hasFinalVideo: boolean }) => setMrHasFinalVideo(s.hasFinalVideo)).catch(() => {});
+          }
+        }
+      } catch {}
+    };
+    es.onerror = () => { es.close(); mrSseRef.current = null; };
+  }, []);
+
+  const uploadRecording = useCallback((file: File) => {
+    setMrUploadStatus('uploading');
+    setMrUploadProgress(0);
+    setMrUploadErr(null);
+    const form = new FormData();
+    form.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) setMrUploadProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      try {
+        const resp = JSON.parse(xhr.responseText) as { uploaded?: boolean; error?: string };
+        if (xhr.status >= 200 && xhr.status < 300 && resp.uploaded) {
+          setMrUploadStatus('uploaded');
+          setMrFileName(file.name);
+        } else {
+          setMrUploadStatus('error');
+          setMrUploadErr(resp.error ?? `Upload failed (HTTP ${xhr.status})`);
+        }
+      } catch {
+        setMrUploadStatus('error');
+        setMrUploadErr(`Upload failed (HTTP ${xhr.status})`);
+      }
+    };
+    xhr.onerror = () => { setMrUploadStatus('error'); setMrUploadErr('Network error during upload'); };
+    xhr.open('POST', `${API}/api/manual-recording/upload`);
+    xhr.send(form);
+  }, []);
+
+  const processRecording = useCallback(async () => {
+    if (mrStatus === 'running') return;
+    setMrLog([]); setMrStatus('running');
+    const r = await fetch(`${API}/api/manual-recording/process`, { method: 'POST' }).catch(() => null);
+    if (!r) { setMrStatus('failed'); return; }
+    const d = await r.json() as { started?: boolean; error?: string };
+    if (d.started) startMrSSE();
+    else { setMrStatus('failed'); setMrLog(p => [...p, d.error ?? 'Failed to start.']); }
+  }, [mrStatus, startMrSSE]);
+
+  const stopManualRecording = useCallback(async () => {
+    mrSseRef.current?.close();
+    mrSseRef.current = null;
+    await fetch(`${API}/api/manual-recording/stop`, { method: 'POST' }).catch(() => {});
+    setMrStatus('failed');
+    setMrLog(p => [...p, '⏹ Stopped by user.']);
+  }, []);
+
   const loginType = get('LOGIN_TYPE', '1');
   const template  = get('VIDEO_TEMPLATE', 'modern_saas');
+  // Both Enterprise and Teaser record real screen clips via Playwright (as opposed
+  // to Modern SaaS's screenshot + synthetic-camera pipeline) and both generate
+  // voice narration — they share the Recording Mode / Force re-record UI and the
+  // Adjust Preview voice/broll editing panel. Only the Presenter Avatar toggle
+  // stays gated on `template === 'enterprise'` alone (Teaser has no presenter).
+  const isClipBased = template === 'enterprise' || template === 'teaser';
   const language  = get('APP_LANGUAGE', 'en');
   const running   = pStatus === 'running';
 
@@ -1078,7 +1286,7 @@ export const ConfigPage: React.FC = () => {
 
         <div style={{ flexShrink: 0 }}>
           <div style={{ fontSize: 14, fontWeight: C.type.h3.fontWeight, letterSpacing: C.type.h3.letterSpacing, background: 'linear-gradient(135deg,#e7ecf7,#a5b4fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.2 }}>Video Generator</div>
-          <div style={{ ...C.type.caption, color: C.hint, marginTop: 1 }}>ACL Digital COE · Config</div>
+          {/* <div style={{ ...C.type.caption, color: C.hint, marginTop: 1 }}>ACL Digital COE</div> */}
         </div>
 
         {/* Section progress rail — reflects real completion state, not a clickable wizard */}
@@ -1291,7 +1499,7 @@ export const ConfigPage: React.FC = () => {
                   },
                   {
                     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>,
-                    label: 'Template', value: template === 'enterprise' ? 'Enterprise' : 'Modern SaaS', accent: template === 'enterprise' ? C.purple : C.cyan, ok: true,
+                    label: 'Template', value: template === 'enterprise' ? 'Enterprise' : template === 'teaser' ? 'Teaser Video' : template === 'app_flow' ? 'App Flow Map' : 'Modern SaaS', accent: template === 'enterprise' ? C.purple : template === 'teaser' ? C.teal : template === 'app_flow' ? C.indigo : C.cyan, ok: true,
                   },
                   {
                     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
@@ -1328,9 +1536,11 @@ export const ConfigPage: React.FC = () => {
                 <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Template</span>
                 <span style={{ ...C.type.body, color: C.hint, marginLeft: 4 }}>Select the visual style for your generated video</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <TemplateCard title="Modern SaaS" badge="POPULAR" accent={C.cyan} active={template === 'modern_saas'} onClick={() => set('VIDEO_TEMPLATE', 'modern_saas')} previewEl={<ModernPreview />} />
                 <TemplateCard title="Enterprise" badge="PROFESSIONAL" accent={C.purple} active={template === 'enterprise'} onClick={() => set('VIDEO_TEMPLATE', 'enterprise')} previewEl={<EnterprisePreview />} />
+                <TemplateCard title="Teaser Video" badge="SHORT & PUNCHY" accent={C.teal} active={template === 'teaser'} onClick={() => set('VIDEO_TEMPLATE', 'teaser')} previewEl={<TeaserPreview />} />
+                <TemplateCard title="App Flow Map" badge="FULL SITEMAP" accent={C.indigo} active={template === 'app_flow'} onClick={() => set('VIDEO_TEMPLATE', 'app_flow')} previewEl={<AppFlowPreview />} />
               </div>
 
               {/* Language + Options row */}
@@ -1397,6 +1607,156 @@ export const ConfigPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* ── Exhaustive Recording — Agent Recording + Manual Recording ──
+                   Neither is a VIDEO_TEMPLATE: both produce a real video via
+                   Playwright/ffmpeg rather than a Remotion-rendered composition,
+                   so they live here as their own capability, not a 5th TemplateCard. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '18px 0 11px' }}>
+                <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.teal},${C.cyan})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.teal}50` }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Exhaustive Recording</span>
+                <span style={{ ...C.type.body, color: C.hint, marginLeft: 4 }}>Real, end-to-end app walkthroughs — independent of the Template above</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+                {/* ── Agent Recording card ── */}
+                <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '9px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}` }}>
+                    <div style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text }}>🤖 Agent Recording</div>
+                    <div style={{ ...C.type.caption, color: C.hint, marginTop: 2 }}>AI clicks every button &amp; fills every field, for every configured role — automatically. Destructive actions (delete, logout, pay, submit…) are always skipped.</div>
+                  </div>
+                  <div style={{ padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+                    <button type="button" onClick={() => setArNarrate(v => !v)} aria-pressed={arNarrate}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}>
+                      <div style={{ width: 34, height: 20, borderRadius: 10, position: 'relative', background: arNarrate ? C.teal : C.toggleOffBg, border: `1.5px solid ${arNarrate ? C.teal : C.toggleOffBdr}`, transition: 'background .2s', flexShrink: 0 }}>
+                        <div style={{ position: 'absolute', top: 2, left: arNarrate ? 15 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                      </div>
+                      <span style={{ ...C.type.fieldLabel, color: arNarrate ? C.text : C.sub }}>Generate narration too</span>
+                    </button>
+
+                    <button type="button" onClick={runAgentRecording} disabled={arStatus === 'running'}
+                      style={{
+                        height: 40, borderRadius: 9, border: 'none', cursor: arStatus === 'running' ? 'not-allowed' : 'pointer',
+                        background: arStatus === 'running' ? 'rgba(10,147,211,0.35)' : `linear-gradient(135deg,${C.teal},${C.cyan})`,
+                        color: '#fff', ...C.type.bodyLg, fontWeight: 700, fontFamily: C.font,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      }}>
+                      {arStatus === 'running'
+                        ? <><div style={{ width: 13, height: 13, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />Running…</>
+                        : <>▶ Run Agent Recording</>}
+                    </button>
+                    {arStatus === 'running' && (
+                      <button type="button" onClick={stopAgentRecording} style={{ height: 32, borderRadius: 8, border: '1.5px solid rgba(229,0,38,0.45)', background: 'rgba(229,0,38,0.08)', color: '#ff7070', ...C.type.fieldLabel, fontWeight: 700, fontFamily: C.font, cursor: 'pointer' }}>Stop</button>
+                    )}
+
+                    {(arLog.length > 0 || arStatus === 'running') && (
+                      <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                        <div style={{ padding: '5px 10px', background: C.logHeaderBg, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ ...C.type.label, color: C.hint }}>Output</span>
+                          {arStatus === 'running' && <span style={{ ...C.type.caption, color: C.yellow }}>● running</span>}
+                          {arStatus === 'success' && <span style={{ ...C.type.caption, color: C.green }}>✓ done</span>}
+                          {arStatus === 'failed' && <span style={{ ...C.type.caption, color: C.red }}>✗ failed</span>}
+                        </div>
+                        <pre ref={arLogRef} style={{ margin: 0, padding: '6px 10px', background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 90, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {arLog.length === 0 ? 'Initialising…' : arLog.join('\n')}
+                        </pre>
+                      </div>
+                    )}
+
+                    {arReport && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {[
+                          { l: 'roles', v: arReport.rolesRun.length },
+                          { l: 'pages', v: arReport.pagesVisited },
+                          { l: 'clicked', v: arReport.totalClicked },
+                          { l: 'filled', v: arReport.totalFilled },
+                          { l: 'skipped', v: arReport.totalSkipped },
+                        ].map(chip => (
+                          <div key={chip.l} style={{ background: C.gridItemBg, border: `1px solid ${C.gridItemBdr}`, borderRadius: 6, padding: '3px 8px', ...C.type.caption, color: C.sub }}>
+                            <span style={{ fontWeight: 800, color: C.text }}>{chip.v}</span> {chip.l}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {arHasWalkthrough && (
+                      <video controls src={`${API}/agent-recording-output/agent-walkthrough.mp4`} style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Manual Recording card ── */}
+                <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '9px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}` }}>
+                    <div style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text }}>🎥 Manual Recording</div>
+                    <div style={{ ...C.type.caption, color: C.hint, marginTop: 2 }}>Record your own 15+ minute walkthrough with any tool, upload it here — AI detects scenes, writes the narration, and assembles the final video.</div>
+                  </div>
+                  <div style={{ padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+                    <input ref={mrFileInputRef} type="file" accept="video/*" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadRecording(f); }} />
+
+                    {mrUploadStatus !== 'uploading' && (
+                      <button type="button" onClick={() => mrFileInputRef.current?.click()}
+                        style={{ height: 40, borderRadius: 9, border: `1.5px dashed ${C.inputBdr}`, background: C.input, color: C.sub, ...C.type.fieldLabel, fontFamily: C.font, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        {mrFileName ? `Replace "${mrFileName}"` : 'Choose video file to upload'}
+                      </button>
+                    )}
+
+                    {mrUploadStatus === 'uploading' && (
+                      <div>
+                        <div style={{ ...C.type.caption, color: C.sub, marginBottom: 4 }}>Uploading… {mrUploadProgress}%</div>
+                        <div style={{ height: 6, borderRadius: 3, background: C.trackBg, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${mrUploadProgress}%`, background: `linear-gradient(90deg,${C.teal},${C.cyan})`, borderRadius: 3, transition: 'width .15s' }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {mrUploadStatus === 'error' && (
+                      <div style={{ ...C.type.caption, color: '#ff7070' }}>✗ {mrUploadErr}</div>
+                    )}
+
+                    {mrUploadStatus === 'uploaded' && (
+                      <>
+                        <button type="button" onClick={processRecording} disabled={mrStatus === 'running'}
+                          style={{
+                            height: 40, borderRadius: 9, border: 'none', cursor: mrStatus === 'running' ? 'not-allowed' : 'pointer',
+                            background: mrStatus === 'running' ? 'rgba(10,147,211,0.35)' : `linear-gradient(135deg,${C.teal},${C.cyan})`,
+                            color: '#fff', ...C.type.bodyLg, fontWeight: 700, fontFamily: C.font,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          }}>
+                          {mrStatus === 'running'
+                            ? <><div style={{ width: 13, height: 13, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />Processing…</>
+                            : <>▶ Process Recording</>}
+                        </button>
+                        {mrStatus === 'running' && (
+                          <button type="button" onClick={stopManualRecording} style={{ height: 32, borderRadius: 8, border: '1.5px solid rgba(229,0,38,0.45)', background: 'rgba(229,0,38,0.08)', color: '#ff7070', ...C.type.fieldLabel, fontWeight: 700, fontFamily: C.font, cursor: 'pointer' }}>Stop</button>
+                        )}
+                      </>
+                    )}
+
+                    {(mrLog.length > 0 || mrStatus === 'running') && (
+                      <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                        <div style={{ padding: '5px 10px', background: C.logHeaderBg, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ ...C.type.label, color: C.hint }}>Output</span>
+                          {mrStatus === 'running' && <span style={{ ...C.type.caption, color: C.yellow }}>● running</span>}
+                          {mrStatus === 'success' && <span style={{ ...C.type.caption, color: C.green }}>✓ done</span>}
+                          {mrStatus === 'failed' && <span style={{ ...C.type.caption, color: C.red }}>✗ failed</span>}
+                        </div>
+                        <pre ref={mrLogRef} style={{ margin: 0, padding: '6px 10px', background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 90, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {mrLog.length === 0 ? 'Initialising…' : mrLog.join('\n')}
+                        </pre>
+                      </div>
+                    )}
+
+                    {mrHasFinalVideo && (
+                      <video controls src={`${API}/manual-recording-output/final-demo-video.mp4`} style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+                    )}
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </main>
@@ -1424,13 +1784,13 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: recStatus.hasRecordings ? 'rgba(34,197,94,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${recStatus.hasRecordings ? 'rgba(34,197,94,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 9, padding: '7px 11px' }}>
                   <span style={{ fontSize: 13 }}>{recStatus.hasRecordings ? '🎬' : '⚠️'}</span>
                   <div>
-                    <div style={{ ...C.type.fieldLabel, color: recStatus.hasRecordings ? C.green : C.yellow }}>{recStatus.hasRecordings ? `${recStatus.clipCount} clips · ${recStatus.hasVoiceScript ? 'voice ready' : 'no voice yet'}` : 'No recordings yet'}</div>
+                    <div style={{ ...C.type.fieldLabel, color: recStatus.hasRecordings ? C.green : C.yellow }}>{recStatus.hasRecordings ? `${recStatus.clipCount} clips${isClipBased ? ` · ${recStatus.hasVoiceScript ? 'voice ready' : 'no voice yet'}` : ''}` : 'No recordings yet'}</div>
                   </div>
                 </div>
               )}
 
               {/* Recording Mode selector */}
-              {template === 'enterprise' && (
+              {isClipBased && (
                 <div>
                   <div style={{ ...C.type.label, color: C.hint, marginBottom: 7 }}>Recording Mode</div>
                   <SegmentedControl
@@ -1494,12 +1854,12 @@ export const ConfigPage: React.FC = () => {
                 {running ? (
                   <>
                     <div style={{ width: 16, height: 16, border: '2.5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
-                    {template === 'enterprise' ? 'Recording & generating…' : 'Generating video…'}
+                    {isClipBased ? 'Recording & generating…' : 'Generating video…'}
                   </>
                 ) : (
                   <>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
-                    {template === 'enterprise'
+                    {isClipBased
                       ? (recordingMode === 'existing' && !forceRerecord ? 'Regenerate Preview' : 'Generate Preview')
                       : 'Render Video'}
                   </>
@@ -1523,9 +1883,9 @@ export const ConfigPage: React.FC = () => {
                 </button>
               )}
 
-              {template === 'enterprise' && !running && pStatus === 'idle' && (
+              {isClipBased && !running && pStatus === 'idle' && (
                 <div style={{ ...C.type.caption, color: C.hint, textAlign: 'center', marginTop: -4 }}>
-                  Recordings + voice generated. Use Render to export MP4.
+                  Recordings + voice + music generated. Use Render to export MP4.
                 </div>
               )}
 
@@ -1548,7 +1908,7 @@ export const ConfigPage: React.FC = () => {
               {(running || pStatus === 'success' || pStatus === 'failed') && (
                 <button type="button" onClick={() => navigateToVideo(template)} style={{ width: '100%', height: 38, borderRadius: 9, border: `1px solid ${C.border}`, background: C.btnGhostBg, cursor: 'pointer', color: C.text, ...C.type.fieldLabel, fontFamily: C.font, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
-                  Open {template === 'enterprise' ? 'EnterpriseVideo' : 'DemoVideo'} composition
+                  Open {template === 'enterprise' ? 'EnterpriseVideo' : template === 'teaser' ? 'TeaserVideo' : template === 'app_flow' ? 'AppFlowVideo' : 'DemoVideo'} composition
                 </button>
               )}
 
@@ -1557,8 +1917,8 @@ export const ConfigPage: React.FC = () => {
                 <div style={{ padding: '9px 12px', borderRadius: 9, background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: 9 }}>
                   <span style={{ fontSize: 16 }}>✓</span>
                   <div>
-                    <div style={{ ...C.type.fieldLabel, fontWeight: 700, color: C.green }}>{template === 'enterprise' ? 'Preview ready!' : 'Video generated!'}</div>
-                    <div style={{ ...C.type.caption, color: 'rgba(34,197,94,0.65)', marginTop: 1 }}>{template === 'enterprise' ? 'Opening EnterpriseVideo in Studio.' : 'Switching to DemoVideo.'}</div>
+                    <div style={{ ...C.type.fieldLabel, fontWeight: 700, color: C.green }}>{isClipBased ? 'Preview ready!' : 'Video generated!'}</div>
+                    <div style={{ ...C.type.caption, color: 'rgba(34,197,94,0.65)', marginTop: 1 }}>{template === 'enterprise' ? 'Opening EnterpriseVideo in Studio.' : template === 'teaser' ? 'Opening TeaserVideo in Studio.' : template === 'app_flow' ? 'Opening AppFlowVideo in Studio.' : 'Switching to DemoVideo.'}</div>
                   </div>
                 </div>
               )}
@@ -1573,7 +1933,7 @@ export const ConfigPage: React.FC = () => {
               )}
 
               {/* ── 05 Adjust Preview ── */}
-              {template === 'enterprise' && (pStatus === 'success' || (recStatus?.hasRecordings && recStatus?.hasVoiceScript)) ? (
+              {isClipBased && (pStatus === 'success' || (recStatus?.hasRecordings && recStatus?.hasVoiceScript)) ? (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, marginTop: 2 }}>
                     <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.violet},${C.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.violet}50` }}>
@@ -1657,7 +2017,7 @@ export const ConfigPage: React.FC = () => {
                                 </div>
                               </div>
                             ))}
-                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', ...C.type.fieldLabel, fontFamily: C.font, marginTop: 3 }}>
+                            <button type="button" onClick={() => navigateToVideo(template)} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', ...C.type.fieldLabel, fontFamily: C.font, marginTop: 3 }}>
                               Preview B-roll in Studio
                             </button>
                           </div>
@@ -1666,22 +2026,24 @@ export const ConfigPage: React.FC = () => {
 
                       {modTab === 'custom' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                          <FL label="Presenter Avatar" hint="Talking-head overlay in the Enterprise template">
-                            <div style={{ paddingTop: 6 }}><Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Presenter: On" offLabel="Presenter: Off" /></div>
-                          </FL>
+                          {template === 'enterprise' && (
+                            <FL label="Presenter Avatar" hint="Talking-head overlay in the Enterprise template">
+                              <div style={{ paddingTop: 6 }}><Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Presenter: On" offLabel="Presenter: Off" /></div>
+                            </FL>
+                          )}
                           <FL label="Screen Fit" hint="How app screen is framed">
                             <SelectBox value={get('SCREEN_FIT', 'full')} onChange={v => set('SCREEN_FIT', v)} options={[{ value: 'full', label: 'Full — edge-to-edge' }, { value: 'fit', label: 'Fit — inset' }]} />
                           </FL>
                           <div style={{ display: 'flex', gap: 7 }}>
                             <button type="button" onClick={save} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: C.btnGhostBg, color: C.text, ...C.type.fieldLabel, fontFamily: C.font }}>Save</button>
-                            <button type="button" onClick={() => navigateToVideo('enterprise')} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', ...C.type.fieldLabel, fontFamily: C.font }}>Preview</button>
+                            <button type="button" onClick={() => navigateToVideo(template)} style={{ padding: '7px 13px', borderRadius: 7, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg,${C.indigo},${C.violet})`, color: '#fff', ...C.type.fieldLabel, fontFamily: C.font }}>Preview</button>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
-              ) : template === 'enterprise' ? (
+              ) : isClipBased ? (
                 <div style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 11, padding: '16px 13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, boxShadow: C.cardShadow }}>
                   <span style={{ fontSize: 22 }}>🎬</span>
                   <div style={{ ...C.type.fieldLabel, color: C.sub, textAlign: 'center' }}>Run the pipeline to unlock voice & B-roll editing.</div>

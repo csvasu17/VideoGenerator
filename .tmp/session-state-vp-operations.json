@@ -1,0 +1,22 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://10.1.9.23:9024",
+      "localStorage": [
+        {
+          "name": "pulseai_user",
+          "value": "{\"id\":\"u3\",\"name\":\"Dr. Marcus Reid\",\"email\":\"vp@pulseai.com\",\"role\":\"vp_operations\",\"roleLabel\":\"VP Operations\",\"site\":\"All Sites\",\"avatar\":\"MR\"}"
+        },
+        {
+          "name": "theme",
+          "value": "dark"
+        },
+        {
+          "name": "pulseai_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ1MyIsInJvbGUiOiJ2cF9vcGVyYXRpb25zIiwic2l0ZSI6IkFsbCBTaXRlcyIsImlhdCI6MTc4NDAzNDU0NywiZXhwIjoxNzg0MDYzMzQ3fQ.waCGTtu2m3OgylhZWnw0w5ARC_Q4-mAXmjgl02ADSFM"
+        }
+      ]
+    }
+  ]
+}

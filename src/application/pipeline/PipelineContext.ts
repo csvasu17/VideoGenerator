@@ -78,8 +78,10 @@ export interface WorkflowOptions {
    *                 animated opening title, animated closing card. (default)
    * 'enterprise'  — B-roll problem opening, white product screens, static camera,
    *                 presenter overlay, animated benefit slide, presenter closing.
+   * 'teaser'      — short music-only sizzle reel; not run through this orchestrator
+   *                 (see automation/record-teaser-clips.ts), kept here for type parity.
    */
-  videoTemplate?: 'modern_saas' | 'enterprise';
+  videoTemplate?: 'modern_saas' | 'enterprise' | 'teaser';
   /**
    * BCP-47 locale code controlling the language of all generated content.
    * Supported: 'en' (default), 'fr', 'de', 'es', 'it', 'ja', 'pt'.
