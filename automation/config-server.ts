@@ -474,16 +474,26 @@ app.post('/api/run-pipeline', (req, res) => {
     try { writeEnvFile(values); } catch { /* best-effort */ }
   }
 
+  // "End to End" isn't a WorkflowOrchestrator pipeline — it's Agent Recording /
+  // Manual Recording, each triggered through their own dedicated endpoints
+  // (/api/agent-recording/run, /api/manual-recording/process). Reject explicitly
+  // rather than silently falling through to the e2e-test default script below —
+  // that exact silent-fallback shape is what made app_flow's leftover pipeline
+  // run unexpectedly when this template was selected.
+  const currentEnv = parseEnvValues();
+  const videoTemplate = currentEnv['VIDEO_TEMPLATE'] ?? 'modern_saas';
+  if (videoTemplate === 'end_to_end') {
+    res.status(400).json({ error: 'End to End has no single Render pipeline — use the Agent Recording / Manual Recording buttons below instead.' });
+    return;
+  }
+
   pipelineLog = [];
   pipelineStatus = 'running';
   broadcastSSE({ type: 'status', status: 'running' });
 
-  const currentEnv = parseEnvValues();
-  const videoTemplate = currentEnv['VIDEO_TEMPLATE'] ?? 'modern_saas';
   const pipelineScript =
     videoTemplate === 'enterprise' ? 'pipeline:enterprise' :
     videoTemplate === 'teaser'     ? 'pipeline:teaser' :
-    videoTemplate === 'app_flow'   ? 'pipeline:app_flow' :
     'e2e-test';
 
   console.log(`  Pipeline: ${pipelineScript}  (VIDEO_TEMPLATE=${videoTemplate}, forceRerecord=${forceRerecord ?? false})`);
@@ -502,6 +512,11 @@ app.post('/api/run-pipeline', (req, res) => {
   });
   pipelineProcess.stderr?.on('data', (chunk: Buffer) => {
     String(chunk).split('\n').filter(Boolean).forEach(pushLog);
+  });
+  // Without this, a spawn-level failure (e.g. shell/command not found) throws an
+  // unhandled 'error' event and surfaces as a silent, log-less 'failed' status.
+  pipelineProcess.on('error', (err: Error) => {
+    pushLog(`✗ Failed to launch pipeline process: ${err.message}`);
   });
 
   pipelineProcess.on('close', (code: number | null) => {
@@ -647,6 +662,9 @@ app.post('/api/manual-recording/process', (_req, res) => {
   mrProcess.stderr?.on('data', (chunk: Buffer) => {
     String(chunk).split('\n').filter(Boolean).forEach(pushMrLog);
   });
+  mrProcess.on('error', (err: Error) => {
+    pushMrLog(`✗ Failed to launch process: ${err.message}`);
+  });
   mrProcess.on('close', (code: number | null) => {
     mrStatus = code === 0 ? 'success' : 'failed';
     mrProcess = null;
@@ -743,6 +761,9 @@ app.post('/api/agent-recording/run', (req, res) => {
   });
   arProcess.stderr?.on('data', (chunk: Buffer) => {
     String(chunk).split('\n').filter(Boolean).forEach(pushArLog);
+  });
+  arProcess.on('error', (err: Error) => {
+    pushArLog(`✗ Failed to launch process: ${err.message}`);
   });
   arProcess.on('close', (code: number | null) => {
     arStatus = code === 0 ? 'success' : 'failed';

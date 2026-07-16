@@ -160,10 +160,9 @@ async function recordRole(
   // a route gated to a role this account doesn't have, silently redirected (client-side)
   // back to a default page. DiscoveredPage.url already reflects the POST-redirect
   // landing URL, so a simple final-URL dedup catches every case regardless of which
-  // route(s) fed into it (same fix already proven in record-appflow-map.ts's crawl —
-  // confirmed live against this exact app: without it, a role with no matching Quick
-  // Access card re-visits and re-interacts with its fallback landing page once per
-  // redirected route, wasting time and producing repetitive footage).
+  // route(s) fed into it (confirmed live against this exact app: without it, a role
+  // with no matching Quick Access card re-visits and re-interacts with its fallback
+  // landing page once per redirected route, wasting time and producing repetitive footage).
   const seenFinalUrls = new Set<string>();
   const pageResults: AgentPageResult[] = [];
   for (const dp of discovered) {

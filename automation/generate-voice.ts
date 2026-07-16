@@ -226,83 +226,6 @@ function syncTeaserTimings(
 }
 
 /**
- * App-flow-specific variant of the sync below. Unlike teaser's two parallel
- * arrays (teaserBroll[]/teaserFeatures[]), app_flow's demo-package.json has
- * four sequential beats: a single appFlowIntro object, an appFlowTourStops[]
- * array, an appFlowDetailDives[] array, and a single appFlowOutro object —
- * all already in chronological order (no interleaving/sorting needed).
- */
-function syncAppFlowTimings(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pkg:        Record<string, any>,
-  script:     { segments: Array<{ id: string; startSec: number; durationSec: number; [k: string]: unknown }>; totalDurationSec?: number; [k: string]: unknown },
-  actualDur:  Record<string, number>,
-  fps:        number,
-  bufferSec:  number,
-  pkgPath:    string,
-  scriptPath: string,
-): void {
-  type Beat = { id?: string; from: number; durationInFrames: number; [k: string]: unknown };
-
-  const intro:       Beat | undefined = pkg.appFlowIntro;
-  const tourStops:    Beat[] = Array.isArray(pkg.appFlowTourStops)   ? pkg.appFlowTourStops   : [];
-  const detailDives:  Beat[] = Array.isArray(pkg.appFlowDetailDives) ? pkg.appFlowDetailDives : [];
-  const outro:        Beat | undefined = pkg.appFlowOutro;
-
-  let cursor = intro?.from ?? 0;
-
-  if (intro) {
-    const dur = actualDur['app-flow-intro'];
-    intro.from = cursor;
-    if (dur) intro.durationInFrames = Math.ceil((dur + bufferSec) * fps);
-    cursor += intro.durationInFrames;
-  }
-
-  for (const stop of tourStops) {
-    const dur = actualDur[stop.id as string];
-    stop.from = cursor;
-    if (dur) stop.durationInFrames = Math.ceil((dur + bufferSec) * fps);
-    cursor += stop.durationInFrames;
-  }
-
-  for (const dive of detailDives) {
-    const dur = actualDur[dive.id as string];
-    dive.from = cursor;
-    if (dur) dive.durationInFrames = Math.ceil((dur + bufferSec) * fps);
-    cursor += dive.durationInFrames;
-  }
-
-  if (outro) {
-    const dur = actualDur['app-flow-outro'];
-    outro.from = cursor;
-    if (dur) outro.durationInFrames = Math.ceil((dur + bufferSec) * fps);
-    cursor += outro.durationInFrames;
-  }
-
-  if (pkg.composition) pkg.composition.durationInFrames = cursor;
-  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf-8');
-  console.log(`  ✓  demo-package.json updated (total: ${(cursor / fps).toFixed(1)}s)`);
-
-  const positionById = new Map<string, Beat>();
-  if (intro) positionById.set('app-flow-intro', intro);
-  for (const s of tourStops)   positionById.set(s.id as string, s);
-  for (const d of detailDives) positionById.set(d.id as string, d);
-  if (outro) positionById.set('app-flow-outro', outro);
-
-  for (const seg of script.segments) {
-    const pos = positionById.get(seg.id);
-    if (pos) {
-      seg.startSec    = parseFloat((pos.from / fps + 0.5).toFixed(3));
-      seg.durationSec = actualDur[seg.id] ?? seg.durationSec;
-    }
-  }
-
-  script.totalDurationSec = parseFloat((cursor / fps).toFixed(1));
-  fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2), 'utf-8');
-  console.log(`  ✓  voice-script.json startSec values updated`);
-}
-
-/**
  * After TTS generation, measure each segment's actual MP3 duration and rebuild
  * the video timeline so screen scenes are exactly as long as their narration.
  * Writes updated timings back to demo-package.json and voice-script.json.
@@ -346,15 +269,6 @@ function syncTimingsToActualDurations(
     // buffer only pads AFTER the measured MP3 duration, never trims it).
     const TEASER_BUFFER_SEC = 0.8;
     syncTeaserTimings(pkg, script, actualDur, fps, TEASER_BUFFER_SEC, pkgPath, scriptPath);
-    return;
-  }
-
-  if (pkg.appFlowIntro || Array.isArray(pkg.appFlowTourStops) || Array.isArray(pkg.appFlowDetailDives)) {
-    // A sitemap dive needs a beat for the camera/crossfade to settle before
-    // the next scene starts — tighter than enterprise's 2s, looser than
-    // teaser's 0.8s (which has no camera movement to wait out).
-    const APP_FLOW_BUFFER_SEC = 1.2;
-    syncAppFlowTimings(pkg, script, actualDur, fps, APP_FLOW_BUFFER_SEC, pkgPath, scriptPath);
     return;
   }
 
@@ -777,13 +691,26 @@ async function main(): Promise<void> {
   const filterLines: string[] = [];
   const mixLabels:   string[] = ['[0:a]'];
 
+  // Segment N's nominal startSec (a real scene-cut timestamp for Agent/Manual
+  // Recording, or an estimated slot for Remotion-driven templates) has no
+  // guaranteed relationship to how long its OWN synthesized speech actually runs.
+  // Positioning every segment strictly at its nominal startSec means a long
+  // narration can still be playing when the next segment's delay point arrives —
+  // both voices then sound simultaneously. `cursorMs` tracks the actual end of the
+  // previous segment's speech (+ a small breathing gap) and never lets a segment
+  // start earlier than that, guaranteeing segments never overlap.
+  const GAP_SEC = 0.3;
+  let cursorMs = 0;
   activeSegments.forEach((seg, i) => {
     const segFile = path.join(SEG_DIR, `${seg.id}.mp3`);
-    const delayMs = Math.round(seg.startSec * 1000);
+    const nominalMs = Math.round(seg.startSec * 1000);
+    const delayMs   = Math.max(nominalMs, cursorMs);
     const idx     = i + 1;
     mixArgs.push('-i', segFile);
     filterLines.push(`[${idx}:a]adelay=${delayMs}|${delayMs}[a${idx}]`);
     mixLabels.push(`[a${idx}]`);
+    const actualDurSec = getMp3DurationSec(segFile);
+    cursorMs = delayMs + Math.round((actualDurSec || 0) * 1000) + Math.round(GAP_SEC * 1000);
   });
 
   filterLines.push(

@@ -145,7 +145,7 @@ export interface RemotionMeta {
   journeyId:        string;
   storyboardId:     string;
   /** Present when the package was produced by a non-default template. */
-  templateId?:      'modern_saas' | 'enterprise' | 'teaser' | 'app_flow';
+  templateId?:      'modern_saas' | 'enterprise' | 'teaser';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -306,15 +306,6 @@ export interface RemotionPackage {
   teaserFeatures?: TeaserFeatureSceneData[];
   teaserOutro?:    TeaserOutroData;
   teaserMusic?:    TeaserMusicConfig;
-
-  // ── App Flow Map template fields (present only when meta.templateId === 'app_flow') ──
-  appFlowNodes?:      AppFlowNode[];
-  appFlowIntro?:      AppFlowIntroData;
-  appFlowTourStops?:  AppFlowTourStopData[];
-  appFlowDetailDives?: AppFlowDetailDiveData[];
-  appFlowOutro?:      AppFlowOutroData;
-  /** Reuses the teaser template's music config verbatim — same shape, same <Audio> mechanism. */
-  appFlowMusic?:      TeaserMusicConfig;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -380,131 +371,3 @@ export interface TeaserMusicConfig {
   fadeOutSec: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// App Flow Map template extensions
-// Present in demo-package.json only when meta.templateId === 'app_flow'.
-// All are optional so DemoVideo/EnterpriseVideo/TeaserVideo ignore them safely.
-//
-// This template maps the target app's screen tree (every screen, sub-screen)
-// plus each screen's individual data fields, as an animated diagram — not a
-// screen-recording montage. No edges[] array: every node already carries a
-// parentId + a baked (x,y,width,height) position, so the diagram canvas draws
-// parent→child connector lines itself from those two facts.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type AppFlowNodeType =
-  | 'entry'
-  | 'dashboard'
-  | 'list'
-  | 'detail'
-  | 'form'
-  | 'modal'
-  | 'settings'
-  | 'report'
-  | 'generic';
-
-/** Which DOM heuristic resolved a field's human-readable label, in confidence order. */
-export type AppFlowFieldLabelSource =
-  | 'label-for'
-  | 'label-wrap'
-  | 'aria-labelledby'
-  | 'aria-label'
-  | 'placeholder'
-  | 'adjacent-text'
-  | 'none';
-
-export interface AppFlowFieldOption {
-  value: string;
-  label: string;
-}
-
-/** One individual data field discovered on a form (input / select / textarea). */
-export interface AppFlowField {
-  name?:             string;
-  label:             string;
-  labelSource:       AppFlowFieldLabelSource;
-  fieldType:         'input' | 'select' | 'textarea';
-  inputType?:        string;
-  required?:         boolean;
-  /** Capped at 50 — see optionsTruncated. */
-  options?:          AppFlowFieldOption[];
-  optionsTruncated?: boolean;
-}
-
-export interface AppFlowFormGroup {
-  formLabel?: string;
-  fields:     AppFlowField[];
-}
-
-/** Column-level summary of a <table> — never carries actual row/cell values. */
-export interface AppFlowTable {
-  caption?:          string;
-  columns:           string[];
-  rowCountSampled:   number;
-  rowCountTruncated: boolean;
-}
-
-/** One screen (or sub-screen / modal) in the app's ecosystem tree. */
-export interface AppFlowNode {
-  id:               string;
-  /** From DiscoveredPage.parentPageId — the real "sub-screen of" signal (BFS discovery order, not URL shape). */
-  parentId?:        string;
-  url:               string;
-  label:             string;
-  nodeType:          AppFlowNodeType;
-  depth:             number;
-  /** Optional short AI-generated one-liner describing what this screen does. */
-  description?:      string;
-  screenshotPath:    string | null;
-  /** Authoritative field content, grouped by <form> (or one implicit group for form-less field clusters). */
-  forms:             AppFlowFormGroup[];
-  /** Authoritative table content — column headers + a sampled row count only. */
-  tables:            AppFlowTable[];
-  /**
-   * Flattened view baked by the pipeline script for simple field-list rendering —
-   * derived from forms[]/tables[], not separately authored.
-   */
-  fields:            { label: string; fieldType: 'input' | 'select' | 'textarea' | 'table-column' }[];
-  /** Baked layout — fractions 0-1 of a fixed virtual canvas, computed once by automation/utils/treeLayout.ts. */
-  x:                 number;
-  y:                 number;
-  width:             number;
-  height:            number;
-}
-
-/** Opening beat — full-map cascade reveal (nodes fade in by depth-level wave). */
-export interface AppFlowIntroData {
-  from:              number;
-  durationInFrames:  number;
-  productName:       string;
-}
-
-/** One guided-tour stop — camera frames a depth-1 branch node + all its descendants. */
-export interface AppFlowTourStopData {
-  id:                string;
-  from:              number;
-  durationInFrames:  number;
-  focusNodeId:       string;
-  /** focusNodeId + all its descendants — used for the union bounding box and the dim-rest-of-tree treatment. */
-  subtreeNodeIds:    string[];
-  caption?:          string;
-}
-
-/** One field-list "detail dive" — zooms into a single node and reveals its fields. */
-export interface AppFlowDetailDiveData {
-  id:                string;
-  from:              number;
-  durationInFrames:  number;
-  nodeId:            string;
-}
-
-/** Closing beat — pull back to the full map, show summary stats. */
-export interface AppFlowOutroData {
-  from:              number;
-  durationInFrames:  number;
-  productName:       string;
-  tagline?:          string;
-  screenCount:       number;
-  fieldCount:        number;
-  logoPath?:         string;
-}
