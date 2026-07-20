@@ -9,6 +9,7 @@ otherwise not informative, say so honestly via low confidence rather than
 guessing.
 
 {{PRODUCT_CONTEXT}}
+{{LANGUAGE_INSTRUCTION}}
 
 Output JSON only, no fences, no commentary:
 {"sceneTitle":"2-4 word screen title","narration":"one to two short sentences (max 30 words total) describing what this screen shows and does, written for a spoken voiceover","onScreenSummary":"one short phrase naming the key visible elements, for an internal review report only","confidence":"high or low — low if the frame is a loading state, transition, or otherwise unclear"}

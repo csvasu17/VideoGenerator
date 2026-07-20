@@ -116,17 +116,13 @@ function main(): void {
 
   const isEnterprise  = pkg?.meta?.templateId === 'enterprise';
   const isTeaser      = pkg?.meta?.templateId === 'teaser';
-  const isAppFlow     = pkg?.meta?.templateId === 'app_flow';
   // Teaser is short, but it plays several real screen-recording videos (not just
   // screenshots) back to back in one Chrome session — that's enough to exhaust
   // memory on a single continuous render even at concurrency=1. Chunking (render
   // in short segments, restart Chrome between them, concat with ffmpeg) is the
   // same fix Enterprise already uses for its much longer videos.
-  // app_flow only ever decodes ONE screenshot at a time (the active detail
-  // dive) — map/tour phases are plain color-coded boxes — so it doesn't need
-  // chunking, same as modern_saas.
   const isChunked     = isEnterprise || isTeaser;
-  const compositionId = isEnterprise ? 'EnterpriseVideo' : isTeaser ? 'TeaserVideo' : isAppFlow ? 'AppFlowVideo' : 'DemoVideo';
+  const compositionId = isEnterprise ? 'EnterpriseVideo' : isTeaser ? 'TeaserVideo' : 'DemoVideo';
   const outputVideo   = path.join(outputDir, 'demo-video.mp4');
 
   const { fps = 30, width = 1920, height = 1080, durationInFrames = 0 } = pkg.composition ?? {};
@@ -134,7 +130,7 @@ function main(): void {
   const SEP = '═'.repeat(63);
   console.log(`\n${SEP}`);
   console.log(`  🎬  Remotion Render  →  ${compositionId}`);
-  console.log(`      Template    : ${isEnterprise ? 'enterprise' : isTeaser ? 'teaser' : isAppFlow ? 'app_flow' : 'modern_saas'}`);
+  console.log(`      Template    : ${isEnterprise ? 'enterprise' : isTeaser ? 'teaser' : 'modern_saas'}`);
   console.log(`      Source      : ${INPUT_PATH}`);
   console.log(`      Output      : ${outputVideo}`);
   console.log(`      Config      : ${width}×${height} @ ${fps}fps  CRF=${CRF}  scale=${SCALE}`);
@@ -142,10 +138,6 @@ function main(): void {
   if (isTeaser) {
     console.log(`      Features    : ${pkg.teaserFeatures?.length ?? 0} feature clips`);
     console.log(`      B-roll      : ${pkg.teaserBroll?.length ?? 0} cards`);
-  } else if (isAppFlow) {
-    console.log(`      Screens     : ${pkg.appFlowNodes?.length ?? 0} mapped`);
-    console.log(`      Tour stops  : ${pkg.appFlowTourStops?.length ?? 0}`);
-    console.log(`      Detail dives: ${pkg.appFlowDetailDives?.length ?? 0}`);
   } else {
     console.log(`      Scenes      : ${pkg.scenes?.length ?? 0} product scenes`);
   }

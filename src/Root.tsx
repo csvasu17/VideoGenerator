@@ -8,12 +8,13 @@ import {EnterpriseVideo} from './compositions/EnterpriseVideo';
 import type {EnterpriseVideoProps} from './compositions/EnterpriseVideo';
 import {TeaserVideo} from './compositions/TeaserVideo';
 import type {TeaserVideoProps} from './compositions/TeaserVideo';
-import {AppFlowVideo} from './compositions/AppFlowVideo';
-import type {AppFlowVideoProps} from './compositions/AppFlowVideo';
 import {RoleTransitionCard} from './compositions/scenes/agent/RoleTransitionCard';
 import type {RoleTransitionCardProps} from './compositions/scenes/agent/RoleTransitionCard';
 import type {VoiceScript} from './core/domain/entities/RemotionPackage';
 import {ConfigPage} from './compositions/ConfigPage';
+import {RawVideoPlayback} from './compositions/RawVideoPlayback';
+import type {RawVideoPlaybackProps} from './compositions/RawVideoPlayback';
+import {getVideoMetadata} from '@remotion/media-utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fallback props — used when out/localhost/demo-package.json is absent.
@@ -26,6 +27,33 @@ import {ConfigPage} from './compositions/ConfigPage';
 // machine (fresh clone, CI cold-start, etc.). In all normal workflows the
 // calculateMetadata function below replaces it with the live pipeline output.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Shared by the AgentRecordingVideo / ManualRecordingVideo compositions below —
+// both just play back an already-assembled MP4 with no scene data of their
+// own, so duration/dimensions have to be read from the file itself (video
+// length varies per recording/upload, unlike the template-driven compositions
+// above which get their duration from demo-package.json).
+async function loadRawVideoMetadata(videoPath: string, emptyMessage: string, fps: number) {
+  try {
+    const meta = await getVideoMetadata(staticFile(videoPath));
+    return {
+      durationInFrames: Math.max(1, Math.round(meta.durationInSeconds * fps)),
+      width:  Math.round(meta.width)  || 1920,
+      height: Math.round(meta.height) || 1080,
+      props: { videoPath, emptyMessage: '' } as RawVideoPlaybackProps,
+    };
+  } catch {
+    // File doesn't exist yet (recording/upload never run on this machine) —
+    // degrade to a short placeholder card instead of crashing Studio/render.
+    return {
+      durationInFrames: 90,
+      width: 1920,
+      height: 1080,
+      props: { videoPath: '', emptyMessage } as RawVideoPlaybackProps,
+    };
+  }
+}
+
 const FALLBACK_PROPS: DemoVideoProps = {
   openingCard: {
     from:             0,
@@ -57,20 +85,22 @@ export const RemotionRoot: React.FC = () => (
       Requires the config API server: npm run config-ui (or npm run dev)
     */}
     {/*
-      Registered smaller than the component's internal 1280x800 layout —
-      ConfigPage renders that layout at full size into a fixed-size wrapper and
-      scales it down with a CSS transform (see ConfigPage.tsx render root), so
-      Remotion Studio's "100%" zoom has a real chance of fitting inside the
-      preview pane alongside the Compositions/Props side panels. "Fit" always
-      works regardless; this just makes 100% usable too on typical windows.
+      Registered at ConfigPage's actual native layout size (1280x800) — it used
+      to be registered smaller (960x600) with an internal CSS scale-down, so
+      "100%" zoom fit inside the preview pane alongside the side panels. That
+      mismatch between registered size and real rendered size is what Studio's
+      fullscreen mode rendered at native 1:1 pixel size, showing a small boxed
+      canvas instead of filling the screen. "Fit" zoom handles any registered
+      size correctly, so this only trades away 100%-zoom convenience on small
+      windows in exchange for correct fullscreen behavior.
     */}
     <Composition
       id="Config"
       component={ConfigPage}
       durationInFrames={1}
       fps={30}
-      width={960}
-      height={600}
+      width={1280}
+      height={800}
     />
 
     {/*
@@ -314,93 +344,6 @@ export const RemotionRoot: React.FC = () => (
     />
 
     {/*
-      ── AppFlowVideo ─────────────────────────────────────────────────────────
-      Full Application Flow template: animated sitemap of the target app's
-      entire screen tree (every screen, sub-screen) plus each screen's
-      individual data fields — intro cascade → guided branch tour → per-screen
-      field-list dives → outro stats card. Spoken narration over the beats
-      plus optional background music.
-      Data source: out/localhost/demo-package.json (meta.templateId === 'app_flow')
-      + voice-script.json.
-      Registered fifth — Studio shows DemoVideo by default.
-    */}
-    <Composition
-      id="AppFlowVideo"
-      component={AppFlowVideo}
-      durationInFrames={240}
-      fps={30}
-      width={1920}
-      height={1080}
-      defaultProps={{
-        appFlowNodes:       [],
-        appFlowIntro:       { from: 0, durationInFrames: 90, productName: 'Your Product' },
-        appFlowTourStops:   [],
-        appFlowDetailDives: [],
-        appFlowOutro:       { from: 90, durationInFrames: 150, productName: 'Your Product', screenCount: 0, fieldCount: 0 },
-      } as AppFlowVideoProps}
-      calculateMetadata={async () => {
-        try {
-          const response = await fetch(staticFile('demo-package.json'));
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const pkg = await response.json() as any;
-
-          if (pkg?.meta?.templateId !== 'app_flow') {
-            // demo-package.json was produced by a different template — skip.
-            throw new Error('demo-package.json is not an app_flow package');
-          }
-
-          // Normalise Windows backslash paths
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const appFlowNodes = (pkg.appFlowNodes ?? []).map((n: any) => ({
-            ...n,
-            screenshotPath: n.screenshotPath ? String(n.screenshotPath).replace(/\\/g, '/') : null,
-          }));
-
-          // Also load voice-script.json so audio plays in Studio preview
-          // and the script is editable via the Input Props panel.
-          // Cache-bust with timestamp so voice-ready flag is always fresh after pipeline runs.
-          let voiceScript: VoiceScript | undefined;
-          try {
-            const ts = Date.now();
-            const vsRes = await fetch(staticFile('voice-script.json') + '?t=' + ts);
-            if (vsRes.ok) {
-              voiceScript = await vsRes.json() as VoiceScript;
-              voiceScript.loadedAt = ts;
-            }
-          } catch { /* voice-script.json is optional */ }
-
-          const loaded: AppFlowVideoProps = {
-            appFlowNodes,
-            appFlowIntro:       pkg.appFlowIntro,
-            appFlowTourStops:   pkg.appFlowTourStops ?? [],
-            appFlowDetailDives: pkg.appFlowDetailDives ?? [],
-            appFlowOutro:       pkg.appFlowOutro,
-            appFlowMusic:       pkg.appFlowMusic,
-            voiceScript,
-          } as unknown as AppFlowVideoProps;
-
-          const durationInFrames =
-            loaded.appFlowOutro.from + loaded.appFlowOutro.durationInFrames;
-          return { props: loaded, durationInFrames };
-        } catch {
-          // Not an app_flow package or file missing — degrade to an 8-second stub.
-          const stub: AppFlowVideoProps = {
-            appFlowNodes:       [],
-            appFlowIntro:       { from: 0, durationInFrames: 90, productName: 'Your Product' },
-            appFlowTourStops:   [],
-            appFlowDetailDives: [],
-            appFlowOutro: {
-              from: 90, durationInFrames: 150, productName: 'Your Product',
-              screenCount: 0, fieldCount: 0, tagline: 'Run the pipeline with VIDEO_TEMPLATE=app_flow',
-            },
-          };
-          return { props: stub, durationInFrames: 240 };
-        }
-      }}
-    />
-
-    {/*
       ── RoleTransitionCard ─────────────────────────────────────────────────────
       Short title card rendered between each role's footage in the exhaustive
       Agent Recording walkthrough (automation/record-agent-exhaustive.ts).
@@ -434,6 +377,46 @@ export const RemotionRoot: React.FC = () => (
       width={rheemProject.width}
       height={rheemProject.height}
       defaultProps={{}}
+    />
+
+    {/*
+      ── AgentRecordingVideo ──────────────────────────────────────────────────
+      Plays back the Config UI's "Agent Recording" output as-is (no scenes of
+      our own) — out/<slug>/agent-recording/agent-walkthrough.mp4.
+    */}
+    <Composition
+      id="AgentRecordingVideo"
+      component={RawVideoPlayback}
+      durationInFrames={90}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{ videoPath: '', emptyMessage: 'Run Agent Recording once to see the walkthrough here.' } as RawVideoPlaybackProps}
+      calculateMetadata={() => loadRawVideoMetadata(
+        'agent-recording/agent-walkthrough.mp4',
+        'Run Agent Recording once to see the walkthrough here.',
+        30,
+      )}
+    />
+
+    {/*
+      ── ManualRecordingVideo ─────────────────────────────────────────────────
+      Plays back the Config UI's "Manual Recording" assembled output as-is —
+      out/<slug>/manual-recording/final-demo-video.mp4.
+    */}
+    <Composition
+      id="ManualRecordingVideo"
+      component={RawVideoPlayback}
+      durationInFrames={90}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{ videoPath: '', emptyMessage: 'Upload and process a Manual Recording once to see the result here.' } as RawVideoPlaybackProps}
+      calculateMetadata={() => loadRawVideoMetadata(
+        'manual-recording/final-demo-video.mp4',
+        'Upload and process a Manual Recording once to see the result here.',
+        30,
+      )}
     />
   </>
 );

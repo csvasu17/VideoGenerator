@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { ChatWidget } from './ChatWidget';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,7 +191,9 @@ const LIGHT_TOKENS = {
 export type ThemeTokens = typeof DARK_TOKENS;
 export const ThemeCtx = React.createContext(DARK_TOKENS);
 
-const API  = 'http://localhost:4001';
+// Use the hostname the page was loaded with (localhost or a LAN IP) so the
+// Config UI keeps working when Studio is opened from another device on the network.
+const API  = `http://${window.location.hostname}:4001`;
 const MASK = '••••••••';
 const PW_KEYS = ['APP_PASSWORD', 'APP_PASSWORD_2'];
 
@@ -433,6 +436,34 @@ function Toggle({ value, onChange, onLabel = 'Enabled', offLabel = 'Disabled' }:
   );
 }
 
+// Small living indicator next to the Presenter Avatar toggle — a plain switch label
+// doesn't convey "there's a talking-head overlay" the way a little animated avatar
+// does. Purely decorative (no click target of its own); the Toggle beside it is
+// still what actually flips SHOW_AVATAR.
+function PresenterAvatarBadge({ on }: { on: boolean }) {
+  const C = React.useContext(ThemeCtx);
+  return (
+    <div style={{ position: 'relative', width: 34, height: 34, flexShrink: 0 }}>
+      {on && (
+        <div className="cfg-anim-decorative" style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1.5px solid ${C.violet}`, animation: 'pulse-ring 1.8s ease-out infinite', opacity: 0.55, pointerEvents: 'none' }} />
+      )}
+      <div style={{
+        position: 'relative', width: 34, height: 34, borderRadius: '50%',
+        background: on ? `linear-gradient(135deg,${C.violet},${C.purple})` : C.toggleOffBg,
+        border: `1.5px solid ${on ? C.violet : C.toggleOffBdr}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: on ? `0 0 12px ${C.violet}60` : 'none',
+        transition: 'background .25s, border-color .25s, box-shadow .25s',
+      }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={on ? '#fff' : C.sub} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'stroke .25s' }}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 // 2-3 option picker (e.g. New/Existing Recording) — distinct from Toggle, which is
 // reserved for true boolean flags. Keeping these as two intentional patterns rather
 // than forcing one component to cover both.
@@ -666,22 +697,28 @@ const TeaserPreview = () => (
   </div>
 );
 
-const AppFlowPreview = () => (
+const EndToEndPreview = () => (
   <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'linear-gradient(160deg,#0d1424 0%,#111a2e 55%,#0a0f1a 100%)' }}>
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-      <line x1={50} y1={22} x2={22} y2={52} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
-      <line x1={50} y1={22} x2={50} y2={52} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
-      <line x1={50} y1={22} x2={78} y2={52} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
-      <line x1={22} y1={62} x2={22} y2={82} stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
-    </svg>
-    {/* Root screen */}
-    <div style={{ position: 'absolute', left: '44%', top: '12%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(10,147,211,0.35)', border: '1px solid #0a93d3' }} />
-    {/* Depth-1 branches */}
-    <div style={{ position: 'absolute', left: '16%', top: '48%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(124,58,237,0.35)', border: '1px solid #7c3aed' }} />
-    <div style={{ position: 'absolute', left: '44%', top: '48%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(217,119,6,0.35)', border: '1px solid #d97706' }} />
-    <div style={{ position: 'absolute', left: '72%', top: '48%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(5,150,105,0.35)', border: '1px solid #059669' }} />
-    {/* Depth-2 sub-screen */}
-    <div style={{ position: 'absolute', left: '16%', top: '78%', width: '12%', height: '14%', borderRadius: 3, background: 'rgba(37,99,235,0.35)', border: '1px solid #2563eb' }} />
+    {/* Browser chrome bar, evoking a real screen recording rather than a diagram */}
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 13, background: '#080d1a', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', padding: '0 5px', gap: 3 }}>
+      <div style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.25)' }} />
+      <div style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.25)' }} />
+      <div style={{ width: 3, height: 3, borderRadius: '50%', background: 'rgba(255,255,255,0.25)' }} />
+      <div style={{ flex: 1 }} />
+      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#e50026', boxShadow: '0 0 4px #e50026', animation: 'dot-pulse 1.2s ease-in-out infinite' }} />
+    </div>
+    {/* Faux app content being recorded */}
+    <div style={{ position: 'absolute', top: 13, left: 0, right: 0, bottom: 0, padding: '6px 6px 4px' }}>
+      <div style={{ display: 'flex', gap: 3, marginBottom: 4 }}>
+        {[1, 2, 3].map(i => (
+          <div key={i} style={{ flex: 1, height: 14, borderRadius: 2, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />
+        ))}
+      </div>
+      <div style={{ height: 34, borderRadius: 3, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', marginBottom: 4 }} />
+      <div style={{ height: 20, borderRadius: 3, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }} />
+    </div>
+    {/* Cursor, evoking real interaction (agent clicks / manual walkthrough) */}
+    <div style={{ position: 'absolute', left: '62%', top: '58%', width: 0, height: 0, borderLeft: '5px solid #fff', borderBottom: '4px solid transparent', borderTop: '3px solid transparent', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }} />
   </div>
 );
 
@@ -826,6 +863,11 @@ export const ConfigPage: React.FC = () => {
   const [brollClips, setBrollClips]   = useState<Array<{ id: string; file: string; index: number; label: string; sizeMb: number; hasFrame: boolean }> | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
+  // Which of the two End to End capture modes is shown — mutually exclusive,
+  // not simultaneous, since running/reviewing both at once cluttered the
+  // narrow Generate column and the two are independent alternatives anyway.
+  const [endToEndMode, setEndToEndMode] = useState<'agent' | 'manual'>('agent');
+
   // ── Agent Recording (exhaustive, safe, all-roles) ────────────────────────────
   const [arStatus, setArStatus]     = useState<'idle' | 'running' | 'success' | 'failed'>('idle');
   const [arLog, setArLog]           = useState<string[]>([]);
@@ -851,6 +893,52 @@ export const ConfigPage: React.FC = () => {
   const esRef      = useRef<EventSource | null>(null);
   // Holds the full voice-script.json object so voice/model/speed settings are preserved on save
   const voiceScriptRaw = useRef<Record<string, unknown> | null>(null);
+
+  // Remotion Studio's fullscreen mode renders this composition at its native
+  // registered pixel size (1280x800) rather than re-fitting it to the actual
+  // (much larger) screen — so without this, fullscreen shows a fixed-size box
+  // floating in a black canvas instead of filling the display. We can't fix
+  // Studio's own fullscreen logic, so we react to it ourselves: whenever the
+  // browser is in fullscreen (however it was triggered — Studio's own button
+  // included), scale this component's fixed 1280x800 layout up to fill
+  // whatever the real viewport is, preserving aspect ratio.
+  // isFullscreen additionally forces this component's own wrapper to
+  // position:fixed + 100vw/100vh — Studio's player container may not itself
+  // stretch to the real screen size during fullscreen, so relying on our
+  // wrapper's normal 100%-of-parent sizing isn't guaranteed to reach the
+  // actual viewport. position:fixed escapes that regardless of what the
+  // parent does.
+  const [fsScale, setFsScale] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const recompute = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      setFsScale(fs ? Math.min(window.innerWidth / 1280, window.innerHeight / 800) : 1);
+    };
+    recompute();
+    document.addEventListener('fullscreenchange', recompute);
+    window.addEventListener('resize', recompute);
+    return () => {
+      document.removeEventListener('fullscreenchange', recompute);
+      window.removeEventListener('resize', recompute);
+    };
+  }, []);
+
+  // Remotion Studio's OWN fullscreen button targets its own internal player
+  // wrapper, not the whole page — and browsers only paint content inside the
+  // fullscreened element's subtree, so our document.body portal above (needed
+  // to escape Remotion's CSS-transform zoom wrapper) ends up outside that
+  // subtree and invisible, while Remotion's now-emptied wrapper shows its own
+  // blank/checkerboard placeholder. Fullscreening documentElement instead
+  // keeps everything (including the portal target) inside the visible tree.
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, []);
 
   // voice-script.json has { voice, model, segments: [...] } — extract the segments array
   const extractSegments = (raw: unknown): Array<{ id: string; label: string; text: string }> => {
@@ -949,7 +1037,7 @@ export const ConfigPage: React.FC = () => {
   // If already on the target composition, reload so calculateMetadata re-runs with the
   // fresh voice-script.json (voiceReady:true) written by the just-completed pipeline.
   const navigateToVideo = useCallback((tmpl: string) => {
-    const comp = tmpl === 'enterprise' ? 'EnterpriseVideo' : tmpl === 'teaser' ? 'TeaserVideo' : tmpl === 'app_flow' ? 'AppFlowVideo' : 'DemoVideo';
+    const comp = tmpl === 'enterprise' ? 'EnterpriseVideo' : tmpl === 'teaser' ? 'TeaserVideo' : 'DemoVideo';
     const target = `/compositions/${comp}`;
     try {
       const top = (window.top && window.top !== window) ? window.top : window;
@@ -1242,15 +1330,18 @@ export const ConfigPage: React.FC = () => {
   ];
 
   // ── RENDER ──────────────────────────────────────────────────────────────────
-  // Composition is registered at 960x600 (Root.tsx) so Studio's "100%" zoom fits
-  // typical windows, but every pixel value below is still tuned for 1280x800 —
-  // render at that native size, then scale the whole thing down to fill the
-  // registered box. Internal layout math is completely unaffected.
-  return (
+  // Composition is registered at this component's native 1280x800 layout size
+  // (Root.tsx) — every pixel value below is tuned for exactly that size. The
+  // fsScale transform below only kicks in during fullscreen (see the effect
+  // above); at 1 it's a no-op and this renders at native size same as always.
+  const content = (
     <ThemeCtx.Provider value={C}>
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+    <div style={isFullscreen
+      ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', zIndex: 2147483647 }
+      : { width: '100%', height: '100%', overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    }>
     <div style={{
-      width: 1280, height: 800, transform: 'scale(0.75)', transformOrigin: 'top left',
+      width: 1280, height: 800, transform: `scale(${fsScale})`, transformOrigin: 'center center', flexShrink: 0,
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden', background: C.bg, fontFamily: C.font, color: C.text,
       position: 'relative',
@@ -1328,6 +1419,14 @@ export const ConfigPage: React.FC = () => {
             )}
           </button>
 
+          <button type="button" onClick={toggleFullscreen} title="Fullscreen (use this, not Studio's own player fullscreen button)" style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.pillBg, color: C.sub, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {isFullscreen ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+            )}
+          </button>
+
           <button type="button" onClick={save} style={{ padding: '5px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.border}`, color: C.sub, ...C.type.fieldLabel, fontFamily: C.font, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
             Save
@@ -1402,26 +1501,30 @@ export const ConfigPage: React.FC = () => {
                       </FL>
                     </Grid>
                   )}
-                  <SubRule label="Secondary User" optional />
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 7, padding: '6px 9px', marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, flexShrink: 0, lineHeight: 1.4 }}>⚠</span>
-                    <div style={{ ...C.type.caption, color: C.sub }}>
-                      <span style={{ fontWeight: 600, color: C.yellow }}>Security note:</span>{' '}
-                      Credentials stored in .env. Flag for team review — consider session-based auth for production use.
-                    </div>
-                  </div>
-                  <Grid>
-                    <FL label="Username">
-                      <InputField value={get('APP_USERNAME_2')} onChange={v => set('APP_USERNAME_2', v)} placeholder="user"
-                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-                      />
-                    </FL>
-                    <FL label="Password">
-                      <InputField value={get('APP_PASSWORD_2')} onChange={v => set('APP_PASSWORD_2', v)} placeholder={MASK} password
-                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
-                      />
-                    </FL>
-                  </Grid>
+                  {loginType === '1' && (
+                    <>
+                      <SubRule label="Secondary User" optional />
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 7, padding: '6px 9px', marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, flexShrink: 0, lineHeight: 1.4 }}>⚠</span>
+                        <div style={{ ...C.type.caption, color: C.sub }}>
+                          <span style={{ fontWeight: 600, color: C.yellow }}>Security note:</span>{' '}
+                          Credentials stored in .env. Flag for team review — consider session-based auth for production use.
+                        </div>
+                      </div>
+                      <Grid>
+                        <FL label="Username">
+                          <InputField value={get('APP_USERNAME_2')} onChange={v => set('APP_USERNAME_2', v)} placeholder="user"
+                            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+                          />
+                        </FL>
+                        <FL label="Password">
+                          <InputField value={get('APP_PASSWORD_2')} onChange={v => set('APP_PASSWORD_2', v)} placeholder={MASK} password
+                            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                          />
+                        </FL>
+                      </Grid>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1499,7 +1602,7 @@ export const ConfigPage: React.FC = () => {
                   },
                   {
                     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>,
-                    label: 'Template', value: template === 'enterprise' ? 'Enterprise' : template === 'teaser' ? 'Teaser Video' : template === 'app_flow' ? 'App Flow Map' : 'Modern SaaS', accent: template === 'enterprise' ? C.purple : template === 'teaser' ? C.teal : template === 'app_flow' ? C.indigo : C.cyan, ok: true,
+                    label: 'Template', value: template === 'enterprise' ? 'Enterprise' : template === 'teaser' ? 'Teaser Video' : template === 'end_to_end' ? 'End to End' : 'Modern SaaS', accent: template === 'enterprise' ? C.purple : template === 'teaser' ? C.teal : template === 'end_to_end' ? C.indigo : C.cyan, ok: true,
                   },
                   {
                     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
@@ -1539,8 +1642,8 @@ export const ConfigPage: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <TemplateCard title="Modern SaaS" badge="POPULAR" accent={C.cyan} active={template === 'modern_saas'} onClick={() => set('VIDEO_TEMPLATE', 'modern_saas')} previewEl={<ModernPreview />} />
                 <TemplateCard title="Enterprise" badge="PROFESSIONAL" accent={C.purple} active={template === 'enterprise'} onClick={() => set('VIDEO_TEMPLATE', 'enterprise')} previewEl={<EnterprisePreview />} />
-                <TemplateCard title="Teaser Video" badge="SHORT & PUNCHY" accent={C.teal} active={template === 'teaser'} onClick={() => set('VIDEO_TEMPLATE', 'teaser')} previewEl={<TeaserPreview />} />
-                <TemplateCard title="App Flow Map" badge="FULL SITEMAP" accent={C.indigo} active={template === 'app_flow'} onClick={() => set('VIDEO_TEMPLATE', 'app_flow')} previewEl={<AppFlowPreview />} />
+                <TemplateCard title="Teaser Video" badge="SHORT&PUNCHY" accent={C.teal} active={template === 'teaser'} onClick={() => set('VIDEO_TEMPLATE', 'teaser')} previewEl={<TeaserPreview />} />
+                <TemplateCard title="End to End" badge="FULL FLOW" accent={C.indigo} active={template === 'end_to_end'} onClick={() => set('VIDEO_TEMPLATE', 'end_to_end')} previewEl={<EndToEndPreview />} />
               </div>
 
               {/* Language + Options row */}
@@ -1582,7 +1685,8 @@ export const ConfigPage: React.FC = () => {
                   </FL>
                   {template === 'enterprise' && (
                     <FL label="Presenter Avatar" hint="Talking-head overlay in the Enterprise template">
-                      <div style={{ paddingTop: 6 }}>
+                      <div style={{ paddingTop: 6, display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <PresenterAvatarBadge on={get('SHOW_AVATAR', 'true') !== 'false'} />
                         <Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Presenter: On" offLabel="Presenter: Off" />
                       </div>
                     </FL>
@@ -1608,19 +1712,51 @@ export const ConfigPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── Exhaustive Recording — Agent Recording + Manual Recording ──
-                   Neither is a VIDEO_TEMPLATE: both produce a real video via
-                   Playwright/ffmpeg rather than a Remotion-rendered composition,
-                   so they live here as their own capability, not a 5th TemplateCard. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '18px 0 11px' }}>
-                <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.teal},${C.cyan})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.teal}50` }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                </div>
-                <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Exhaustive Recording</span>
-                <span style={{ ...C.type.body, color: C.hint, marginLeft: 4 }}>Real, end-to-end app walkthroughs — independent of the Template above</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            </>
+          )}
+        </main>
 
+        {/* ════════════════════════════════════════════════════════════════════
+            RIGHT COLUMN — 04 Generate + 05 Adjust Preview
+        ════════════════════════════════════════════════════════════════════ */}
+        <div style={{
+          overflowY: 'auto', borderLeft: `1px solid ${C.border}`,
+          padding: '16px 13px 40px', background: C.sidebarBg,
+          display: 'flex', flexDirection: 'column', gap: 11,
+        }}>
+          {!loading && (
+            <>
+              {/* 04 header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.indigo},${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.indigo}50` }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>
+                </div>
+                <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Generate</span>
+              </div>
+
+              {template === 'end_to_end' ? (
+                <>
+                {/* ── Exhaustive Recording — Agent Recording OR Manual Recording ──
+                     Neither runs through the WorkflowOrchestrator pipeline that the
+                     other three templates use: both produce a real video directly via
+                     Playwright/ffmpeg, driven by their own dedicated endpoints
+                     (/api/agent-recording/*, /api/manual-recording/*), not a Remotion-
+                     rendered composition. Mutually exclusive (endToEndMode), not shown
+                     together — the two are independent alternatives, and this column
+                     is only 350px, too narrow for both at once. */}
+                <div style={{ ...C.type.caption, color: C.hint, marginBottom: 2 }}>Real, end-to-end app walkthroughs — independent of the Template above.</div>
+
+                <SegmentedControl
+                  value={endToEndMode}
+                  onChange={v => setEndToEndMode(v as 'agent' | 'manual')}
+                  options={[
+                    { value: 'agent', accent: C.teal, label: <>🤖 Agent<br/>Recording</> },
+                    { value: 'manual', accent: C.cyan, label: <>🎥 Manual<br/>Recording</> },
+                  ]}
+                />
+
+                {endToEndMode === 'agent' && (
+                <>
                 {/* ── Agent Recording card ── */}
                 <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ padding: '9px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}` }}>
@@ -1651,16 +1787,16 @@ export const ConfigPage: React.FC = () => {
                       <button type="button" onClick={stopAgentRecording} style={{ height: 32, borderRadius: 8, border: '1.5px solid rgba(229,0,38,0.45)', background: 'rgba(229,0,38,0.08)', color: '#ff7070', ...C.type.fieldLabel, fontWeight: 700, fontFamily: C.font, cursor: 'pointer' }}>Stop</button>
                     )}
 
-                    {(arLog.length > 0 || arStatus === 'running') && (
-                      <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                    {(arLog.length > 0 || arStatus === 'running' || arStatus === 'failed') && (
+                      <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${arStatus === 'failed' ? 'rgba(229,0,38,0.4)' : C.border}` }}>
                         <div style={{ padding: '5px 10px', background: C.logHeaderBg, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ ...C.type.label, color: C.hint }}>Output</span>
                           {arStatus === 'running' && <span style={{ ...C.type.caption, color: C.yellow }}>● running</span>}
                           {arStatus === 'success' && <span style={{ ...C.type.caption, color: C.green }}>✓ done</span>}
                           {arStatus === 'failed' && <span style={{ ...C.type.caption, color: C.red }}>✗ failed</span>}
                         </div>
-                        <pre ref={arLogRef} style={{ margin: 0, padding: '6px 10px', background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 90, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                          {arLog.length === 0 ? 'Initialising…' : arLog.join('\n')}
+                        <pre ref={arLogRef} style={{ margin: 0, padding: '6px 10px', background: C.terminal, color: arStatus === 'failed' && arLog.length === 0 ? '#ff7070' : '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 90, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {arLog.length > 0 ? arLog.join('\n') : arStatus === 'failed' ? 'Failed to start — no output was produced. Check that the config server terminal is running and try again.' : 'Initialising…'}
                         </pre>
                       </div>
                     )}
@@ -1682,11 +1818,15 @@ export const ConfigPage: React.FC = () => {
                     )}
 
                     {arHasWalkthrough && (
-                      <video controls src={`${API}/agent-recording-output/agent-walkthrough.mp4`} style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+                      <div style={{ ...C.type.caption, color: C.hint }}>✓ Walkthrough ready — open <strong style={{ color: C.text }}>AgentRecordingVideo</strong> in the sidebar to view it.</div>
                     )}
                   </div>
                 </div>
+                </>
+                )}
 
+                {endToEndMode === 'manual' && (
+                <>
                 {/* ── Manual Recording card ── */}
                 <div style={{ background: C.cardBg, backdropFilter: 'blur(18px)', border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', boxShadow: C.cardShadow, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ padding: '9px 12px', background: 'rgba(0,0,0,0.22)', borderBottom: `1px solid ${C.border}` }}>
@@ -1737,48 +1877,33 @@ export const ConfigPage: React.FC = () => {
                       </>
                     )}
 
-                    {(mrLog.length > 0 || mrStatus === 'running') && (
-                      <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                    {(mrLog.length > 0 || mrStatus === 'running' || mrStatus === 'failed') && (
+                      <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${mrStatus === 'failed' ? 'rgba(229,0,38,0.4)' : C.border}` }}>
                         <div style={{ padding: '5px 10px', background: C.logHeaderBg, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ ...C.type.label, color: C.hint }}>Output</span>
                           {mrStatus === 'running' && <span style={{ ...C.type.caption, color: C.yellow }}>● running</span>}
                           {mrStatus === 'success' && <span style={{ ...C.type.caption, color: C.green }}>✓ done</span>}
                           {mrStatus === 'failed' && <span style={{ ...C.type.caption, color: C.red }}>✗ failed</span>}
                         </div>
-                        <pre ref={mrLogRef} style={{ margin: 0, padding: '6px 10px', background: C.terminal, color: '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 90, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                          {mrLog.length === 0 ? 'Initialising…' : mrLog.join('\n')}
+                        <pre ref={mrLogRef} style={{ margin: 0, padding: '6px 10px', background: C.terminal, color: mrStatus === 'failed' && mrLog.length === 0 ? '#ff7070' : '#5dba7d', fontSize: 10, fontFamily: C.mono, lineHeight: 1.6, maxHeight: 90, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                          {mrLog.length > 0 ? mrLog.join('\n') : mrStatus === 'failed' ? 'Failed to start — no output was produced. Check that the config server terminal is running and try again.' : 'Initialising…'}
                         </pre>
                       </div>
                     )}
 
                     {mrHasFinalVideo && (
-                      <video controls src={`${API}/manual-recording-output/final-demo-video.mp4`} style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+                      <div style={{ ...C.type.caption, color: C.hint }}>✓ Final video ready — open <strong style={{ color: C.text }}>ManualRecordingVideo</strong> in the sidebar to view it.</div>
                     )}
                   </div>
                 </div>
-              </div>
-            </>
-          )}
-        </main>
-
-        {/* ════════════════════════════════════════════════════════════════════
-            RIGHT COLUMN — 04 Generate + 05 Adjust Preview
-        ════════════════════════════════════════════════════════════════════ */}
-        <div style={{
-          overflowY: 'auto', borderLeft: `1px solid ${C.border}`,
-          padding: '16px 13px 40px', background: C.sidebarBg,
-          display: 'flex', flexDirection: 'column', gap: 11,
-        }}>
-          {!loading && (
-            <>
-              {/* 04 header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg,${C.indigo},${C.violet})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: `0 3px 10px ${C.indigo}50` }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>
-                </div>
-                <span style={{ ...C.type.bodyLg, fontWeight: 700, color: C.text, letterSpacing: '-0.2px' }}>Generate</span>
-              </div>
-
+                </>
+                )}
+                </>
+              ) : (
+              <>
+              {/* Sticky wrapper — keeps the primary action reachable without scrolling
+                   back up once "Adjust Preview" (Voice/B-Roll tabs) grows tall below it. */}
+              <div style={{ position: 'sticky', top: 0, zIndex: 2, background: C.sidebarBg, display: 'flex', flexDirection: 'column', gap: 11, paddingBottom: 9 }}>
               {/* Recording status */}
               {recStatus && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: recStatus.hasRecordings ? 'rgba(34,197,94,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${recStatus.hasRecordings ? 'rgba(34,197,94,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 9, padding: '7px 11px' }}>
@@ -1882,6 +2007,7 @@ export const ConfigPage: React.FC = () => {
                   Stop
                 </button>
               )}
+              </div>
 
               {isClipBased && !running && pStatus === 'idle' && (
                 <div style={{ ...C.type.caption, color: C.hint, textAlign: 'center', marginTop: -4 }}>
@@ -1908,7 +2034,7 @@ export const ConfigPage: React.FC = () => {
               {(running || pStatus === 'success' || pStatus === 'failed') && (
                 <button type="button" onClick={() => navigateToVideo(template)} style={{ width: '100%', height: 38, borderRadius: 9, border: `1px solid ${C.border}`, background: C.btnGhostBg, cursor: 'pointer', color: C.text, ...C.type.fieldLabel, fontFamily: C.font, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5,3 19,12 5,21"/></svg>
-                  Open {template === 'enterprise' ? 'EnterpriseVideo' : template === 'teaser' ? 'TeaserVideo' : template === 'app_flow' ? 'AppFlowVideo' : 'DemoVideo'} composition
+                  Open {template === 'enterprise' ? 'EnterpriseVideo' : template === 'teaser' ? 'TeaserVideo' : 'DemoVideo'} composition
                 </button>
               )}
 
@@ -1918,7 +2044,7 @@ export const ConfigPage: React.FC = () => {
                   <span style={{ fontSize: 16 }}>✓</span>
                   <div>
                     <div style={{ ...C.type.fieldLabel, fontWeight: 700, color: C.green }}>{isClipBased ? 'Preview ready!' : 'Video generated!'}</div>
-                    <div style={{ ...C.type.caption, color: 'rgba(34,197,94,0.65)', marginTop: 1 }}>{template === 'enterprise' ? 'Opening EnterpriseVideo in Studio.' : template === 'teaser' ? 'Opening TeaserVideo in Studio.' : template === 'app_flow' ? 'Opening AppFlowVideo in Studio.' : 'Switching to DemoVideo.'}</div>
+                    <div style={{ ...C.type.caption, color: 'rgba(34,197,94,0.65)', marginTop: 1 }}>{template === 'enterprise' ? 'Opening EnterpriseVideo in Studio.' : template === 'teaser' ? 'Opening TeaserVideo in Studio.' : 'Switching to DemoVideo.'}</div>
                   </div>
                 </div>
               )}
@@ -1930,6 +2056,8 @@ export const ConfigPage: React.FC = () => {
                     <div style={{ ...C.type.caption, color: 'rgba(255,120,120,0.65)', marginTop: 1 }}>Check output above. Composition still openable.</div>
                   </div>
                 </div>
+              )}
+              </>
               )}
 
               {/* ── 05 Adjust Preview ── */}
@@ -2028,7 +2156,10 @@ export const ConfigPage: React.FC = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
                           {template === 'enterprise' && (
                             <FL label="Presenter Avatar" hint="Talking-head overlay in the Enterprise template">
-                              <div style={{ paddingTop: 6 }}><Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Presenter: On" offLabel="Presenter: Off" /></div>
+                              <div style={{ paddingTop: 6, display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <PresenterAvatarBadge on={get('SHOW_AVATAR', 'true') !== 'false'} />
+                                <Toggle value={get('SHOW_AVATAR', 'true')} onChange={v => set('SHOW_AVATAR', v)} onLabel="Presenter: On" offLabel="Presenter: Off" />
+                              </div>
                             </FL>
                           )}
                           <FL label="Screen Fit" hint="How app screen is framed">
@@ -2078,4 +2209,12 @@ export const ConfigPage: React.FC = () => {
     </div>
     </ThemeCtx.Provider>
   );
+
+  // Fullscreen only: portal into document.body — Remotion Studio's zoom/fit
+  // implementation wraps the preview in a CSS `transform`, and any ancestor
+  // transform silently traps `position: fixed` inside its own box instead of
+  // the real viewport (same root cause ChatWidget's own portal works around).
+  // Portaling to document.body escapes that container entirely so `position:
+  // fixed` above actually reaches the true screen during fullscreen.
+  return isFullscreen ? ReactDOM.createPortal(content, document.body) : content;
 };

@@ -72,6 +72,30 @@ function findFfmpegBin(): string {
   throw new Error('Could not find Remotion bundled ffmpeg. Run `npm install` then try again.');
 }
 
+// Remotion's bundled ffmpeg is a minimal build with `crop` compiled out (see the
+// normalize() comment below), so cropping a browser/OS chrome border out of a raw
+// upload needs a full ffmpeg build. Not bundled with this repo — genuinely optional,
+// so this only activates when MANUAL_REC_CROP_TOP_PX is set AND a full build happens
+// to be discoverable on the host machine; otherwise cropping is skipped with a warning.
+let _cropFfmpegBin: string | null | undefined;
+function findCropCapableFfmpegBin(): string | null {
+  if (_cropFfmpegBin !== undefined) return _cropFfmpegBin;
+  const candidates = [
+    process.env['FFMPEG_PATH'],
+    'ffmpeg',
+    'C:/ffmpeg/bin/ffmpeg.exe',
+    'C:/Program Files/ffmpeg/bin/ffmpeg.exe',
+  ].filter(Boolean) as string[];
+  for (const cmd of candidates) {
+    try {
+      const out = execSync(`"${cmd}" -filters`, { encoding: 'utf-8', timeout: 8000 });
+      if (/^\s*\S*\s+crop\s/m.test(out)) { _cropFfmpegBin = cmd; return cmd; }
+    } catch { /* try next candidate */ }
+  }
+  _cropFfmpegBin = null;
+  return null;
+}
+
 function findRawUpload(): string {
   if (!fs.existsSync(MR_DIR)) {
     throw new Error(`No manual-recording directory found at ${MR_DIR} — upload a recording first.`);
@@ -86,19 +110,51 @@ function findRawUpload(): string {
 // ─── Step 0: normalize (resolution/fps/codec) ──────────────────────────────────
 
 function normalize(rawPath: string): void {
-  const ffmpeg = findFfmpegBin();
+  let ffmpeg = findFfmpegBin();
   console.log('  🎬  Normalizing uploaded video (resolution/fps/codec)…');
+
+  // Optional: crop out a fixed top strip (e.g. the browser tab/address bar, or an
+  // OS title bar) before scaling — common when the raw upload is a whole-window
+  // capture rather than a browser extension that captures only the page content.
+  // Pixel count is app/tool-specific, so it's operator-configured per product
+  // (JSON-in-env-var convention), not auto-detected.
+  const cropTopPx = parseInt(process.env['MANUAL_REC_CROP_TOP_PX'] ?? '0', 10) || 0;
+  let videoFilter = 'scale=1920:1080';
+  if (cropTopPx > 0) {
+    const cropFfmpeg = findCropCapableFfmpegBin();
+    if (cropFfmpeg) {
+      ffmpeg = cropFfmpeg;
+      videoFilter = `crop=iw:ih-${cropTopPx}:0:${cropTopPx},scale=1920:1080`;
+      console.log(`     Cropping top ${cropTopPx}px (chrome/title bar) using ${cropFfmpeg}`);
+    } else {
+      console.warn(`  ⚠️  MANUAL_REC_CROP_TOP_PX=${cropTopPx} set, but no full ffmpeg build with the 'crop' filter was found on this machine (Remotion's bundled ffmpeg doesn't include it). Skipping crop.`);
+    }
+  }
+
   // Remotion's bundled ffmpeg is a minimal build (--disable-filters plus a curated
-  // --enable-filter allowlist) that does NOT include `pad` or `fps` — only `scale`
-  // survives for video. So this can't letterbox non-16:9 sources the usual way;
-  // it stretches to exactly 1920x1080 instead, which is the one approach that
-  // always succeeds and guarantees the exact canvas size the concat filter (in
-  // assembleFinalVideo) requires from every input. Frame rate is normalized via
-  // `-r` as an output option (a muxer-level frame duplication/drop, not a filter),
-  // which works regardless of which filters this ffmpeg build has enabled.
+  // --enable-filter allowlist) that does NOT include `pad`, `fps`, or `setsar` —
+  // only `scale` survives for video. So this can't letterbox non-16:9 sources the
+  // usual way; it stretches to exactly 1920x1080 instead, which is the one approach
+  // that always succeeds and guarantees the exact canvas size the concat filter (in
+  // assembleFinalVideo) requires from every input. Frame rate is normalized via `-r`
+  // as an output option (a muxer-level frame duplication/drop, not a filter), which
+  // works regardless of which filters this ffmpeg build has enabled.
+  //
+  // Real screen-capture tools (e.g. Xbox/Windows Game Bar) can embed a non-square
+  // pixel aspect ratio (SAR) in the source container. `scale` alone carries that
+  // through rather than resetting it to 1:1, and without `setsar` there's no video
+  // filter to force it back — but the concat filter later requires an EXACT SAR
+  // match between this footage and the always-1:1 Remotion-rendered bookends, or it
+  // fails outright ("Input link parameters do not match"). `-bsf:v
+  // h264_metadata=sample_aspect_ratio=1/1` looked like the fix (rewrites the H.264
+  // SPS directly) but empirically did NOT change what ffmpeg's demuxer reports back
+  // on re-read — MP4's container-level pasp/track-header aspect apparently wins over
+  // the bitstream SPS here. `-aspect 1920:1080` (a plain muxer output option, not a
+  // filter) sets that container-level aspect directly and was verified (via an
+  // isolated concat test) to actually fix it.
   execSync(
     `"${ffmpeg}" -y -i "${rawPath}" ` +
-    `-vf "scale=1920:1080" -r ${FPS} ` +
+    `-vf "${videoFilter}" -r ${FPS} -aspect 1920:1080 ` +
     `-c:v libx264 -crf 18 -c:a aac -ar 44100 -ac 2 -b:a 192k "${NORMALIZED_PATH}"`,
     { stdio: 'inherit' },
   );
