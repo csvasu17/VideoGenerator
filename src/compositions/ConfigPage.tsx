@@ -191,7 +191,9 @@ const LIGHT_TOKENS = {
 export type ThemeTokens = typeof DARK_TOKENS;
 export const ThemeCtx = React.createContext(DARK_TOKENS);
 
-const API  = 'http://localhost:4001';
+// Use the hostname the page was loaded with (localhost or a LAN IP) so the
+// Config UI keeps working when Studio is opened from another device on the network.
+const API  = `http://${window.location.hostname}:4001`;
 const MASK = '••••••••';
 const PW_KEYS = ['APP_PASSWORD', 'APP_PASSWORD_2'];
 
@@ -1640,8 +1642,8 @@ export const ConfigPage: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <TemplateCard title="Modern SaaS" badge="POPULAR" accent={C.cyan} active={template === 'modern_saas'} onClick={() => set('VIDEO_TEMPLATE', 'modern_saas')} previewEl={<ModernPreview />} />
                 <TemplateCard title="Enterprise" badge="PROFESSIONAL" accent={C.purple} active={template === 'enterprise'} onClick={() => set('VIDEO_TEMPLATE', 'enterprise')} previewEl={<EnterprisePreview />} />
-                <TemplateCard title="Teaser Video" badge="SHORT & PUNCHY" accent={C.teal} active={template === 'teaser'} onClick={() => set('VIDEO_TEMPLATE', 'teaser')} previewEl={<TeaserPreview />} />
-                <TemplateCard title="End to End" badge="REAL RECORDING" accent={C.indigo} active={template === 'end_to_end'} onClick={() => set('VIDEO_TEMPLATE', 'end_to_end')} previewEl={<EndToEndPreview />} />
+                <TemplateCard title="Teaser Video" badge="SHORT&PUNCHY" accent={C.teal} active={template === 'teaser'} onClick={() => set('VIDEO_TEMPLATE', 'teaser')} previewEl={<TeaserPreview />} />
+                <TemplateCard title="End to End" badge="FULL FLOW" accent={C.indigo} active={template === 'end_to_end'} onClick={() => set('VIDEO_TEMPLATE', 'end_to_end')} previewEl={<EndToEndPreview />} />
               </div>
 
               {/* Language + Options row */}
@@ -1899,6 +1901,9 @@ export const ConfigPage: React.FC = () => {
                 </>
               ) : (
               <>
+              {/* Sticky wrapper — keeps the primary action reachable without scrolling
+                   back up once "Adjust Preview" (Voice/B-Roll tabs) grows tall below it. */}
+              <div style={{ position: 'sticky', top: 0, zIndex: 2, background: C.sidebarBg, display: 'flex', flexDirection: 'column', gap: 11, paddingBottom: 9 }}>
               {/* Recording status */}
               {recStatus && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: recStatus.hasRecordings ? 'rgba(34,197,94,0.06)' : 'rgba(245,158,11,0.06)', border: `1px solid ${recStatus.hasRecordings ? 'rgba(34,197,94,0.2)' : 'rgba(245,158,11,0.2)'}`, borderRadius: 9, padding: '7px 11px' }}>
@@ -2002,6 +2007,7 @@ export const ConfigPage: React.FC = () => {
                   Stop
                 </button>
               )}
+              </div>
 
               {isClipBased && !running && pStatus === 'idle' && (
                 <div style={{ ...C.type.caption, color: C.hint, textAlign: 'center', marginTop: -4 }}>

@@ -3,6 +3,7 @@ import cors from 'cors';
 import multer from 'multer';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import type { Response } from 'express';
@@ -276,8 +277,28 @@ function pushArLog(line: string): void {
 
 // ── Express app ───────────────────────────────────────────────────────────────
 
+// Studio and this API both bind to all interfaces, so the Config UI is already
+// reachable from other devices via the host machine's LAN IP. Without listing
+// that IP here too, the browser's Origin header (e.g. http://10.1.123.122:3000)
+// would fail this CORS check even though the request itself succeeds.
+function getLocalNetworkIPs(): string[] {
+  const ips: string[] = [];
+  for (const configs of Object.values(os.networkInterfaces())) {
+    for (const config of configs ?? []) {
+      if (config.family === 'IPv4' && !config.internal) ips.push(config.address);
+    }
+  }
+  return ips;
+}
+
+const ALLOWED_HOSTS = ['localhost', '127.0.0.1', ...getLocalNetworkIPs()];
+const STUDIO_PORTS = ['3000', '3001', '3002', '3003', '4001'];
+const ALLOWED_ORIGINS = ALLOWED_HOSTS.flatMap((host) =>
+  STUDIO_PORTS.map((port) => `http://${host}:${port}`),
+);
+
 const app = express();
-app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:4001'] }));
+app.use(cors({ origin: ALLOWED_ORIGINS }));
 app.use(express.json({ limit: '50mb' }));
 
 // Read current .env values
@@ -841,10 +862,12 @@ app.get('/api/chat/status', (_req, res) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`\n  ┌──────────────────────────────────────────────────────────┐`);
-  console.log(`  │  Config UI API server → http://localhost:${PORT}            │`);
-  console.log(`  │  Open Remotion Studio and click "Config" in the sidebar.  │`);
-  console.log(`  └──────────────────────────────────────────────────────────┘\n`);
+  console.log(`\n  Config UI API server:`);
+  console.log(`    Local:   http://localhost:${PORT}`);
+  for (const ip of getLocalNetworkIPs()) {
+    console.log(`    Network: http://${ip}:${PORT}`);
+  }
+  console.log(`  Open Remotion Studio (same Local/Network hosts, port 3000) and click "Config" in the sidebar.\n`);
 });
 
 // Node's default 5-minute request/headers timeout would kill a large (500MB-2GB+)

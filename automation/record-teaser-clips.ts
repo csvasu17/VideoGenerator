@@ -33,6 +33,7 @@ import { createAuthContext, ensureSession } from './utils/session';
 import type { SessionState } from './utils/session';
 import { extractPrimaryRole } from './utils/roleLabel';
 import { fetchBackgroundMusic } from './fetch-background-music';
+import { resolveLanguageName } from './utils/i18n';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 
@@ -114,6 +115,7 @@ const azureClient = new AzureOpenAI({
 });
 
 const APP_CONTEXT = process.env['APP_CONTEXT_TEXT'] ?? '';
+const LANGUAGE_NAME = resolveLanguageName(process.env['APP_LANGUAGE']);
 let routeMap: Record<string, string> = {};
 try {
   const raw = process.env['APP_ROUTE_MAP'] ?? '{}';
@@ -196,7 +198,9 @@ Output a JSON object (no markdown fences) with exactly:
     "outro": "ONE short spoken closing sentence (7-10 words) that calls back to the opening tension before the call to action"
   }
 }
-Be specific to this product — no generic SaaS boilerplate. Keep every narration line tight; it will be read aloud at a natural pace over a short video clip and must not run long.`;
+Be specific to this product — no generic SaaS boilerplate. Keep every narration line tight; it will be read aloud at a natural pace over a short video clip and must not run long.${
+  LANGUAGE_NAME ? `\n\nWrite ALL string values (headlines, captions, narration) in ${LANGUAGE_NAME} — natural, native-sounding ${LANGUAGE_NAME}, not a literal translation. Keep JSON keys in English exactly as specified above; only the string VALUES change language.` : ''
+}`;
 
   try {
     const response = await retryWithBackoff(() => azureClient.chat.completions.create({

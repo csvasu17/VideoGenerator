@@ -39,7 +39,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { execSync } from 'child_process';
+import { AzureOpenAI } from 'openai';
 import { OUT_DIR, ROOT, toSlug } from './config';
+import { resolveLanguageName, translateTexts } from './utils/i18n';
 import { acquireSession } from './utils/multiRoleAuth';
 import type { MultiRoleAuthConfig } from './utils/multiRoleAuth';
 import { discoverAllRoles } from './utils/roleLabel';
@@ -284,13 +286,32 @@ function buildNarrationSegments(results: RoleRecordingResult[]): { id: string; l
 }
 
 async function runNarration(results: RoleRecordingResult[]): Promise<void> {
+  const segments = buildNarrationSegments(results);
+
+  // Unlike Teaser/Manual Recording, this narration never passes through an LLM —
+  // it's built from deterministic string templates (see buildNarrationSegments),
+  // so there's no existing prompt to just ask for the target language directly.
+  // A real post-build translation pass is the only option here.
+  const languageName = resolveLanguageName(process.env['APP_LANGUAGE']);
+  if (languageName) {
+    console.log(`  🌐  Translating narration → ${languageName}…`);
+    const azureClient = new AzureOpenAI({
+      apiKey:     process.env['AZURE_OPENAI_API_KEY']    ?? '',
+      endpoint:   process.env['AZURE_OPENAI_ENDPOINT']   ?? '',
+      deployment: process.env['AZURE_OPENAI_DEPLOYMENT'] ?? 'gpt-4.1',
+      apiVersion: process.env['OPENAI_API_VERSION']      ?? '2024-12-01-preview',
+    });
+    const translated = await translateTexts(azureClient, segments.map(s => s.text), languageName);
+    segments.forEach((seg, i) => { seg.text = translated[i] ?? seg.text; });
+  }
+
   const voiceScript = {
     voice: 'nova', model: 'tts-hd', speed: 0.95, fps: FPS,
     // SEG_DIR in generate-voice.ts resolves as OUT_DIR + voiceDir, so this must be
     // relative to the global OUT_DIR, not to AGENT_DIR.
     voiceDir: 'agent-recording/voice-segments',
     totalDurationSec: 0,
-    segments: buildNarrationSegments(results),
+    segments,
   };
   voiceScript.totalDurationSec = voiceScript.segments.reduce((s, seg) => Math.max(s, seg.startSec + seg.durationSec), 0);
 

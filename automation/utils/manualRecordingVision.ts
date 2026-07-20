@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import { AzureOpenAI } from 'openai';
 import { loadPrompt, fillTemplate } from '../../src/infrastructure/llm/PromptLoader';
 import { CaptureQueue } from '../../src/agents/screenshot/CaptureQueue';
+import { resolveLanguageName } from './i18n';
 
 export interface SceneNarration {
   sceneTitle:      string;
@@ -48,8 +49,10 @@ export async function analyzeScene(
     return await retryWithBackoff(async () => {
       const b64 = fs.readFileSync(framePath).toString('base64');
       const promptTemplate = loadPrompt('vision', 'manual-recording-scene.v1');
+      const languageName = resolveLanguageName(process.env['APP_LANGUAGE']);
       const prompt = fillTemplate(promptTemplate, {
-        PRODUCT_CONTEXT: productContext ? `PRODUCT CONTEXT:\n${productContext.slice(0, 1000)}` : '',
+        PRODUCT_CONTEXT:      productContext ? `PRODUCT CONTEXT:\n${productContext.slice(0, 1000)}` : '',
+        LANGUAGE_INSTRUCTION: languageName ? `Write "sceneTitle" and "narration" in natural, native-sounding ${languageName} (not a literal translation). Keep "onScreenSummary" and "confidence" in English — those are for an internal report, never shown to viewers.` : '',
       });
 
       const response = await azureClient.chat.completions.create({
