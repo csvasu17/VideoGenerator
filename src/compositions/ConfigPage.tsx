@@ -193,9 +193,35 @@ export const ThemeCtx = React.createContext(DARK_TOKENS);
 
 // Use the hostname the page was loaded with (localhost or a LAN IP) so the
 // Config UI keeps working when Studio is opened from another device on the network.
-const API  = `http://${window.location.hostname}:4001`;
+// When Studio itself is served over the self-signed HTTPS proxy (automation/https-proxy.ts —
+// needed so WebCodecs/AudioDecoder works from a LAN IP), mirror that scheme and use the
+// proxy's Config API port instead, or this fetch gets blocked as mixed content.
+export function getApiBase(): string {
+  const isHttps = window.location.protocol === 'https:';
+  return `${window.location.protocol}//${window.location.hostname}:${isHttps ? 4443 : 4001}`;
+}
+const API = getApiBase();
 const MASK = '••••••••';
 const PW_KEYS = ['APP_PASSWORD', 'APP_PASSWORD_2'];
+
+// Extra credential sets for Username & Password apps that need more than one login to
+// reach every route (e.g. an admin section behind a different account). Stored as one
+// JSON-array env var (same convention as APP_ROUTE_MAP) so the list can grow to any
+// length from the "+ Add User" button. No role field to fill in — the pipeline
+// assigns these to whichever distinct roles APP_ROUTE_MAP already implies, in order.
+type AdditionalUser = { username: string; password: string };
+function parseAdditionalUsers(raw: string): AdditionalUser[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((u): u is AdditionalUser => !!u && typeof u === 'object')
+      .map(u => ({ username: u.username ?? '', password: u.password ?? '' }));
+  } catch {
+    return [];
+  }
+}
 
 const SECTIONS = [
   { id: 'app-setup', glyph: '01', label: 'App Setup',  sub: 'Connection & auth',  accent: '#4f46e5' },
@@ -216,13 +242,7 @@ Generate an APP_CONTEXT_TEXT value — a structured plain-text paragraph (no mar
 ROLES: [Role Name] ([Job Title]): [what they do in this product and key value]. [Next role name] ...
 
 Keep the entire output under 600 words. Plain business language.
-Return ONLY the plain-text context. No headers, no wrapping.
-
---- Describe your product below ---
-Product name:
-What it does:
-Primary value proposition:
-User roles (name, title, screens they use, pain eliminated, demo "aha" moment):`;
+Return ONLY the plain-text context. No headers, no wrapping.:`;
 
 const PROMPT_ROUTE_MAP = `You are a technical analyst extracting structured metadata from application source code to improve an AI narration system's knowledge of this product.
 
@@ -515,7 +535,12 @@ function FL({ label, hint, req, children, full, action }: {
 }
 
 function Grid({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>{children}</div>;
+  // minmax(0, 1fr) rather than plain 1fr — grid items default to min-width: auto,
+  // so a column whose content has a wide intrinsic minimum (e.g. a label row with an
+  // inline action button) can force its own track wider than its equal 1fr share and
+  // squeeze the other column off-panel in a narrow sidebar. minmax(0, 1fr) explicitly
+  // allows both columns to shrink to fit instead.
+  return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '0 20px' }}>{children}</div>;
 }
 
 function SubRule({ label, optional }: { label: string; optional?: boolean }) {
@@ -832,6 +857,46 @@ function CopyPromptBtn({ text }: { text: string }) {
   );
 }
 
+function AddUserBtn({ onClick, label }: { onClick: () => void; label: string }) {
+  const C = React.useContext(ThemeCtx);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '6px 11px', borderRadius: 8, border: `1px dashed ${C.indigo}55`,
+        background: 'rgba(79,70,229,0.06)', color: C.indigo,
+        fontSize: 12, fontWeight: 700, fontFamily: C.font, cursor: 'pointer',
+        transition: 'background .15s', marginTop: 2, marginBottom: 10,
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      {label}
+    </button>
+  );
+}
+
+function RemoveUserBtn({ onClick }: { onClick: () => void }) {
+  const C = React.useContext(ThemeCtx);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Remove user"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '2px 8px', borderRadius: 5, border: `1px solid ${C.red}35`,
+        background: 'rgba(239,68,68,0.07)', color: C.red,
+        fontSize: 11, fontWeight: 600, fontFamily: C.font, cursor: 'pointer',
+      }}
+    >
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      Remove
+    </button>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -991,6 +1056,15 @@ export const ConfigPage: React.FC = () => {
         const v = d.values ?? {};
         const display = { ...v };
         PW_KEYS.forEach(k => { if (v[k]) display[k] = MASK; });
+        // Back-compat: fold an older single fixed "Secondary User" (APP_USERNAME_2/
+        // APP_PASSWORD_2) into the new open-ended Additional Users list the first
+        // time it's loaded, so upgrading doesn't silently hide an already-configured
+        // credential from the UI.
+        if (v['APP_USERNAME_2'] && !v['APP_ADDITIONAL_USERS']) {
+          display['APP_ADDITIONAL_USERS'] = JSON.stringify([
+            { username: v['APP_USERNAME_2'], password: v['APP_PASSWORD_2'] ?? '' },
+          ]);
+        }
         setVals(display);
         setLoading(false);
       })
@@ -1292,6 +1366,8 @@ export const ConfigPage: React.FC = () => {
   }, []);
 
   const loginType = get('LOGIN_TYPE', '1');
+  const additionalUsers = parseAdditionalUsers(get('APP_ADDITIONAL_USERS'));
+  const setAdditionalUsers = (arr: AdditionalUser[]) => set('APP_ADDITIONAL_USERS', JSON.stringify(arr));
   const template  = get('VIDEO_TEMPLATE', 'modern_saas');
   // Both Enterprise and Teaser record real screen clips via Playwright (as opposed
   // to Modern SaaS's screenshot + synthetic-camera pipeline) and both generate
@@ -1402,16 +1478,18 @@ export const ConfigPage: React.FC = () => {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Status pill */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: C.pillBg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '4px 12px' }}>
+          {/* Status pill — header bg is fixed dark regardless of theme, so these
+              controls use fixed light values (not theme tokens like C.sub) to
+              stay legible against it in both light and dark UI theme. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 20, padding: '4px 12px' }}>
             <div style={{ position: 'relative', width: 7, height: 7, flexShrink: 0 }}>
               <div className="cfg-anim-decorative" style={{ width: 7, height: 7, borderRadius: '50%', background: statusCfg.dot, boxShadow: `0 0 5px ${statusCfg.dot}`, animation: statusCfg.pulse ? 'dot-pulse 1.2s ease-in-out infinite' : 'none' }} />
               {statusCfg.pulse && <div className="cfg-anim-decorative" style={{ position: 'absolute', inset: -1, borderRadius: '50%', border: `1.5px solid ${statusCfg.dot}`, animation: 'pulse-ring 1.4s ease-out infinite', opacity: 0.5 }} />}
             </div>
-            <span style={{ ...C.type.body, color: C.sub, whiteSpace: 'nowrap' }}>{statusCfg.label}</span>
+            <span style={{ ...C.type.body, color: 'rgba(231,236,247,0.92)', whiteSpace: 'nowrap' }}>{statusCfg.label}</span>
           </div>
 
-          <button type="button" onClick={toggleTheme} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.pillBg, color: C.sub, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button type="button" onClick={toggleTheme} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.92)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {uiTheme === 'dark' ? (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             ) : (
@@ -1419,7 +1497,7 @@ export const ConfigPage: React.FC = () => {
             )}
           </button>
 
-          <button type="button" onClick={toggleFullscreen} title="Fullscreen (use this, not Studio's own player fullscreen button)" style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.pillBg, color: C.sub, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button type="button" onClick={toggleFullscreen} title="Fullscreen (use this, not Studio's own player fullscreen button)" style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.92)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {isFullscreen ? (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
             ) : (
@@ -1427,7 +1505,7 @@ export const ConfigPage: React.FC = () => {
             )}
           </button>
 
-          <button type="button" onClick={save} style={{ padding: '5px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.border}`, color: C.sub, ...C.type.fieldLabel, fontFamily: C.font, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <button type="button" onClick={save} style={{ padding: '5px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.95)', ...C.type.fieldLabel, fontFamily: C.font, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
             Save
           </button>
@@ -1503,26 +1581,32 @@ export const ConfigPage: React.FC = () => {
                   )}
                   {loginType === '1' && (
                     <>
-                      <SubRule label="Secondary User" optional />
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 7, padding: '6px 9px', marginBottom: 8 }}>
-                        <span style={{ fontSize: 11, flexShrink: 0, lineHeight: 1.4 }}>⚠</span>
-                        <div style={{ ...C.type.caption, color: C.sub }}>
-                          <span style={{ fontWeight: 600, color: C.yellow }}>Security note:</span>{' '}
-                          Credentials stored in .env. Flag for team review — consider session-based auth for production use.
+                      <SubRule label="Additional Users" optional />
+                      {additionalUsers.map((u, idx) => (
+                        <div key={idx} style={{
+                          border: `1px solid ${C.border}`, borderRadius: 10,
+                          padding: '10px 12px 2px', marginBottom: 10, background: C.badgeBg,
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                            <RemoveUserBtn onClick={() => setAdditionalUsers(additionalUsers.filter((_, i) => i !== idx))} />
+                          </div>
+                          <Grid>
+                            <FL label="Username">
+                              <InputField value={u.username} placeholder="user2"
+                                onChange={v => setAdditionalUsers(additionalUsers.map((x, i) => i === idx ? { ...x, username: v } : x))}
+                                icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+                              />
+                            </FL>
+                            <FL label="Password">
+                              <InputField value={u.password} placeholder={MASK} password
+                                onChange={v => setAdditionalUsers(additionalUsers.map((x, i) => i === idx ? { ...x, password: v } : x))}
+                                icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                              />
+                            </FL>
+                          </Grid>
                         </div>
-                      </div>
-                      <Grid>
-                        <FL label="Username">
-                          <InputField value={get('APP_USERNAME_2')} onChange={v => set('APP_USERNAME_2', v)} placeholder="user"
-                            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-                          />
-                        </FL>
-                        <FL label="Password">
-                          <InputField value={get('APP_PASSWORD_2')} onChange={v => set('APP_PASSWORD_2', v)} placeholder={MASK} password
-                            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
-                          />
-                        </FL>
-                      </Grid>
+                      ))}
+                      <AddUserBtn label="Add User" onClick={() => setAdditionalUsers([...additionalUsers, { username: '', password: '' }])} />
                     </>
                   )}
                 </div>

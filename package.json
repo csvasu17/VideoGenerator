@@ -28,6 +28,7 @@
     "record:agent-exhaustive": "ts-node --project tsconfig.scripts.json automation/record-agent-exhaustive.ts",
     "record:agent-exhaustive:narrate": "ts-node --project tsconfig.scripts.json automation/record-agent-exhaustive.ts --narrate",
     "manual-recording:process": "ts-node --project tsconfig.scripts.json automation/process-manual-recording.ts",
+    "manual-recording:enterprise": "ts-node --project tsconfig.scripts.json automation/manual-recording-to-enterprise.ts",
     "broll:download": "ts-node --project tsconfig.scripts.json automation/download-broll-videos.ts",
     "broll:register": "ts-node --project tsconfig.scripts.json automation/register-broll-videos.ts",
     "broll:premium": "ts-node --project tsconfig.scripts.json automation/download-broll-premium.ts",
@@ -37,7 +38,8 @@
     "music:fetch": "ts-node --project tsconfig.scripts.json automation/fetch-background-music.ts",
     "music:fetch:force": "ts-node --project tsconfig.scripts.json automation/fetch-background-music.ts -- --force",
     "config-ui": "ts-node --project tsconfig.scripts.json automation/config-server.ts",
-    "dev": "concurrently --names \"config,studio\" -c \"cyan,magenta\" \"npm run config-ui\" \"npm start\""
+    "https-proxy": "ts-node --project tsconfig.scripts.json automation/https-proxy.ts",
+    "dev": "concurrently --names \"config,studio,https\" -c \"cyan,magenta,green\" \"npm run config-ui\" \"npm start\" \"npm run https-proxy\""
   },
   "dependencies": {
     "@remotion/cli": "^4.0.257",
@@ -66,6 +68,7 @@
     "jimp": "^1.6.1",
     "patch-package": "^8.0.1",
     "playwright": "^1.44.0",
+    "selfsigned": "^5.5.0",
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.0",
     "typescript": "^5.3.0"

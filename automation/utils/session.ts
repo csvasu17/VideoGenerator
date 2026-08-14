@@ -14,6 +14,51 @@ let _cache: SessionState | null = null;
 
 export function clearSession(): void { _cache = null; }
 
+/**
+ * Some apps' AuthContext fires two CONCURRENT token-refresh requests on every
+ * protected-route mount (confirmed directly against a real app: two simultaneous
+ * POST .../auth/refresh calls, most likely a React 18 StrictMode double-effect in
+ * dev mode). The server correctly rotates the refresh token and lets only one of
+ * the two succeed — but the app's error handling for the OTHER (rejected, 409)
+ * call can unconditionally log the user out, racing against and sometimes
+ * overriding the successful call's own "we're authenticated" effect. This is why
+ * a route can intermittently (often, in practice) bounce back to the login/picker
+ * screen moments after a completely valid, successful login or navigation — not a
+ * credentials problem, and not fixable by waiting longer or retrying the same way.
+ *
+ * Deduping at the network level closes this off entirely: hold any duplicate
+ * refresh request that arrives while one is already in flight, and fulfill it with
+ * that SAME response instead of letting it hit the server with an already-rotated
+ * token and come back conflicted. The app then only ever observes one clean,
+ * successful response — confirmed via direct testing to eliminate the bogus
+ * logout across every route it was tried on.
+ */
+export async function installAuthRefreshDedupe(ctx: BrowserContext): Promise<void> {
+  let inFlight: Promise<{ status: number; headers: Record<string, string>; body: Buffer }> | null = null;
+  await ctx.route('**/auth/refresh', async (route) => {
+    if (inFlight) {
+      const result = await inFlight;
+      await route.fulfill({ status: result.status, headers: result.headers, body: result.body });
+      return;
+    }
+    let resolveFn!: (v: { status: number; headers: Record<string, string>; body: Buffer }) => void;
+    inFlight = new Promise(r => { resolveFn = r; });
+    try {
+      const response = await route.fetch();
+      const status  = response.status();
+      const headers = response.headers();
+      const body    = await response.body();
+      resolveFn({ status, headers, body });
+      await route.fulfill({ response });
+    } catch (err) {
+      resolveFn({ status: 500, headers: {}, body: Buffer.from('{}') });
+      throw err;
+    } finally {
+      inFlight = null;
+    }
+  });
+}
+
 export async function ensureSession(
   browser: Browser,
   config:  RecordingConfig,
@@ -126,11 +171,20 @@ async function performQuickAccessLogin(page: Page, index: number, roleName?: str
   const submitSelector = 'button[type="submit"], input[type="submit"], .signin-btn, button:has-text("Login"), button:has-text("Sign In"), button:has-text("Log in")';
   await page.locator(submitSelector).first().click().catch(() => {});
 
-  // Wait for navigation away from the login screen
-  await Promise.race([
-    page.waitForSelector('input[type="password"]', {state: 'detached', timeout: 20000}),
-    page.waitForURL((url) => !url.href.includes('login') && !url.href.includes('signin'), {timeout: 20000}),
-  ]).catch(() => page.waitForTimeout(3000));
+  // Wait for the picker to actually go away — NOT "URL no longer contains
+  // login/signin" or "password field detached". Both of those resolve instantly
+  // (vacuously true) for apps that render the picker IN PLACE with no URL change
+  // and no password field ever present, which made this return "success" within
+  // milliseconds of the click, before any real login had happened. Poll the same
+  // content-based signal used to detect the picker in the first place — it's the
+  // only thing here that's actually tied to the login having completed.
+  const deadline = Date.now() + 20000;
+  for (;;) {
+    const stillShowingPicker = await isQuickAccessScreenShowing(page, roleName).catch(() => false);
+    const stillHasPassword   = await page.locator('input[type="password"]').count().catch(() => 0) > 0;
+    if ((!stillShowingPicker && !stillHasPassword) || Date.now() >= deadline) break;
+    await page.waitForTimeout(500);
+  }
 
   return { matchedRole };
 }
@@ -253,13 +307,35 @@ async function clickQuickAccessOptionByRole(page: Page, roleName: string): Promi
  * authenticated dashboard at the same URL as the picker (e.g. single-page apps).
  */
 export async function isQuickAccessScreenShowing(page: Page, roleName?: string): Promise<boolean> {
+  // A role-name button or the "Quick Access"/"Demo Credentials" label text can each
+  // independently appear on a FULLY AUTHENTICATED page for reasons that have nothing
+  // to do with login — confirmed directly against a real app: a "current role" badge
+  // button in the dashboard header (e.g. "Facility Admin"), and a totally unrelated
+  // "Quick Access" shortcuts widget on the dashboard that happens to share the exact
+  // label text of the login page's demo-credentials panel. Checking either signal
+  // anywhere on the page (the old behavior) made this return true forever, even on a
+  // genuinely, successfully authenticated page — which made every retry/relogin loop
+  // built on top of this never terminate. Scope the role-button search to inside the
+  // matched label section specifically, so an unrelated same-named badge or widget
+  // elsewhere on the page can't trigger a false positive.
+  // Require a button/[role="button"] descendant too, not just the label text — a
+  // label-only wrapper (e.g. just the "Demo Credentials" heading, with the actual
+  // account buttons living in a SIBLING container rather than a descendant) would
+  // otherwise scope the role-button search to a container that structurally can't
+  // ever contain it, making the check always false instead of always true.
+  const section = page.locator('div, section, aside, form')
+    .filter({hasText: QUICK_ACCESS_LABEL_RE})
+    .filter({has: page.locator('button, [role="button"]')})
+    .last();
+  const sectionVisible = await section.isVisible({timeout: 1000}).catch(() => false);
+
   if (roleName) {
     const roleRe = new RegExp(escapeRegExp(roleName), 'i');
-    const roleBtn = page.locator('button, [role="button"]').filter({hasText: roleRe}).first();
-    if (await roleBtn.isVisible().catch(() => false)) return true;
+    const scope = sectionVisible ? section : page;
+    return scope.locator('button, [role="button"]').filter({hasText: roleRe}).first()
+      .isVisible().catch(() => false);
   }
-  const label = page.locator(`text=${QUICK_ACCESS_LABEL_RE}`).first();
-  return label.isVisible({timeout: 1000}).catch(() => false);
+  return sectionVisible;
 }
 
 async function clickQuickAccessOption(

@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import type { Response } from 'express';
 import { chat } from './chat-service';
-import { OUT_DIR } from './config';
+import { OUT_DIR, toSlug } from './config';
 import { getVideoInfo } from './utils/ffprobe';
 
 const ROOT = path.resolve(__dirname, '..');
@@ -24,6 +24,33 @@ let pipelineProcess: ChildProcess | null = null;
 let pipelineLog: string[] = [];
 let pipelineStatus: 'idle' | 'running' | 'success' | 'failed' = 'idle';
 const sseClients = new Set<Response>();
+
+// pipelineStatus alone doesn't survive this server process restarting (e.g. a dev-mode
+// reload while a pipeline is mid-run): a fresh instance boots with pipelineStatus='idle'
+// and no memory of the still-alive child, so the in-memory guard below silently lets a
+// second run start alongside the orphaned first one — both writing into the same
+// out/<slug> directory and interleaving their stdout into whatever log each request
+// happens to be reading. A PID-file lock survives the restart because it's on disk.
+const PIPELINE_LOCK_PATH = path.join(ROOT, '.tmp', 'pipeline.lock');
+
+function isProcessAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+/** Returns the PID of a still-running locked pipeline, if any — self-healing by
+ *  deleting the lock file when it points at a process that's no longer alive. */
+function readActiveLockPid(): number | null {
+  try {
+    const pid = parseInt(fs.readFileSync(PIPELINE_LOCK_PATH, 'utf-8').trim(), 10);
+    if (!pid || !isProcessAlive(pid)) {
+      try { fs.unlinkSync(PIPELINE_LOCK_PATH); } catch {}
+      return null;
+    }
+    return pid;
+  } catch {
+    return null;
+  }
+}
 
 // ── Voice-regen singleton ─────────────────────────────────────────────────────
 let voiceProcess: ChildProcess | null = null;
@@ -217,7 +244,7 @@ function writeEnvFile(incoming: Record<string, string>): void {
 
 function getProductOutDir(): string {
   const env = parseEnvValues();
-  const slug = (env['APP_PRODUCT_NAME'] ?? 'localhost').toLowerCase();
+  const slug = toSlug(env['APP_PRODUCT_NAME'] ?? 'localhost');
   return path.join(OUT_DIR, '..', slug);
 }
 
@@ -292,9 +319,12 @@ function getLocalNetworkIPs(): string[] {
 }
 
 const ALLOWED_HOSTS = ['localhost', '127.0.0.1', ...getLocalNetworkIPs()];
-const STUDIO_PORTS = ['3000', '3001', '3002', '3003', '4001'];
+// 3443/4443 are the self-signed HTTPS proxy's ports (automation/https-proxy.ts) —
+// needed so WebCodecs works when Studio is opened from a LAN IP. Listing both
+// schemes for every port is simplest; unused combinations are harmless here.
+const STUDIO_PORTS = ['3000', '3001', '3002', '3003', '4001', '3443', '4443'];
 const ALLOWED_ORIGINS = ALLOWED_HOSTS.flatMap((host) =>
-  STUDIO_PORTS.map((port) => `http://${host}:${port}`),
+  STUDIO_PORTS.flatMap((port) => [`http://${host}:${port}`, `https://${host}:${port}`]),
 );
 
 const app = express();
@@ -486,6 +516,14 @@ app.post('/api/run-pipeline', (req, res) => {
     res.status(409).json({ error: 'Pipeline is already running' });
     return;
   }
+  const lockedPid = readActiveLockPid();
+  if (lockedPid) {
+    res.status(409).json({
+      error: `A pipeline process (PID ${lockedPid}) is already running, possibly left over from ` +
+             `before this server last restarted. Wait for it to finish, or stop it manually, before starting another.`,
+    });
+    return;
+  }
 
   const { values, forceRerecord } = ((req.body ?? {}) as {
     values?: Record<string, string>;
@@ -527,6 +565,10 @@ app.post('/api/run-pipeline', (req, res) => {
       FORCE_RERECORD: forceRerecord ? 'true' : 'false',
     },
   });
+  try {
+    fs.mkdirSync(path.dirname(PIPELINE_LOCK_PATH), { recursive: true });
+    fs.writeFileSync(PIPELINE_LOCK_PATH, String(pipelineProcess.pid), 'utf-8');
+  } catch { /* best-effort — in-memory guard still applies within this process's lifetime */ }
 
   pipelineProcess.stdout?.on('data', (chunk: Buffer) => {
     String(chunk).split('\n').filter(Boolean).forEach(pushLog);
@@ -543,6 +585,7 @@ app.post('/api/run-pipeline', (req, res) => {
   pipelineProcess.on('close', (code: number | null) => {
     pipelineStatus = code === 0 ? 'success' : 'failed';
     pipelineProcess = null;
+    try { fs.unlinkSync(PIPELINE_LOCK_PATH); } catch {}
     broadcastSSE({ type: 'done', status: pipelineStatus, studioUrl: 'http://localhost:3000' });
     console.log(`  Pipeline finished with status: ${pipelineStatus}`);
   });
@@ -556,6 +599,7 @@ app.post('/api/stop-pipeline', (_req, res) => {
     pipelineProcess = null;
   }
   pipelineStatus = 'failed';
+  try { fs.unlinkSync(PIPELINE_LOCK_PATH); } catch {}
   broadcastSSE({ type: 'done', status: 'failed' });
   res.json({ stopped: true });
 });

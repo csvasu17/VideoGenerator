@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "refreshToken",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4YWZjOWM2Mi0xNGUwLTRiYjgtOTZjZS04ZDI2YTUwNjRmYjYiLCJpYXQiOjE3ODYwMTg4OTAsImV4cCI6MTc4NjYyMzY5MH0.MQAeWg1gsUf_L1I-ihMs7Ba8Llg2C0uHqQ9kJRiUT80",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI5YmNkY2I2ZC0zYTg0LTRkYWUtODk4Yy03YTEzNDRkNzczOTciLCJpYXQiOjE3ODYwMDM0ODYsImV4cCI6MTc4NjYwODI4Nn0.DLQ9iWYwo7vYdnuz9p0C7Wldx-4cMalxRFBBwGPow-4",
       "domain": "10.1.123.124",
       "path": "/",
-      "expires": 1786623690.471499,
+      "expires": 1786608286.990635,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Strict"
@@ -17,7 +17,7 @@
       "localStorage": [
         {
           "name": "dep-color-scheme",
-          "value": "blue"
+          "value": "green"
         }
       ]
     }

@@ -17,7 +17,7 @@
  */
 
 import { chromium }       from 'playwright';
-import type { BrowserContext, Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
 import * as fs            from 'fs';
 import * as path          from 'path';
 import * as dotenv        from 'dotenv';
@@ -25,8 +25,8 @@ import { AzureOpenAI }   from 'openai';
 import { getVideoInfo }  from './utils/ffprobe';
 import { execSync }      from 'child_process';
 import { OUT_DIR, SCREEN_FIT, toSlug } from './config';
-import { createAuthContext, performLogin, isQuickAccessScreenShowing } from './utils/session';
-import type { SessionState } from './utils/session';
+import { createAuthContext, performLogin, isQuickAccessScreenShowing, installAuthRefreshDedupe } from './utils/session';
+import type { SessionState, RoleMatchConfidence } from './utils/session';
 import { GENERIC_NARRATIONS } from './utils/constants';
 import { extractPrimaryRole } from './utils/roleLabel';
 import {
@@ -61,6 +61,31 @@ const APP_URL      = (process.env['APP_URL'] ?? 'http://localhost:3000').replace
 const LOGIN_TYPE   = process.env['LOGIN_TYPE'] ?? '1';
 const APP_USERNAME = process.env['APP_USERNAME'] ?? '';
 const APP_PASSWORD = process.env['APP_PASSWORD'] ?? '';
+// Extra credential sets for LOGIN_TYPE=1 apps that need more than one login to reach
+// every route (e.g. an admin section behind a separate account) — set from the Config
+// UI's "+ Add User" list, one JSON-array env var mirroring APP_ROUTE_MAP's own
+// convention. No manual role naming required: ROLE_CREDENTIALS (built once routeMap is
+// parsed below) assigns these positionally to whichever distinct roles APP_ROUTE_MAP
+// itself already implies, in the order each is first encountered.
+interface AdditionalUser { username: string; password: string }
+const ADDITIONAL_USERS: AdditionalUser[] = (() => {
+  const raw = process.env['APP_ADDITIONAL_USERS'];
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((u): u is AdditionalUser => !!u?.username) : [];
+  } catch {
+    return [];
+  }
+})();
+// Populated after routeMap is parsed below (ROLE_CREDENTIALS declaration further down)
+// — declared as a function here (hoisted) so callers earlier in the file can still
+// reference it; it's only ever invoked once the pipeline is actually running, by
+// which point the whole module has finished initializing.
+function credentialsForRole(roleName?: string): { username: string; password: string } {
+  const mapped = roleName ? ROLE_CREDENTIALS.get(roleName) : undefined;
+  return mapped ?? { username: APP_USERNAME, password: APP_PASSWORD };
+}
 const PRODUCT_NAME = process.env['APP_PRODUCT_NAME'] || (() => {
   try { return new URL(APP_URL).hostname; } catch { return 'Product'; }
 })();
@@ -111,6 +136,26 @@ const LANGUAGE_NAME = LANGUAGE_NAMES[APP_LANGUAGE.split('-')[0].toLowerCase()] ?
 
 let routeMap: Record<string, string> = {};
 try { if (APP_ROUTE_MAP_RAW) routeMap = JSON.parse(APP_ROUTE_MAP_RAW); } catch {}
+
+// Assigns each "Additional User" (username/password only — no role field, so nothing
+// to configure by hand) to a distinct role implied by APP_ROUTE_MAP, in the order
+// each role is first encountered scanning the route labels. The first distinct role
+// found keeps the primary APP_USERNAME/PASSWORD; each one after that gets the next
+// unused Additional User; any roles beyond the number of Additional Users configured
+// fall back to the primary credentials (same graceful-degradation behavior as before
+// this feature existed).
+const ROLE_CREDENTIALS = new Map<string, { username: string; password: string }>();
+if (LOGIN_TYPE === '1' && ADDITIONAL_USERS.length > 0) {
+  const rolesInFirstAppearanceOrder: string[] = [];
+  for (const label of Object.values(routeMap)) {
+    const role = extractPrimaryRole(String(label));
+    if (role && !rolesInFirstAppearanceOrder.includes(role)) rolesInFirstAppearanceOrder.push(role);
+  }
+  rolesInFirstAppearanceOrder.slice(1).forEach((role, i) => {
+    const cred = ADDITIONAL_USERS[i];
+    if (cred) ROLE_CREDENTIALS.set(role, cred);
+  });
+}
 
 // Optional per-app override for specific routes — e.g. a real multi-step `actions`
 // sequence for a "hero" workflow (discovered by hand against the live app; no AI
@@ -487,12 +532,13 @@ async function tryHeadlessLogin(
   storageStatePath: string,
   recDir:           string,
   roleName?:        string,
-): Promise<(SessionState & { liveCtx: BrowserContext }) | null> {
+): Promise<(SessionState & { liveCtx: BrowserContext; roleMatchConfidence: RoleMatchConfidence }) | null> {
   const ctx  = await browser.newContext({
     viewport:    VIEWPORT,
     recordVideo: { dir: recDir, size: VIEWPORT },
     ignoreHTTPSErrors: true,
   });
+  if (LOGIN_TYPE === '2') await installAuthRefreshDedupe(ctx);
   const page = await ctx.newPage();
 
   // Hide navigator.webdriver so React apps don't block automated input
@@ -501,6 +547,7 @@ async function tryHeadlessLogin(
   });
 
   let success = false;
+  let roleMatchConfidence: RoleMatchConfidence = 'not-applicable';
   try {
     let formFound = false;
     for (const loginUrl of [LOGIN_URL, APP_URL]) {
@@ -512,11 +559,12 @@ async function tryHeadlessLogin(
     if (!formFound) return null;
 
     if (LOGIN_TYPE === '2') {
-      await performLogin(page, {
+      ({ roleMatchConfidence } = await performLogin(page, {
         loginType: 2, username: APP_USERNAME, password: APP_PASSWORD,
         quickAccessIndex: 0, quickAccessRoleName: roleName,
-      });
+      }));
     } else {
+      const { username: loginUsername, password: loginPassword } = credentialsForRole(roleName);
       const emailSel = [
         'input[type="email"]', 'input[name="email"]', 'input[name="username"]',
         'input[placeholder*="email" i]', 'input[placeholder*="user" i]', 'input[type="text"]',
@@ -527,13 +575,13 @@ async function tryHeadlessLogin(
       await emailInput.click();
       await page.keyboard.press('Control+a');
       await page.keyboard.press('Delete');
-      await page.keyboard.type(APP_USERNAME, { delay: 50 });
+      await page.keyboard.type(loginUsername, { delay: 50 });
 
       const pwdInput = page.locator('input[type="password"]').first();
       await pwdInput.click();
       await page.keyboard.press('Control+a');
       await page.keyboard.press('Delete');
-      await page.keyboard.type(APP_PASSWORD, { delay: 50 });
+      await page.keyboard.type(loginPassword, { delay: 50 });
 
       const submitSel = 'button[type="submit"], input[type="submit"], button:has-text("Login"), button:has-text("Sign In"), button:has-text("Log In"), button:has-text("Log in")';
       const submitCount = await page.locator(submitSel).count().catch(() => 0);
@@ -557,7 +605,7 @@ async function tryHeadlessLogin(
     const stillHasForm = await page.locator('input[type="password"]').count().catch(() => 0);
     if (stillHasForm > 0) {
       console.warn('  ↳ Password form still visible after login attempt — credentials may be wrong.');
-      console.warn(`    APP_USERNAME=${APP_USERNAME}  APP_URL=${APP_URL}`);
+      console.warn(`    username=${credentialsForRole(roleName).username}  APP_URL=${APP_URL}`);
       return null;
     }
 
@@ -583,14 +631,26 @@ async function tryHeadlessLogin(
     await ctx.storageState({ path: storageStatePath });
     await page.close(); // close login page; keep context alive for clip recording
     success = true;
-    return { storageStatePath, postLoginUrl, origin: new URL(APP_URL).origin, liveCtx: ctx };
+    return { storageStatePath, postLoginUrl, origin: new URL(APP_URL).origin, liveCtx: ctx, roleMatchConfidence };
   } finally {
     if (!success) await ctx.close();
   }
 }
 
 // ── Layer 3: visible browser — user logs in manually ──
-async function tryInteractiveLogin(storageStatePath: string, roleName?: string): Promise<SessionState | null> {
+// The context created here is handed back as the LIVE recording context, not just
+// a storageState snapshot on disk. Some apps (e.g. Streamlit) keep "logged in"
+// state entirely server-side, tied to that one live connection/tab — cookies and
+// localStorage never contain anything a fresh context could replay, so a new
+// headless context built from the saved file loads as a brand-new, unauthenticated
+// session no matter how the timing is tuned. Reusing this exact context for every
+// route recorded under this role sidesteps that whole class of app, the same way
+// the headless login path (tryHeadlessLogin) already reuses its own context.
+async function tryInteractiveLogin(
+  storageStatePath: string,
+  recDir:           string,
+  roleName?:        string,
+): Promise<(SessionState & { liveCtx: BrowserContext; ownBrowser: Browser }) | null> {
   console.log('\n  ┌──────────────────────────────────────────────────────────────────┐');
   console.log('  │  MANUAL LOGIN REQUIRED                                           │');
   console.log('  │  A browser window will open. Please log in to the app.          │');
@@ -599,6 +659,8 @@ async function tryInteractiveLogin(storageStatePath: string, roleName?: string):
     console.log(`  │  Log in as role: ${roleName.padEnd(51)}│`);
   }
   console.log('  │  The pipeline continues automatically after you log in.         │');
+  console.log('  │  ⚠ DO NOT CLOSE THIS WINDOW after logging in — recording        │');
+  console.log('  │    happens right here afterward. It closes itself when done.    │');
   console.log('  │  You have 3 minutes.                                            │');
   console.log('  └──────────────────────────────────────────────────────────────────┘\n');
 
@@ -606,8 +668,17 @@ async function tryInteractiveLogin(storageStatePath: string, roleName?: string):
     headless: false,
     args: ['--start-maximized', '--disable-blink-features=AutomationControlled'],
   });
+  let success = false;
   try {
-    const ctx  = await visibleBrowser.newContext({ viewport: null, ignoreHTTPSErrors: true });
+    // Fixed VIEWPORT (not null) + recordVideo so this same context can be reused
+    // directly for clip recording afterward — matches the shape recordClip expects
+    // from liveCtx. --start-maximized still gives the human a full window; Playwright
+    // just constrains the page's content area to VIEWPORT regardless of window chrome.
+    const ctx  = await visibleBrowser.newContext({
+      viewport: VIEWPORT, ignoreHTTPSErrors: true,
+      recordVideo: { dir: recDir, size: VIEWPORT },
+    });
+    if (LOGIN_TYPE === '2') await installAuthRefreshDedupe(ctx);
     const page = await ctx.newPage();
     await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
@@ -636,15 +707,49 @@ async function tryInteractiveLogin(storageStatePath: string, roleName?: string):
       ]);
     }
 
+    // Extra settle time for tokens/storage — the login UI can disappear from an
+    // optimistic client-side update before the app's async login call actually
+    // persists the auth cookie/token server-side. A blind fixed wait guessed
+    // wrong often enough to matter (some roles' FIRST post-login route still
+    // hit the login screen); actively re-check instead so fast logins don't
+    // wait longer than needed and slow ones get up to 15s rather than a hard 3s.
+    const settleDeadline = Date.now() + 15000;
+    while (Date.now() < settleDeadline) {
+      const stillPicker = LOGIN_TYPE === '2' && await isQuickAccessScreenShowing(page, roleName);
+      const stillPwd     = await page.locator('input[type="password"]').count().catch(() => 0) > 0;
+      if (!stillPicker && !stillPwd) break;
+      await page.waitForTimeout(1000);
+    }
+
     const postLoginUrl = page.url();
     await ctx.storageState({ path: storageStatePath });
     console.log(`\n  ✓ Manual login successful — post-login: ${postLoginUrl}`);
-    return { storageStatePath, postLoginUrl, origin: new URL(APP_URL).origin };
+
+    // Visible, hard-to-miss cue in the window itself — a person watching the screen
+    // won't necessarily have the terminal in view, and closing this window now (the
+    // old habit, back when the browser always auto-closed right after login) would
+    // silently kill the live session every route after this one depends on.
+    await page.evaluate(() => {
+      const banner = document.createElement('div');
+      banner.textContent = '🔴 RECORDING IN PROGRESS — do not close this window. It will close itself when finished.';
+      Object.assign(banner.style, {
+        position: 'fixed', top: '0', left: '0', right: '0', zIndex: '2147483647',
+        background: '#dc2626', color: '#fff', font: '600 14px sans-serif',
+        padding: '8px 12px', textAlign: 'center', pointerEvents: 'none',
+      });
+      document.documentElement.appendChild(banner);
+    }).catch(() => {});
+
+    success = true;
+    return {
+      storageStatePath, postLoginUrl, origin: new URL(APP_URL).origin,
+      liveCtx: ctx, ownBrowser: visibleBrowser,
+    };
   } catch (err) {
     console.error(`  ✗ Interactive login timed out or failed: ${(err as Error).message?.slice(0, 100)}`);
     return null;
   } finally {
-    await visibleBrowser.close();
+    if (!success) await visibleBrowser.close();
   }
 }
 
@@ -652,7 +757,7 @@ async function acquireSession(
   browser: any,
   recDir:  string,
   opts?:   { roleName?: string },
-): Promise<{ session: SessionState; liveCtx: BrowserContext } | null> {
+): Promise<{ session: SessionState; liveCtx: BrowserContext; roleMatchConfidence?: RoleMatchConfidence; ownBrowser?: Browser } | null> {
   fs.mkdirSync(TMP_DIR,  { recursive: true });
   fs.mkdirSync(REC_DIR,  { recursive: true });
   fs.mkdirSync(recDir,   { recursive: true });
@@ -674,16 +779,42 @@ async function acquireSession(
           : undefined;
         const firstRoute = roleRoute ?? Object.keys(routeMap)[0] ?? '/';
         const verCtx  = await browser.newContext({ storageState: storageStatePath, ignoreHTTPSErrors: true });
+        if (LOGIN_TYPE === '2') await installAuthRefreshDedupe(verCtx);
         const verPage = await verCtx.newPage();
         await verPage.goto(`${APP_URL}${firstRoute}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await verPage.waitForTimeout(2000);
         const verUrl     = verPage.url();
         const verHasForm = await verPage.locator('input[type="password"]').count().catch(() => 0);
+        // Quick-access apps (LOGIN_TYPE=2) often have no password field at all and
+        // never navigate to a distinct /login URL (see isQuickAccessScreenShowing's
+        // own header comment) — neither signal below can catch a dead session for
+        // them, so a storageState file that can never actually be replayed (e.g.
+        // Streamlit, whose "logged in" state lives only in the live connection) gets
+        // reported valid forever. Check for the picker itself as a third signal.
+        const verStillPicker = LOGIN_TYPE === '2'
+          ? await isQuickAccessScreenShowing(verPage, roleName)
+          : false;
+        // None of the three signals above can catch a session that's authenticated
+        // but AS THE WRONG ROLE — e.g. this app's own auth-refresh race (two
+        // concurrent /auth/refresh calls, one 200/one 409) can corrupt the very
+        // first Account-Admin login of a run and leave it silently authenticated
+        // as whatever role was previously active. That wrong-but-"valid" session
+        // then gets cached and reused unchanged for every later route needing that
+        // role. Apps in this family always surface the active role as visible text
+        // somewhere in the authenticated shell (seen consistently as a header
+        // badge) — if roleName doesn't appear anywhere on the page, treat the
+        // cached session as invalid rather than silently recording under the
+        // wrong identity.
+        const verBodyText  = await verPage.evaluate(() => document.body.innerText).catch(() => '');
+        const verWrongRole = !!roleName && !verBodyText.toLowerCase().includes(roleName.toLowerCase());
         await verCtx.close();
         const verIsLogin =
           verUrl.includes('/login') || verUrl.includes('/signin') ||
           verUrl.replace(/\/$/, '') === LOGIN_URL.replace(/\/$/, '');
-        if (!verIsLogin && verHasForm === 0) {
+        if (verWrongRole) {
+          console.log(`  ↳ Cached session authenticated as the wrong role (expected "${roleName}") — re-authenticating…`);
+        }
+        if (!verIsLogin && verHasForm === 0 && !verStillPicker && !verWrongRole) {
           console.log(`  ✓ Cached session valid — skipping login`);
           const liveCtx = await browser.newContext({
             storageState: storageStatePath,
@@ -691,6 +822,7 @@ async function acquireSession(
             recordVideo:  { dir: recDir, size: VIEWPORT },
             ignoreHTTPSErrors: true,
           });
+          if (LOGIN_TYPE === '2') await installAuthRefreshDedupe(liveCtx);
           return { session: { storageStatePath, postLoginUrl: verUrl, origin }, liveCtx };
         }
         console.log('  ↳ Session expired — re-authenticating…');
@@ -702,25 +834,35 @@ async function acquireSession(
 
   // ── Layer 2: try headless login ──
   console.log(`  Attempting headless login${roleName ? ` as "${roleName}"` : ''}…`);
-  const headlessResult = await tryHeadlessLogin(browser, storageStatePath, recDir, roleName);
+  // performLogin (LOGIN_TYPE=2) throws outright when it can't find ANY Quick Access
+  // UI at all (as opposed to finding the section but not this role's card, which
+  // degrades gracefully to a default-index click). Left uncaught, that exception
+  // would escape acquireSession/getSessionForRole and crash the entire multi-role
+  // run over one role's login problem — every app has different login quirks, so
+  // this must degrade to "try Layer 3 next" like any other headless-login failure.
+  let headlessResult: Awaited<ReturnType<typeof tryHeadlessLogin>> = null;
+  try {
+    headlessResult = await tryHeadlessLogin(browser, storageStatePath, recDir, roleName);
+  } catch (err) {
+    console.warn(`  ↳ Headless login threw an error — falling back to manual login… (${(err as Error).message?.slice(0, 150)})`);
+  }
   if (headlessResult) {
-    const { liveCtx, ...sessionFields } = headlessResult;
+    const { liveCtx, roleMatchConfidence, ...sessionFields } = headlessResult;
     const session: SessionState = sessionFields;
     console.log(`  ✓ Headless login succeeded — post-login: ${session.postLoginUrl}`);
-    return { session, liveCtx };
+    return { session, liveCtx, roleMatchConfidence };
   }
   console.log('  ↳ Headless login failed — falling back to manual login…');
 
   // ── Layer 3: interactive (visible) browser ──
-  const interactiveSession = await tryInteractiveLogin(storageStatePath, roleName);
-  if (!interactiveSession) return null;
-  const liveCtx = await browser.newContext({
-    storageState: storageStatePath,
-    viewport:     VIEWPORT,
-    recordVideo:  { dir: recDir, size: VIEWPORT },
-    ignoreHTTPSErrors: true,
-  });
-  return { session: interactiveSession, liveCtx };
+  // Reuse the exact context tryInteractiveLogin just logged in with, instead of
+  // replaying storageState into a fresh headless context (see that function's
+  // header comment — required for apps whose auth never lands in cookies/localStorage).
+  const interactiveResult = await tryInteractiveLogin(storageStatePath, recDir, roleName);
+  if (!interactiveResult) return null;
+  const { liveCtx, ownBrowser, ...sessionFields } = interactiveResult;
+  const session: SessionState = sessionFields;
+  return { session, liveCtx, ownBrowser };
 }
 
 // ─── Clip action types ─────────────────────────────────────────────────────────
@@ -807,6 +949,27 @@ function buildRecordingPlan(): ClipPlan[] {
 }
 
 const RECORDING_PLAN = buildRecordingPlan();
+
+// Recording EXECUTION order groups consecutive routes by role so at most one
+// extra headed (interactive-login) browser is ever open at a time — recording
+// runs through one role's routes, closes that role's browser, then moves to
+// the next. Left ungrouped, every distinct role's manual-login window stays
+// open simultaneously until the entire run finishes (routes for different
+// roles are normally interleaved through APP_ROUTE_MAP), which on a machine
+// already under memory pressure can exhaust it and hang/crash Chrome — this
+// is purely an execution-order optimization; the FINAL video still assembles
+// scenes in RECORDING_PLAN's original (APP_ROUTE_MAP-authored) order, restored
+// after recording via planIndex below.
+function groupPlanByRole(plan: ClipPlan[]): ClipPlan[] {
+  const order = new Map<string, ClipPlan[]>();
+  for (const p of plan) {
+    const key = p.loginAs ?? '';
+    if (!order.has(key)) order.set(key, []);
+    order.get(key)!.push(p);
+  }
+  return [...order.values()].flat();
+}
+const EXECUTION_ORDER = groupPlanByRole(RECORDING_PLAN);
 
 // ─── Interaction helpers ───────────────────────────────────────────────────────
 
@@ -949,6 +1112,7 @@ async function recordClip(
       viewport: VIEWPORT,
       recordVideo: { dir: TMP_REC_DIR, size: VIEWPORT },
     });
+    if (LOGIN_TYPE === '2') await installAuthRefreshDedupe(ctx);
   } else {
     ctx = await (browser as any).newContext({
       viewport: VIEWPORT,
@@ -970,24 +1134,102 @@ async function recordClip(
       if (ownCtx) await ctx.close(); else await page.close();
       throw new Error(`No session — login failed before recording started`);
     }
-    // Navigate directly to the target page — liveCtx keeps auth in memory across clips
-    await page.goto(plan.targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(3000);  // let SPA hydrate
+    let loginRedirect = false;
+    let hasLoginForm  = 0;
+    let stillOnPicker = false;
 
-    // Always verify we didn't land on a login page — liveCtx auth is NOT guaranteed
-    // if the headless login silently failed (form flickers off then reappears).
-    landedUrl = page.url();
-    const loginRedirect =
-      landedUrl.includes('/login') || landedUrl.includes('/signin') || landedUrl.includes('/auth') ||
-      landedUrl.replace(/\/$/, '') === LOGIN_URL.replace(/\/$/, '');
-    const hasLoginForm = !loginRedirect
-      ? await page.locator('input[type="password"]').count().catch(() => 0)
-      : 0;
-    if (loginRedirect || hasLoginForm > 0) {
+    // Navigate directly to the target page — liveCtx keeps auth in memory across clips.
+    // The client-side auth guard on some apps can flake independently PER ROUTE (not
+    // just right after login — settling once at the login step isn't always enough),
+    // so retry a few times before giving up rather than accepting whatever the first
+    // attempt showed.
+    const maxAttempts = 3;
+    // Set after a successful in-place relogin lands us exactly on plan.targetUrl
+    // already (common — this app's Quick Access login often lands straight on a
+    // role's default route) so the next attempt's page.goto() below is skipped.
+    // That goto is not just wasted work if skipped incorrectly — it's actively
+    // harmful: this app's session rehydration on a fresh page load is a genuine
+    // race (concurrent duplicate POST /api/v1/auth/refresh calls, one 200 one 409)
+    // that sometimes never resolves even with a valid refreshToken cookie and a
+    // generous poll (empirically reproduced — see conversation). Re-navigating
+    // right after a real, fresh, cookie-issuing login re-rolls that same race for
+    // no reason when we're already sitting on the correct, authenticated page.
+    let skipNextGoto = false;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (!skipNextGoto) {
+        await page.goto(plan.targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      }
+      skipNextGoto = false;
+
+      // Poll instead of a single fixed sleep. This app rehydrates its session
+      // ASYNCHRONOUSLY on every fresh page load — confirmed via network trace: on
+      // every goto it fires POST /api/v1/auth/refresh (using the httpOnly
+      // refreshToken cookie, which IS present and valid) then GET /api/v1/auth/me,
+      // and only renders the authenticated page once that round trip resolves. In
+      // this dev-mode (Vite) deployment that can take 5-10s, well past the old fixed
+      // 3s wait — so the picker was being caught mid-flight and misreported as an
+      // expired/failed session even though the cookie-based session was completely
+      // fine. Poll for up to 12s so a slow-but-valid rehydration has time to finish
+      // before we conclude the session is actually gone.
+      const pollDeadline = Date.now() + 12000;
+      for (;;) {
+        await page.waitForTimeout(500);
+        landedUrl = page.url();
+        loginRedirect =
+          landedUrl.includes('/login') || landedUrl.includes('/signin') || landedUrl.includes('/auth') ||
+          landedUrl.replace(/\/$/, '') === LOGIN_URL.replace(/\/$/, '');
+        hasLoginForm = !loginRedirect
+          ? await page.locator('input[type="password"]').count().catch(() => 0)
+          : 0;
+        // URL string checks and a password-field count both miss apps whose auth guard is
+        // purely client-side: the browser stays on the REQUESTED url (no server redirect)
+        // and just renders the login/picker UI in place, and quick-access apps often have
+        // no password field anywhere — so a route can silently "succeed" (normal duration,
+        // no error) while the recorded content is actually still the login screen the whole
+        // time. Content-based check catches this regardless of what the URL bar shows.
+        stillOnPicker = !loginRedirect && !hasLoginForm && LOGIN_TYPE === '2'
+          ? await isQuickAccessScreenShowing(page, plan.loginAs)
+          : false;
+        if ((!loginRedirect && hasLoginForm === 0 && !stillOnPicker) || Date.now() >= pollDeadline) break;
+      }
+
+      if (!loginRedirect && hasLoginForm === 0 && !stillOnPicker) break;
+      if (attempt < maxAttempts) {
+        if (LOGIN_TYPE === '2' && plan.loginAs) {
+          // The 12s poll above already gives the app's own silent-refresh a fair
+          // chance — if we're still here, the refresh genuinely failed (e.g. the
+          // refresh token itself expired/was revoked), not just "still loading". Only
+          // now is it worth spending the time to re-click this role's Quick Access
+          // card and do a real interactive login in place.
+          console.warn(`    ⚠ Picker/login screen showing for "${plan.id}" (attempt ${attempt}/${maxAttempts}) — re-authenticating in place as "${plan.loginAs}"…`);
+          try {
+            await performLogin(page, {
+              loginType: 2, username: APP_USERNAME, password: APP_PASSWORD,
+              quickAccessIndex: 0, quickAccessRoleName: plan.loginAs,
+            });
+            await page.waitForTimeout(1500);
+            const reloginUrl = page.url();
+            const stillBad = reloginUrl.includes('/login') || reloginUrl.includes('/signin') ||
+              (await page.locator('input[type="password"]').count().catch(() => 0)) > 0;
+            if (!stillBad && reloginUrl.replace(/\/$/, '') === plan.targetUrl.replace(/\/$/, '')) {
+              skipNextGoto = true;
+            }
+          } catch (e) {
+            console.warn(`    ↳ In-place re-login attempt failed: ${(e as Error).message?.slice(0, 100)}`);
+          }
+        } else {
+          console.warn(`    ⚠ Landed on login/picker screen for "${plan.id}" (attempt ${attempt}/${maxAttempts}) — retrying…`);
+          await page.waitForTimeout(3000);
+        }
+      }
+    }
+    if (loginRedirect || hasLoginForm > 0 || stillOnPicker) {
       // Don't close liveCtx (shared) — only close the page
       if (ownCtx) await ctx.close(); else await page.close();
       const reason = loginRedirect
         ? `redirected to login URL (${landedUrl})`
+        : stillOnPicker
+        ? 'quick-access/login screen still showing (client-side auth guard — URL unchanged)'
         : 'login form still visible';
       throw new Error(
         `Route ${plan.targetUrl} ${reason}.\n` +
@@ -1021,6 +1263,22 @@ async function recordClip(
   const targetMs = (plan.durationSec + (plan.recordingStartSec ?? 0)) * 1000;
   const remaining = targetMs - elapsed - 3000;
   if (remaining > 0) await page.waitForTimeout(remaining);
+
+  // Re-verify right before the screenshot — the check right after navigation only
+  // proves the page was correct at THAT moment. Some apps' live session can drop
+  // during the ~20-30s of scroll/interaction steps above (e.g. a background rerun,
+  // idle check, or dropped connection), reverting to the login/picker screen well
+  // after the initial check already passed, so the final screenshot silently
+  // captures the reverted state unless checked again right here.
+  if (plan.loginAs && LOGIN_TYPE === '2' && await isQuickAccessScreenShowing(page, plan.loginAs)) {
+    if (ownCtx) await ctx.close(); else await page.close();
+    throw new Error(
+      `Route ${plan.targetUrl} reverted to the quick-access/login screen during recording ` +
+      `(session dropped mid-interaction).\n` +
+      `  Check APP_USERNAME / APP_PASSWORD / APP_LOGIN_PATH in .env.\n` +
+      `  Current credentials: ${APP_USERNAME} @ ${new URL(APP_URL).origin}`,
+    );
+  }
 
   const framePath = path.join(REC_DIR, `${plan.id}-frame.png`);
   await page.screenshot({ path: framePath, fullPage: false });
@@ -1384,29 +1642,80 @@ async function main(): Promise<void> {
   // keeps an authenticated browser context alive per role so every clip recording for
   // that role inherits the same auth state, even for in-memory-only auth. Sessions are
   // cached so each unique role logs in exactly once regardless of route order.
-  type RoleSession = { session: SessionState; liveCtx: BrowserContext };
+  // ownBrowser: set only for Layer-3 (manual login) sessions — the standalone
+  // headed browser process that must be closed alongside its context, since it's
+  // separate from the one shared headless `browser` instance used everywhere else.
+  type RoleSession = { session: SessionState; liveCtx: BrowserContext; ownBrowser?: Browser };
   const roleSessionCache = new Map<string, RoleSession>();
   // Roles whose login already failed outright this run — avoids repeating a full
   // (possibly 3-minute manual-login) attempt for every subsequent route needing them.
   const failedRoles = new Set<string>();
+  // Surfaced into validation-report.json so a short/incomplete video is traceable to
+  // "this role's Quick Access card was never found" instead of looking like an
+  // unexplained content gap — generic across every app (keyed by role name only).
+  const roleLoginIssues: { role: string; issue: string }[] = [];
   async function getSessionForRole(roleName: string): Promise<RoleSession | null> {
     const cached = roleSessionCache.get(roleName);
-    if (cached) return cached;
+    // This app's Quick Access auth has a genuine bug where reusing one browser
+    // context/session across several clips accumulates state (repeated relogins on
+    // the same context) that makes LATER clips fail even though a completely fresh
+    // login + single navigation to that exact same route reliably succeeds every
+    // time (confirmed directly — a clean isolated repro hit 5/5, while reusing an
+    // already-exercised context on the real run kept failing even with a
+    // conflict-free refresh response). So for LOGIN_TYPE=2 apps, never reuse a
+    // session across clips — acquire a brand-new one per clip instead. LOGIN_TYPE=1
+    // (password) apps keep the original reuse-across-clips behavior; this bug is
+    // specific to this app's Quick Access flow.
+    if (cached && LOGIN_TYPE !== '2') return cached;
+    if (cached) {
+      roleSessionCache.delete(roleName);
+      await cached.liveCtx?.close().catch(() => {});
+      if (cached.ownBrowser) await cached.ownBrowser.close().catch(() => {});
+    }
     if (failedRoles.has(roleName)) return null;
     console.log(`\n  Acquiring auth session for role "${roleName}"…`);
     const acquired = await acquireSession(browser as any, TMP_REC_DIR, { roleName });
     if (acquired) {
-      roleSessionCache.set(roleName, acquired);
-    } else {
-      failedRoles.add(roleName);
+      if (acquired.roleMatchConfidence === 'fallback-default-card') {
+        roleLoginIssues.push({
+          role: roleName,
+          issue: `No Quick Access card's visible text matched "${roleName}" — logged in using ` +
+                 `the default card instead. Routes assigned to this role likely show another ` +
+                 `role's content and may get dropped as duplicates.`,
+        });
+      }
+      const { roleMatchConfidence: _drop, ...roleSession } = acquired;
+      roleSessionCache.set(roleName, roleSession);
+      return roleSession;
     }
-    return acquired;
+    failedRoles.add(roleName);
+    roleLoginIssues.push({
+      role: roleName,
+      issue: `Login failed outright for this role — its routes were recorded under a ` +
+             `fallback session (or skipped) and will show the wrong role's content.`,
+    });
+    return null;
   }
 
   const forceRerecord = process.env.FORCE_RERECORD === 'true';
   const recorded: RecordedClip[] = [];
 
-  for (const plan of RECORDING_PLAN) {
+  // Last index (in EXECUTION_ORDER) at which each role is still needed — lets the
+  // loop below close+evict a role's session immediately after its final route
+  // instead of holding every role's browser open until the whole run ends.
+  const lastNeededAt = new Map<string, number>();
+  EXECUTION_ORDER.forEach((p, i) => { if (p.loginAs) lastNeededAt.set(p.loginAs, i); });
+  async function closeRoleSessionIfDone(execIdx: number, roleName?: string): Promise<void> {
+    if (!roleName || lastNeededAt.get(roleName) !== execIdx) return;
+    const s = roleSessionCache.get(roleName);
+    if (!s) return;
+    roleSessionCache.delete(roleName);
+    await s.liveCtx?.close().catch(() => {});
+    if (s.ownBrowser) await s.ownBrowser.close().catch(() => {});
+  }
+
+  for (let execIdx = 0; execIdx < EXECUTION_ORDER.length; execIdx++) {
+    const plan = EXECUTION_ORDER[execIdx];
     const mp4   = path.join(REC_DIR, `${plan.id}.mp4`);
     const frame = path.join(REC_DIR, `${plan.id}-frame.png`);
     if (!forceRerecord && fs.existsSync(mp4) && fs.existsSync(frame) && fs.statSync(mp4).size > 50_000) {
@@ -1419,6 +1728,7 @@ async function main(): Promise<void> {
         durationSec: dur, recordingStartSec: plan.recordingStartSec,
         landedUrl: readCachedLandedUrl(plan.id),
       });
+      await closeRoleSessionIfDone(execIdx, plan.loginAs);
       continue;
     }
 
@@ -1437,19 +1747,49 @@ async function main(): Promise<void> {
         } else {
           console.error(`  ✗ Could not log in for role "${plan.loginAs}" and no fallback session exists — skipping "${plan.id}".`);
           console.error(`    Check APP_USERNAME / APP_PASSWORD / APP_LOGIN_PATH in .env`);
+          await closeRoleSessionIfDone(execIdx, plan.loginAs);
           continue;
         }
       }
     }
 
+    let clipSucceeded = false;
     try {
       const clip = await recordClip(browser as any, plan, roleSession?.session ?? null, roleSession?.liveCtx);
       recorded.push(clip);
       writeCachedLandedUrl(plan.id, clip.landedUrl);
+      clipSucceeded = true;
     } catch (clipErr) {
-      console.warn(`\n  ✗ Clip "${plan.id}" failed — skipping. (${(clipErr as Error).message?.slice(0, 120)})`);
-      // Fall back to cached file under forceRerecord so existing content is preserved
-      if (fs.existsSync(mp4) && fs.existsSync(frame) && fs.statSync(mp4).size > 50_000) {
+      const message = (clipErr as Error).message ?? '';
+      // recordClip already retried the SAME session 3x — if it's still landing on the
+      // login/picker screen, the session itself may have genuinely expired mid-group
+      // (some apps time out well under a minute), not just a one-off render race.
+      // Re-authenticating fresh and retrying once addresses that root cause; simply
+      // retrying the same dead session again (as recordClip's own loop does) cannot.
+      const looksExpired = !!plan.loginAs && /login|picker/i.test(message);
+      if (looksExpired) {
+        console.warn(`  ↻ Session for role "${plan.loginAs}" may have expired mid-group — re-authenticating and retrying "${plan.id}" once…`);
+        const stale = roleSessionCache.get(plan.loginAs!);
+        roleSessionCache.delete(plan.loginAs!);
+        await stale?.liveCtx?.close().catch(() => {});
+        if (stale?.ownBrowser) await stale.ownBrowser.close().catch(() => {});
+        failedRoles.delete(plan.loginAs!);
+        const freshSession = await getSessionForRole(plan.loginAs!);
+        if (freshSession) {
+          try {
+            const retryClip = await recordClip(browser as any, plan, freshSession.session, freshSession.liveCtx);
+            recorded.push(retryClip);
+            writeCachedLandedUrl(plan.id, retryClip.landedUrl);
+            clipSucceeded = true;
+          } catch (retryErr) {
+            console.warn(`\n  ✗ Clip "${plan.id}" failed again after re-authenticating — skipping. (${(retryErr as Error).message?.slice(0, 120)})`);
+          }
+        }
+      } else {
+        console.warn(`\n  ✗ Clip "${plan.id}" failed — skipping. (${message.slice(0, 120)})`);
+      }
+
+      if (!clipSucceeded && fs.existsSync(mp4) && fs.existsSync(frame) && fs.statSync(mp4).size > 50_000) {
         console.warn(`    ↩ Using existing cached file as fallback.`);
         let dur = plan.durationSec;
         try { dur = getVideoInfo(mp4).duration; } catch {}
@@ -1461,10 +1801,19 @@ async function main(): Promise<void> {
         });
       }
     }
+
+    await closeRoleSessionIfDone(execIdx, plan.loginAs);
   }
 
-  for (const { liveCtx } of roleSessionCache.values()) {
+  // Recording runs in EXECUTION_ORDER (grouped by role); restore RECORDING_PLAN's
+  // original APP_ROUTE_MAP-authored order so scene timing/sequence in the final
+  // video is unaffected by that execution-order optimization.
+  const planIndex = new Map(RECORDING_PLAN.map((p, i) => [p.id, i]));
+  recorded.sort((a, b) => (planIndex.get(a.id) ?? 0) - (planIndex.get(b.id) ?? 0));
+
+  for (const { liveCtx, ownBrowser } of roleSessionCache.values()) {
     await liveCtx?.close();
+    if (ownBrowser) await ownBrowser.close().catch(() => {});
   }
   await browser.close();
 
@@ -1507,24 +1856,29 @@ async function main(): Promise<void> {
     clusters.get(root)!.push(clip.id);
   }
 
-  // Within each cluster of visually-duplicate scenes, keep exactly one representative —
-  // preferring a clip that genuinely reached its intended route (no URL mismatch) over
-  // one that only landed there via an unintended redirect — and drop the rest.
+  // Within each cluster of visually-similar scenes, only ever drop a clip that ITSELF
+  // redirected somewhere unintended (a URL mismatch) — never a clip that genuinely
+  // reached its own target route. Perceptual image hashing compares whole-frame pixel
+  // layout, and most dashboard-style apps share the same chrome (sidebar, header,
+  // mostly-whitespace background) across every screen, so two completely different,
+  // correctly-landed pages routinely hash as "90%+ similar" — dropping them on that
+  // basis alone silently deletes real, distinct, correctly-authenticated content.
+  // A cluster with no mismatched member is left untouched entirely.
   const dropIds = new Set<string>();
   const droppedScenes: { id: string; reason: string }[] = [];
   for (const members of clusters.values()) {
     if (members.length < 2) continue;
-    const correct  = members.filter(id => !mismatchedIds.has(id));
-    const keepPool = correct.length > 0 ? correct : members;
-    const keepId   = keepPool[0];
-    for (const id of members) {
+    const mismatchedMembers = members.filter(id => mismatchedIds.has(id));
+    if (mismatchedMembers.length === 0) continue;
+    const correct = members.filter(id => !mismatchedIds.has(id));
+    const keepId  = correct[0] ?? mismatchedMembers[0];
+    for (const id of mismatchedMembers) {
       if (id === keepId) continue;
       dropIds.add(id);
       const mismatch = urlMismatchFlags.find(f => f.sceneId === id);
       droppedScenes.push({
         id,
-        reason: `duplicate of "${keepId}"` +
-          (mismatch ? ` (${mismatch.message})` : ' (same content, redundant)'),
+        reason: `duplicate of "${keepId}"` + (mismatch ? ` (${mismatch.message})` : ''),
       });
     }
   }
@@ -1532,6 +1886,10 @@ async function main(): Promise<void> {
   if (droppedScenes.length > 0) {
     console.log(`\n  Dropping ${droppedScenes.length} scene(s) that duplicate content shown elsewhere:`);
     for (const d of droppedScenes) console.log(`    ✗ ${d.id} — ${d.reason}`);
+  }
+  if (roleLoginIssues.length > 0) {
+    console.log(`\n  ⚠ ${roleLoginIssues.length} role-login issue(s) — check APP_ROUTE_MAP role names against the app's actual Quick Access cards:`);
+    for (const r of roleLoginIssues) console.log(`    ⚠ ${r.role} — ${r.issue}`);
   }
 
   // AI analysis of captured frames
@@ -1576,7 +1934,7 @@ async function main(): Promise<void> {
   printValidationReport(validationReport);
   fs.writeFileSync(
     path.join(OUT_DIR, 'validation-report.json'),
-    JSON.stringify({ ...validationReport, droppedScenes }, null, 2),
+    JSON.stringify({ ...validationReport, droppedScenes, roleLoginIssues }, null, 2),
     'utf-8',
   );
 
