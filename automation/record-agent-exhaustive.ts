@@ -80,9 +80,16 @@ let routeMap: Record<string, string> = {};
 try { if (APP_ROUTE_MAP_RAW) routeMap = JSON.parse(APP_ROUTE_MAP_RAW); } catch { /* proceed with no route map */ }
 
 const AGENT_DIR       = path.join(OUT_DIR, 'agent-recording');
-const SCREENSHOT_DIR  = path.join(AGENT_DIR, 'screenshots');
 const REPORT_PATH     = path.join(OUT_DIR, 'agent-safety-report.json');
 const WALKTHROUGH_PATH = path.join(AGENT_DIR, 'agent-walkthrough.mp4');
+// Intermediate-only artifacts (per-element safety screenshots, raw per-role video
+// chunks before conversion) live under .tmp/, NOT inside OUT_DIR — OUT_DIR is
+// Remotion Studio's live --public-dir, and an exhaustive crawl (up to
+// MAX_PAGES_PER_ROLE × MAX_ELEMENTS_PER_PAGE writes per role) floods its file
+// watcher badly enough to crash/disconnect the Studio dev server mid-run. Only
+// the FINAL walkthrough video and safety report need to be servable by Studio.
+const AGENT_TMP_DIR   = path.join(ROOT, '.tmp', `agent-recording-${toSlug(PRODUCT_NAME)}`);
+const SCREENSHOT_DIR  = path.join(AGENT_TMP_DIR, 'screenshots');
 
 fs.mkdirSync(AGENT_DIR, { recursive: true });
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
@@ -120,7 +127,7 @@ async function recordRole(
   browser: import('playwright').Browser,
   role:    string,
 ): Promise<RoleRecordingResult> {
-  const recDir = path.join(AGENT_DIR, `_tmp_${toSlug(role)}`);
+  const recDir = path.join(AGENT_TMP_DIR, `_tmp_${toSlug(role)}`);
   fs.mkdirSync(recDir, { recursive: true });
 
   console.log(`\n  🎭  Role: ${role}`);

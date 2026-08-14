@@ -1,7 +1,5 @@
 import React from 'react';
 import {Composition, staticFile} from 'remotion';
-import {RheemDemo, totalFrames} from '../projects/rheem/composition';
-import {rheemProject} from '../projects/rheem/config/project.config';
 import {DemoVideo} from './compositions/DemoVideo';
 import type {DemoVideoProps} from './compositions/DemoVideo';
 import {EnterpriseVideo} from './compositions/EnterpriseVideo';
@@ -268,6 +266,83 @@ export const RemotionRoot: React.FC = () => (
     />
 
     {/*
+      ── ManualRecordingEnterpriseVideo ───────────────────────────────────────────
+      Enterprise-shaped playback of a Manual Recording: same B-roll → product
+      demo → benefit → presenter-close structure as EnterpriseVideo, but each
+      product scene plays the user's own uploaded footage (recordingPath) instead
+      of a Playwright-captured screenshot/clip.
+      Data source: out/<slug>/manual-recording/demo-package.json +
+      manual-recording/enterprise-voice-script.json — deliberately NOT the
+      root-level demo-package.json (that belongs to the automated Enterprise
+      pipeline and may already exist for this product).
+      Produced by: automation/manual-recording-to-enterprise.ts
+    */}
+    <Composition
+      id="ManualRecordingEnterpriseVideo"
+      component={EnterpriseVideo}
+      durationInFrames={240}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{
+        brollScenes:    [],
+        scenes:         [],
+        benefitSlide:   { from: 90, durationInFrames: 900, title: 'Value Adds', bullets: [] },
+        presenterClose: { from: 990, durationInFrames: 1020, tagline: 'Run manual-recording-to-enterprise.ts first', presenterSrc: '' },
+        presenterConfig:{ src: '', widthFraction: 0, position: 'bottom-left' },
+      } as EnterpriseVideoProps}
+      calculateMetadata={async () => {
+        try {
+          const response = await fetch(staticFile('manual-recording/demo-package.json'));
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pkg = await response.json() as any;
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const scenes = (pkg.scenes ?? []).map((s: any) => ({
+            ...s,
+            screenshotPath:     String(s.screenshotPath     ?? '').replace(/\\/g, '/'),
+            fullScreenshotPath: String(s.fullScreenshotPath ?? '').replace(/\\/g, '/'),
+            recordingPath:      s.recordingPath ? String(s.recordingPath).replace(/\\/g, '/') : undefined,
+          }));
+
+          let voiceScript: VoiceScript | undefined;
+          try {
+            const ts = Date.now();
+            const vsRes = await fetch(staticFile('manual-recording/enterprise-voice-script.json') + '?t=' + ts);
+            if (vsRes.ok) {
+              voiceScript = await vsRes.json() as VoiceScript;
+              voiceScript.loadedAt = ts;
+            }
+          } catch { /* voice script is optional */ }
+
+          const loaded: EnterpriseVideoProps = {
+            brollScenes:     pkg.brollScenes     ?? [],
+            scenes,
+            benefitSlide:    pkg.benefitSlide,
+            presenterClose:  pkg.presenterClose,
+            presenterConfig: pkg.presenterConfig,
+            voiceScript,
+            screenFit:       pkg.screenFit ?? 'full',
+          } as unknown as EnterpriseVideoProps;
+
+          const durationInFrames =
+            loaded.presenterClose.from + loaded.presenterClose.durationInFrames;
+          return { props: loaded, durationInFrames };
+        } catch {
+          const stub: EnterpriseVideoProps = {
+            brollScenes:    [],
+            scenes:         [],
+            benefitSlide:   { from: 90, durationInFrames: 900, title: 'Value Adds', bullets: [] },
+            presenterClose: { from: 990, durationInFrames: 1020, tagline: 'Run manual-recording-to-enterprise.ts first', presenterSrc: '' },
+            presenterConfig:{ src: '', widthFraction: 0, position: 'bottom-left' },
+          };
+          return { props: stub, durationInFrames: 2010 };
+        }
+      }}
+    />
+
+    {/*
       ── TeaserVideo ────────────────────────────────────────────────────────────
       Teaser template: B-roll hook → real screen-recording feature montage →
       mid-benefit statement card → client app logo/tagline outro, with a short
@@ -361,22 +436,6 @@ export const RemotionRoot: React.FC = () => (
       defaultProps={{
         roleName: 'Role', roleIndex: 0, totalRoles: 1,
       } as RoleTransitionCardProps}
-    />
-
-    {/*
-      ── RheemDemo ──────────────────────────────────────────────────────────────
-      Legacy cinematic sales demo driven by pre-recorded MP4 clips.
-      Data source: projects/rheem/clipManifest.json (static, bundled).
-      Registered last — Studio opens DemoVideo by default.
-    */}
-    <Composition
-      id="RheemDemo"
-      component={RheemDemo}
-      durationInFrames={totalFrames}
-      fps={rheemProject.fps}
-      width={rheemProject.width}
-      height={rheemProject.height}
-      defaultProps={{}}
     />
 
     {/*

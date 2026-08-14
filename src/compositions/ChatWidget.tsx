@@ -10,9 +10,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useRemotionEnvironment } from 'remotion';
-import { ThemeCtx, type ThemeTokens } from './ConfigPage';
+import { ThemeCtx, type ThemeTokens, getApiBase } from './ConfigPage';
 
-const API = 'http://localhost:4001';
+const API = getApiBase();
 const DW  = 480; // dialog width
 
 // ── Design tokens ────────────────────────────────────────────────────────────

@@ -442,8 +442,29 @@ function writeCachedRecordingStartSec(id: string, recordingStartSec: number): vo
 async function recordOnCtx(ctx: BrowserContext, plan: TeaserClipPlan, interact: boolean = true): Promise<RecordedClip> {
   console.log(`\n  ── Recording: ${plan.label} ──────────────────────────`);
   const page = await ctx.newPage();
-  const navStart = Date.now();
+  let navStart = Date.now();
   await page.goto(plan.targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  // This app's client-side auth-refresh race (two concurrent /auth/refresh calls,
+  // one 200/one 409 — see project_account_intelligence_login_race memory) can bounce
+  // ANY fresh navigation back to /login, not just the first one in a context's
+  // lifetime — a one-time warm-up before the loop isn't enough on its own. The
+  // session itself is fine (proven by other clips in the same run succeeding), so
+  // simply re-navigating settles it; retry a couple of times before giving up.
+  if (plan.needsAuth) {
+    const landedOnLogin = async () => {
+      await page.waitForTimeout(800); // the client-side revert to the login form can lag domcontentloaded
+      if (/\/login\b/.test(page.url())) return true;
+      // Some failures re-render the login form client-side without an actual URL
+      // redirect — a plain URL check misses those, so also probe for the password
+      // field (same signal record-app-clips.ts's acquireSession relies on).
+      return (await page.locator('input[type="password"]').count().catch(() => 0)) > 0;
+    };
+    for (let attempt = 0; attempt < 3 && (await landedOnLogin()); attempt++) {
+      console.log(`    ⚠ Landed on login for "${plan.id}" (attempt ${attempt + 1}/3) — retrying navigation…`);
+      navStart = Date.now();
+      await page.goto(plan.targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+    }
+  }
   // Wait for network activity to settle — a generic, app-agnostic proxy for
   // "the page has loaded its data", instead of guessing a fixed number of
   // seconds that may not hold for every run. NOT sufficient on its own though:
@@ -696,17 +717,30 @@ async function main(): Promise<void> {
       })();
 
       console.log(`\n  Acquiring auth session${primaryRole ? ` (role: "${primaryRole}")` : ''}…`);
-      const session: SessionState | null = await ensureSession(browser, {
-        appUrl:   APP_URL,
-        viewport: VIEWPORT,
-        credentials: {
-          username:            APP_USERNAME,
-          password:            APP_PASSWORD,
-          loginType:           (LOGIN_TYPE === '2' ? 2 : 1),
-          quickAccessIndex:    QUICK_ACCESS_INDEX,
-          quickAccessRoleName: primaryRole,
-        },
-      });
+      // ensureSession/performLogin throws outright when LOGIN_TYPE=2 and no Quick
+      // Access UI can be found at all (as opposed to finding the section but not
+      // this role's card, which already degrades gracefully). Left uncaught, that
+      // exception escapes to main()'s top-level catch and aborts the whole teaser
+      // run — the same crash class fixed in record-app-clips.ts's acquireSession;
+      // this script has its own separate (simpler) login path that never got that
+      // fix. Treat a thrown login error the same as ensureSession returning null —
+      // the code below already handles that gracefully.
+      let session: SessionState | null = null;
+      try {
+        session = await ensureSession(browser, {
+          appUrl:   APP_URL,
+          viewport: VIEWPORT,
+          credentials: {
+            username:            APP_USERNAME,
+            password:            APP_PASSWORD,
+            loginType:           (LOGIN_TYPE === '2' ? 2 : 1),
+            quickAccessIndex:    QUICK_ACCESS_INDEX,
+            quickAccessRoleName: primaryRole,
+          },
+        });
+      } catch (err) {
+        console.warn(`  ↳ Login threw an error — skipping authenticated clips. (${(err as Error).message?.slice(0, 150)})`);
+      }
 
       if (!session) {
         console.error('  ✗ Could not establish an authenticated session — check APP_USERNAME/APP_PASSWORD/LOGIN_TYPE in .env');
@@ -715,6 +749,18 @@ async function main(): Promise<void> {
         const authCtx = await createAuthContext(browser, session, {
           viewport: VIEWPORT, recordVideo: { dir: TMP_REC_DIR, size: VIEWPORT },
         });
+        // A context hydrated from storageState has never actually loaded the app —
+        // going straight from here to a deep protected route consistently loses this
+        // app's client-side auth-refresh race (two concurrent /auth/refresh calls,
+        // one 200/one 409) and lands back on /login for the ENTIRE clip. Warming the
+        // context up on a safe landing route first (same as a real browser session
+        // that's already past its initial auth check) settles that race before any
+        // recording starts — confirmed reliable across repeated manual checks of the
+        // exact same deep routes, where only the very first navigation ever failed.
+        const warmupPage = await authCtx.newPage();
+        await warmupPage.goto(APP_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+        await warmupPage.waitForTimeout(2500);
+        await warmupPage.close();
         try {
           for (const plan of authPlans) {
             try {
