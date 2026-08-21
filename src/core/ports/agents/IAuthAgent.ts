@@ -5,8 +5,8 @@ export interface AuthInput {
   url:      string;
   username: string;
   password: string;
-  /** 1 = fill username+password (default); 2 = click a Quick Access option */
-  loginType?:        1 | 2;
+  /** 0 = no login/auth at all; 1 = fill username+password (default); 2 = click a Quick Access option */
+  loginType?:        0 | 1 | 2;
   /** Which Quick Access card to click (0-based). Only used when loginType=2. Default: 0 */
   quickAccessIndex?: number;
 }

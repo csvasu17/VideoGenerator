@@ -36,9 +36,12 @@ import type { RunInput }           from '../src/application/pipeline/PipelineCon
 // ── Target  (read from .env — fall back to OrangeHRM demo for testing) ───────
 
 const TARGET_URL        = process.env['APP_URL']               ?? 'https://opensource-demo.orangehrmlive.com';
-const USERNAME          = process.env['APP_USERNAME']          ?? 'Admin';
-const PASSWORD          = process.env['APP_PASSWORD']          ?? 'admin123';
-const LOGIN_TYPE        = process.env['LOGIN_TYPE'] === '2' ? 2 as const : 1 as const;
+const LOGIN_TYPE        = process.env['LOGIN_TYPE'] === '2' ? 2 as const
+                         : process.env['LOGIN_TYPE'] === '0' ? 0 as const
+                         : 1 as const;
+// No login required → never send real/default credentials through the pipeline.
+const USERNAME          = LOGIN_TYPE === 0 ? '' : (process.env['APP_USERNAME'] ?? 'Admin');
+const PASSWORD          = LOGIN_TYPE === 0 ? '' : (process.env['APP_PASSWORD'] ?? 'admin123');
 const QUICK_ACCESS_IDX  = parseInt(process.env['APP_QUICK_ACCESS_INDEX'] ?? '0', 10) || 0;
 
 /**
@@ -138,7 +141,7 @@ async function main(): Promise<void> {
   if (APP_CONTEXT_TEXT) {
     console.log(`      Context  : ${APP_CONTEXT_TEXT.slice(0, 80)}${APP_CONTEXT_TEXT.length > 80 ? '…' : ''}`);
   }
-  console.log(`      Login    : ${LOGIN_TYPE === 2 ? `Quick Access card #${QUICK_ACCESS_IDX}` : 'Username / password'}`);
+  console.log(`      Login    : ${LOGIN_TYPE === 2 ? `Quick Access card #${QUICK_ACCESS_IDX}` : LOGIN_TYPE === 0 ? 'No login required' : 'Username / password'}`);
   console.log(`      Template : ${VIDEO_TEMPLATE ?? 'modern_saas (default)'}`);
   console.log(`      Out      : ${OUTPUT_DIR}`);
   console.log(SEP);

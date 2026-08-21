@@ -29,6 +29,7 @@
     "record:agent-exhaustive:narrate": "ts-node --project tsconfig.scripts.json automation/record-agent-exhaustive.ts --narrate",
     "manual-recording:process": "ts-node --project tsconfig.scripts.json automation/process-manual-recording.ts",
     "manual-recording:enterprise": "ts-node --project tsconfig.scripts.json automation/manual-recording-to-enterprise.ts",
+    "manual-recording:fix-demo": "ts-node --project tsconfig.scripts.json automation/fix-manual-recording-demo.ts",
     "broll:download": "ts-node --project tsconfig.scripts.json automation/download-broll-videos.ts",
     "broll:register": "ts-node --project tsconfig.scripts.json automation/register-broll-videos.ts",
     "broll:premium": "ts-node --project tsconfig.scripts.json automation/download-broll-premium.ts",

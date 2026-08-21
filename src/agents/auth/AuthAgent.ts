@@ -91,6 +91,34 @@ export class AuthAgent implements IAuthAgent {
 
     const browser = await chromium.launch({ headless: cfg.headless });
 
+    if (input.loginType === 0) {
+      // App has no login/auth at all — just navigate, nothing to fill.
+      const context = await browser.newContext({
+        viewport: { width: 1920, height: 1080 },
+        ignoreHTTPSErrors: true,
+      });
+      try {
+        const page = await context.newPage();
+        await page.goto(input.url, {
+          waitUntil: cfg.waitForNetworkIdle ? 'networkidle' : 'domcontentloaded',
+          timeout:   cfg.navigationTimeoutMs,
+        });
+        const landedUrl = page.url();
+        await page.close();
+        return {
+          browser,
+          context,
+          authenticated: true,
+          landedUrl,
+          authenticatedAt: new Date().toISOString(),
+        };
+      } catch (err) {
+        await context.close().catch(() => {});
+        await browser.close().catch(() => {});
+        throw err;
+      }
+    }
+
     const contextOptions = {
       viewport: { width: 1920, height: 1080 },
       userAgent:

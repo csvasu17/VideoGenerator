@@ -40,19 +40,36 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3): Promis
   throw new Error('retryWithBackoff: unreachable');
 }
 
+// Words-per-second budget for spoken narration. Deliberately below natural TTS
+// pace (~2.3-2.5 wps at the pipeline's default 0.95 speed) so narration finishes
+// with a little breathing room before the scene cuts, instead of exactly at — or
+// past — the cut point. Without this budget, narration length was unrelated to
+// scene duration and drifted up to two minutes behind the picture by the end of
+// a long recording.
+const NARRATION_WORDS_PER_SEC = 2.0;
+const MIN_NARRATION_WORDS = 5;
+const MAX_NARRATION_WORDS_CAP = 70;
+
 export async function analyzeScene(
-  azureClient:    AzureOpenAI,
-  framePath:      string,
-  productContext: string,
+  azureClient:      AzureOpenAI,
+  framePath:        string,
+  productContext:   string,
+  sceneDurationSec: number,
 ): Promise<SceneNarration> {
   try {
     return await retryWithBackoff(async () => {
       const b64 = fs.readFileSync(framePath).toString('base64');
       const promptTemplate = loadPrompt('vision', 'manual-recording-scene.v1');
       const languageName = resolveLanguageName(process.env['APP_LANGUAGE']);
+      const maxWords = Math.max(
+        MIN_NARRATION_WORDS,
+        Math.min(MAX_NARRATION_WORDS_CAP, Math.round(sceneDurationSec * NARRATION_WORDS_PER_SEC)),
+      );
       const prompt = fillTemplate(promptTemplate, {
         PRODUCT_CONTEXT:      productContext ? `PRODUCT CONTEXT:\n${productContext.slice(0, 1000)}` : '',
         LANGUAGE_INSTRUCTION: languageName ? `Write "sceneTitle" and "narration" in natural, native-sounding ${languageName} (not a literal translation). Keep "onScreenSummary" and "confidence" in English — those are for an internal report, never shown to viewers.` : '',
+        SCENE_DURATION_SEC:   String(Math.round(sceneDurationSec)),
+        MAX_NARRATION_WORDS:  String(maxWords),
       });
 
       const response = await azureClient.chat.completions.create({
@@ -91,12 +108,12 @@ export async function analyzeScene(
  *  rate-limit posture. Individual failures degrade to confidence:'failed', never abort the batch. */
 export async function analyzeAllScenes(
   azureClient:    AzureOpenAI,
-  frames:         { sceneIndex: number; framePath: string }[],
+  frames:         { sceneIndex: number; framePath: string; durationSec: number }[],
   productContext: string,
 ): Promise<Map<number, SceneNarration>> {
   const queue = new CaptureQueue(2);
   const results = await queue.runAll(
-    frames.map(f => async () => ({ sceneIndex: f.sceneIndex, result: await analyzeScene(azureClient, f.framePath, productContext) })),
+    frames.map(f => async () => ({ sceneIndex: f.sceneIndex, result: await analyzeScene(azureClient, f.framePath, productContext, f.durationSec) })),
   );
 
   const map = new Map<number, SceneNarration>();

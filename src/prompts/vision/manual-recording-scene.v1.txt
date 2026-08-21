@@ -11,5 +11,12 @@ guessing.
 {{PRODUCT_CONTEXT}}
 {{LANGUAGE_INSTRUCTION}}
 
+This scene is only on screen for {{SCENE_DURATION_SEC}} seconds before the video cuts
+to the next one. The narration is spoken over that exact window, so it MUST fit: at
+most {{MAX_NARRATION_WORDS}} words. Longer text makes the voiceover fall behind the
+picture for the rest of the video. If the scene is very short, write a single short
+phrase, not a full sentence — a fragment that fits is better than a sentence that
+overruns.
+
 Output JSON only, no fences, no commentary:
-{"sceneTitle":"2-4 word screen title","narration":"one to two short sentences (max 30 words total) describing what this screen shows and does, written for a spoken voiceover","onScreenSummary":"one short phrase naming the key visible elements, for an internal review report only","confidence":"high or low — low if the frame is a loading state, transition, or otherwise unclear"}
+{"sceneTitle":"2-4 word screen title","narration":"a spoken-voiceover line describing what this screen shows and does, at most {{MAX_NARRATION_WORDS}} words","onScreenSummary":"one short phrase naming the key visible elements, for an internal review report only","confidence":"high or low — low if the frame is a loading state, transition, or otherwise unclear"}

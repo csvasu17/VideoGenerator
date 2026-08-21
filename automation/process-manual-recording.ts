@@ -270,7 +270,7 @@ async function main(): Promise<void> {
   console.log(`     Detected ${scenes.length} scene(s)`);
 
   console.log('  🖼️   Extracting representative frames…');
-  const frames = scenes.map(scene => ({ sceneIndex: scene.index, framePath: extractSceneFrame(scene) }));
+  const frames = scenes.map(scene => ({ sceneIndex: scene.index, framePath: extractSceneFrame(scene), durationSec: scene.durationSec }));
 
   console.log('  🤖  Analyzing scenes with AI vision…');
   const azureClient = new AzureOpenAI({
