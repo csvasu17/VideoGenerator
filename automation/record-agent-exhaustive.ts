@@ -57,7 +57,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const APP_URL      = (process.env['APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '');
-const LOGIN_TYPE    = (process.env['LOGIN_TYPE'] === '2' ? '2' : '1') as '1' | '2';
+const LOGIN_TYPE    = (process.env['LOGIN_TYPE'] === '2' ? '2' : process.env['LOGIN_TYPE'] === '0' ? '0' : '1') as '0' | '1' | '2';
 const APP_USERNAME  = process.env['APP_USERNAME'] ?? '';
 const APP_PASSWORD  = process.env['APP_PASSWORD'] ?? '';
 const APP_LOGIN_PATH = (process.env['APP_LOGIN_PATH'] ?? '/login').replace(/^\//, '');
@@ -346,7 +346,7 @@ async function main(): Promise<void> {
 
   if (!APP_URL) { console.error('  ✗  APP_URL not set in .env'); process.exit(1); }
 
-  const roles = discoverAllRoles(routeMap);
+  const roles = LOGIN_TYPE === '0' ? ['Guest'] : discoverAllRoles(routeMap);
   if (roles.length === 0) {
     console.error('  ✗  No roles discovered from APP_ROUTE_MAP — nothing to record.');
     process.exit(1);

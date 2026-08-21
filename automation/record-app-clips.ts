@@ -7,7 +7,7 @@
  * All parameters are read from .env — NO hardcoded product values:
  *   APP_URL          — target application URL
  *   APP_PRODUCT_NAME — product name (output folder + metadata)
- *   LOGIN_TYPE       — 1 = username/password form, 2 = Quick Access card click
+ *   LOGIN_TYPE       — 0 = no login required, 1 = username/password form, 2 = Quick Access card click
  *   APP_USERNAME     — username (type 1) or card name to click (type 2)
  *   APP_PASSWORD     — password (type 1 only)
  *   APP_ROUTE_MAP    — JSON: { "/path": "Page description", ... }
@@ -901,7 +901,9 @@ function buildRecordingPlan(): ClipPlan[] {
   ];
   const HERO_DURATION_SEC = 24; // vs PRODUCT_SEC — extra time for a multi-step interaction
 
-  const plan: ClipPlan[] = [
+  const noLogin = LOGIN_TYPE === '0';
+
+  const plan: ClipPlan[] = noLogin ? [] : [
     // Login page — no auth, always first
     {
       id:          'login',
@@ -923,7 +925,7 @@ function buildRecordingPlan(): ClipPlan[] {
       label:            'Home',
       targetUrl:        APP_URL,
       durationSec:      PRODUCT_SEC,
-      loginAs:          loginUser,
+      loginAs:          noLogin ? undefined : loginUser,
       recordingStartSec: LOGIN_SKIP_SEC,
       actions:          defaultActions,
     });
@@ -938,7 +940,7 @@ function buildRecordingPlan(): ClipPlan[] {
         label:            String(label),
         targetUrl:        `${APP_URL}${routePath}`,
         durationSec:      override?.actions ? (override.durationSec ?? HERO_DURATION_SEC) : PRODUCT_SEC,
-        loginAs:          extractPrimaryRole(String(label)) ?? loginUser,
+        loginAs:          noLogin ? undefined : (extractPrimaryRole(String(label)) ?? loginUser),
         recordingStartSec: LOGIN_SKIP_SEC,
         actions:          override?.actions ?? defaultActions,
       });
@@ -1315,7 +1317,10 @@ async function recordClip(
     loginAs:          plan.loginAs,
     videoPath:        `recordings/${plan.id}.mp4`,
     framePath,
-    durationSec:      plan.durationSec,
+    // Actual ffprobe-measured length, NOT plan.durationSec (the requested recording
+    // length) — the real clip is frequently shorter/longer than planned, and downstream
+    // narration/timing must be budgeted against what was actually captured, not the ask.
+    durationSec:      actualDuration,
     recordingStartSec: plan.recordingStartSec,
     landedUrl,
   };
@@ -1350,6 +1355,10 @@ function buildDemoPackage(
       screenshotPath:   `recordings/${clip.id}-frame.png`,
       ...(clip.id !== 'login' ? { recordingPath: clip.videoPath } : {}),
       ...(clip.recordingStartSec ? { recordingStartSec: clip.recordingStartSec } : {}),
+      // Actual recorded clip length (ffprobe) — lets the voice-timing sync step cap
+      // narration-driven scene duration at what real footage is available, instead of
+      // freezing OffthreadVideo on the last frame once the clip runs out.
+      recordedDurationSec: clip.durationSec,
       from,
       durationInFrames: dur,
       transition: idx < clips.length - 1 ? { type: 'slide-left', durationInFrames: 12 } : null,

@@ -74,7 +74,7 @@ Copy `.env.example` → `.env`. Key variables (see `.env.example` for the full c
 |---|---|
 | `APP_URL` | Target app to record |
 | `APP_PRODUCT_NAME` | Product name → output folder `out/<slug>/` + narration copy |
-| `LOGIN_TYPE` | `1` = fill a login form with `APP_USERNAME`/`APP_PASSWORD`; `2` = click a Quick Access card (`APP_QUICK_ACCESS_INDEX`) |
+| `LOGIN_TYPE` | `0` = app has no login, skip authentication entirely; `1` = fill a login form with `APP_USERNAME`/`APP_PASSWORD`; `2` = click a Quick Access card (`APP_QUICK_ACCESS_INDEX`) |
 | `APP_LOGIN_PATH` | Override the login path — set to `/` if the app redirects root → login client-side |
 | `APP_ROUTE_MAP` | JSON `{ "/path": "Page description" }` — drives which pages get recorded and can encode multiple roles (e.g. `"Surgeon — dashboard"`), each recorded under its own login session |
 | `APP_CONTEXT_TEXT` | Product description — powers AI narration, benefit slide, and b-roll queries |

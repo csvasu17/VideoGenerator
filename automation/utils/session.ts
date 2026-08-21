@@ -110,6 +110,11 @@ export async function performLogin(
   page:  Page,
   creds: NonNullable<RecordingConfig['credentials']>,
 ): Promise<LoginResult> {
+  if (creds.loginType === 0) {
+    // App has no login/auth at all — nothing to do.
+    return { roleMatchConfidence: 'not-applicable' };
+  }
+
   if (creds.loginType === 2) {
     const { matchedRole } = await performQuickAccessLogin(page, creds.quickAccessIndex ?? 0, creds.quickAccessRoleName);
     return { roleMatchConfidence: creds.quickAccessRoleName ? (matchedRole ? 'matched' : 'fallback-default-card') : 'not-applicable' };

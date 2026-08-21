@@ -20,7 +20,16 @@ export class AuthStage implements PipelineStage<WorkflowInput, AuthSession> {
   async run(input: WorkflowInput, ctx: PipelineContext): Promise<AuthSession> {
     let session: AuthSession;
 
-    if (input.loginType === 2) {
+    if (input.loginType === 0) {
+      // No login/auth at all for this app — just navigate.
+      session = await this.agent.login({
+        url:      input.url,
+        username: '',
+        password: '',
+        loginType: 0,
+      });
+      input.credentials?.seal();
+    } else if (input.loginType === 2) {
       // Quick Access login: click a role tile instead of filling a form.
       // If no tiles are found (app uses standard login), fall back to credentials.
       session = await this.agent.login({

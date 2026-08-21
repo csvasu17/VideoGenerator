@@ -1382,7 +1382,7 @@ export const ConfigPage: React.FC = () => {
   // Template is always shown as the current step since it's the main working area.
   const hasProduct    = !!get('APP_PRODUCT_NAME');
   const hasUrl        = !!get('APP_URL');
-  const hasAuth       = loginType === '2' || (!!get('APP_USERNAME') && !!get('APP_PASSWORD'));
+  const hasAuth       = loginType === '2' || loginType === '0' || (!!get('APP_USERNAME') && !!get('APP_PASSWORD'));
   const appSetupDone  = hasProduct && hasUrl && hasAuth;
   const narrationDone = !!get('APP_CONTEXT_TEXT');
   const generateDone  = pStatus === 'success';
@@ -1398,7 +1398,7 @@ export const ConfigPage: React.FC = () => {
   const reviewItems = [
     { label: 'Product',  val: get('APP_PRODUCT_NAME') || '—' },
     { label: 'App URL',  val: get('APP_URL') || '—' },
-    { label: 'Login',    val: get('LOGIN_TYPE', '1') === '1' ? 'Username & password' : 'Quick Access card' },
+    { label: 'Login',    val: loginType === '1' ? 'Username & password' : loginType === '2' ? 'Quick Access card' : 'No login required' },
     { label: 'Template', val: get('VIDEO_TEMPLATE', 'modern_saas') === 'enterprise' ? 'Enterprise' : 'Modern SaaS' },
     { label: 'Language', val: ({ en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', pt: 'Portuguese', ja: 'Japanese' } as Record<string,string>)[get('APP_LANGUAGE', 'en')] ?? get('APP_LANGUAGE', 'en') },
     { label: 'Screen Fit', val: get('SCREEN_FIT', 'full') === 'full' ? 'Full — edge-to-edge' : 'Fit — inset' },
@@ -1559,10 +1559,11 @@ export const ConfigPage: React.FC = () => {
                     />
                   </FL>
 
-                  <FL label="Login Method">
+                  <FL label="Login Method" hint={loginType === '0' ? 'App is fully public — the pipeline will skip login and record routes directly.' : undefined}>
                     <SelectBox value={get('LOGIN_TYPE', '1')} onChange={v => set('LOGIN_TYPE', v)} options={[
                       { value: '1', label: 'Username & password' },
                       { value: '2', label: 'Quick Access card' },
+                      { value: '0', label: 'No login required' },
                     ]} />
                   </FL>
                   {loginType === '1' && (

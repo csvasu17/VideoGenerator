@@ -289,13 +289,33 @@ function syncTimingsToActualDurations(
   // ── Rebuild product scenes timeline ─────────────────────────────────────────
   if (Array.isArray(pkg.scenes)) {
     for (let i = 0; i < pkg.scenes.length; i++) {
-      const id  = `scene-${i + 1}`;
-      const dur = actualDur[id];
-      pkg.scenes[i].from = cursor;
+      const id    = `scene-${i + 1}`;
+      const dur   = actualDur[id];
+      const scene = pkg.scenes[i];
+      scene.from  = cursor;
       if (dur) {
-        pkg.scenes[i].durationInFrames = Math.ceil((dur + BUFFER_SEC) * fps);
+        const narrationFrames = Math.ceil((dur + BUFFER_SEC) * fps);
+        // Cap at the real recorded footage: recordedDurationSec (ffprobe-measured,
+        // see record-app-clips.ts) minus the seek offset already applied to it
+        // (recordingStartSec). Without this, narration longer than the available
+        // clip makes OffthreadVideo hold the last decoded frame for the shortfall —
+        // a multi-second freeze (worst case, a near-blank UI state held on screen).
+        const recordedSec = typeof scene.recordedDurationSec === 'number' ? scene.recordedDurationSec : undefined;
+        const startSec     = typeof scene.recordingStartSec  === 'number' ? scene.recordingStartSec  : 0;
+        const availableSec = recordedSec !== undefined ? recordedSec - startSec : undefined;
+        const maxFrames     = availableSec !== undefined ? Math.floor(availableSec * fps) : undefined;
+        if (maxFrames !== undefined && maxFrames < narrationFrames) {
+          console.warn(
+            `  ⚠️   [${id}] narration (${(narrationFrames / fps).toFixed(1)}s) exceeds available ` +
+            `footage (${(maxFrames / fps).toFixed(1)}s after a ${startSec}s seek) — capping scene ` +
+            `duration and truncating audio. Shorten this scene's narration text to fit.`,
+          );
+          scene.durationInFrames = Math.max(1, maxFrames);
+        } else {
+          scene.durationInFrames = narrationFrames;
+        }
       }
-      cursor += pkg.scenes[i].durationInFrames;
+      cursor += scene.durationInFrames;
     }
   }
 
@@ -330,8 +350,15 @@ function syncTimingsToActualDurations(
       const idx   = parseInt(seg.id.replace('scene-', ''), 10) - 1;
       const scene = scenes[idx];
       if (scene) {
-        seg.startSec    = parseFloat((scene.from / fps + 1.0).toFixed(3));
-        seg.durationSec = actualDur[seg.id] ?? seg.durationSec;
+        seg.startSec = parseFloat((scene.from / fps + 1.0).toFixed(3));
+        // Keep the Audio sequence's own length in lockstep with the (possibly
+        // footage-capped) scene duration above — otherwise a capped scene's
+        // narration keeps playing after the picture has already cut to the next
+        // scene. durationSec here is what EnterpriseVideo.tsx uses directly to
+        // size the <Audio> Sequence, independent of the scene's visual duration.
+        const fullDur = actualDur[seg.id] ?? seg.durationSec;
+        const sceneMaxSec = scene.durationInFrames / fps - 1.0; // mirror the +1.0s startSec offset above
+        seg.durationSec = Math.min(fullDur, Math.max(0.1, sceneMaxSec));
       }
     } else if (seg.id === 'benefit-slide' && pkg.benefitSlide) {
       seg.startSec = parseFloat((pkg.benefitSlide.from / fps + 1.0).toFixed(3));

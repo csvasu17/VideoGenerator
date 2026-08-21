@@ -379,7 +379,7 @@ function selectDiverseFeatureRoutes(
 
 function buildRecordingPlan(): TeaserClipPlan[] {
   const routes = selectDiverseFeatureRoutes(Object.entries(routeMap), MAX_FEATURES);
-  const plan: TeaserClipPlan[] = [
+  const plan: TeaserClipPlan[] = LOGIN_TYPE === '0' ? [] : [
     { id: 'login', label: 'Login', targetUrl: LOGIN_URL, durationSec: LOGIN_SEC, needsAuth: false },
   ];
 
@@ -733,7 +733,7 @@ async function main(): Promise<void> {
           credentials: {
             username:            APP_USERNAME,
             password:            APP_PASSWORD,
-            loginType:           (LOGIN_TYPE === '2' ? 2 : 1),
+            loginType:           (LOGIN_TYPE === '2' ? 2 : LOGIN_TYPE === '0' ? 0 : 1),
             quickAccessIndex:    QUICK_ACCESS_INDEX,
             quickAccessRoleName: primaryRole,
           },

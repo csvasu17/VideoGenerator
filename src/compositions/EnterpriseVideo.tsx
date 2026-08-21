@@ -254,20 +254,28 @@ export const EnterpriseVideo: React.FC<EnterpriseVideoProps> = ({
         </Sequence>
       )}
 
-      {/* ── ACL Digital logo — transparent watermark, top-right corner ── */}
-      <div style={{
-        position:      'absolute',
-        top:           20,
-        right:         24,
-        pointerEvents: 'none',
-        zIndex:        200,
-        lineHeight:    0,
-      }}>
-        <Img
-          src={staticFile('assets/acl-logo.png')}
-          style={{ width: 140, height: 'auto', display: 'block' }}
-        />
-      </div>
+      {/* ── ACL Digital logo — transparent watermark, top-right corner ──
+           Hidden during product-demo scenes (real target-app UI we don't
+           control — collides with the app's own top-right controls) and
+           during the presenter close (which already shows its own larger
+           animated ACL logo). Only shown over B-roll and the benefit slide,
+           content we fully control. ── */}
+      {!scenes.some(s => isActive(frame, s.from, s.durationInFrames)) &&
+        !isActive(frame, presenterClose.from, presenterClose.durationInFrames) && (
+        <div style={{
+          position:      'absolute',
+          top:           20,
+          right:         24,
+          pointerEvents: 'none',
+          zIndex:        200,
+          lineHeight:    0,
+        }}>
+          <Img
+            src={staticFile('assets/acl-logo.png')}
+            style={{ width: 140, height: 'auto', display: 'block' }}
+          />
+        </div>
+      )}
 
       {/* ── Studio-only chat widget — invisible in rendered video ────────── */}
       <ChatWidget />

@@ -121,11 +121,12 @@ export interface RunInput {
    */
   contextText?: string;
   /**
+   * 0 = app has no login/auth at all; username and password are not used.
    * 1 = fill username+password into the login form (default).
    * 2 = click a Quick Access option on the login screen; username and password
    *     are not used and may be empty strings.
    */
-  loginType?: 1 | 2;
+  loginType?: 0 | 1 | 2;
   /** Which Quick Access card to click (0-based). Only used when loginType=2. Default: 0 */
   quickAccessIndex?: number;
 }
@@ -149,8 +150,8 @@ export interface WorkflowInput {
   /** Absolute path where captures + demo-package.json will be written. */
   outputDir:   string;
   options?:    WorkflowOptions;
-  /** 1 = credential login (default); 2 = Quick Access click on login screen */
-  loginType?:        1 | 2;
+  /** 0 = no login/auth at all; 1 = credential login (default); 2 = Quick Access click on login screen */
+  loginType?:        0 | 1 | 2;
   /** Which Quick Access card to click (0-based). Only used when loginType=2. Default: 0 */
   quickAccessIndex?: number;
 }

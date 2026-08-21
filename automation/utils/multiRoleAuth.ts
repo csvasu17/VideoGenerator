@@ -23,7 +23,7 @@ import { extractPrimaryRole } from './roleLabel';
 export interface MultiRoleAuthConfig {
   appUrl:    string;
   loginUrl:  string;
-  loginType: '1' | '2';
+  loginType: '0' | '1' | '2';
   username:  string;
   password:  string;
   viewport:  { width: number; height: number };
@@ -214,6 +214,24 @@ export async function acquireSession(
     roleName ? `session-state-${toSlug(roleName)}.json` : 'session-state.json',
   );
   const origin = new URL(config.appUrl).origin;
+
+  // ── No login required: skip all 3 layers, just open a plain context ──
+  if (config.loginType === '0') {
+    const liveCtx = await browser.newContext({
+      viewport:    config.viewport,
+      recordVideo: { dir: recDir, size: config.viewport },
+      ignoreHTTPSErrors: true,
+    });
+    const probe = await liveCtx.newPage();
+    await probe.goto(config.appUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    const postLoginUrl = probe.url();
+    await probe.close();
+    return {
+      session: { storageStatePath: '', postLoginUrl, origin },
+      liveCtx,
+      roleMatchConfidence: 'not-applicable',
+    };
+  }
 
   // ── Layer 1: reuse cached session if < 8 h old and still authenticated ──
   if (fs.existsSync(storageStatePath)) {
