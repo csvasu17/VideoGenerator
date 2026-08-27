@@ -7,7 +7,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import type { Response } from 'express';
-import { chat } from './chat-service';
+import { chat, resolvePackagePath } from './chat-service';
 import { OUT_DIR, toSlug } from './config';
 import { getVideoInfo } from './utils/ffprobe';
 
@@ -884,13 +884,13 @@ app.get('/agent-recording-output/:file', (req, res) => {
 // ── Chat API ─────────────────────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
-  const { message } = req.body as { message?: string };
+  const { message, compositionId } = req.body as { message?: string; compositionId?: string };
   if (!message || typeof message !== 'string' || !message.trim()) {
     res.status(400).json({ error: 'message is required' });
     return;
   }
   try {
-    const result = await chat(message.trim());
+    const result = await chat(message.trim(), compositionId);
     res.json(result);
   } catch (err) {
     console.error('[chat] error:', err);
@@ -898,10 +898,14 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.get('/api/chat/status', (_req, res) => {
+app.get('/api/chat/status', (req, res) => {
+  const compositionId = req.query['compositionId'] as string | undefined;
+  const pkgPath = resolvePackagePath(compositionId);
   res.json({
     ok: true,
-    hasDemoPackage: fs.existsSync(path.join(getProductOutDir(), 'demo-package.json')),
+    compositionId: compositionId ?? null,
+    editable: pkgPath !== null,
+    hasDemoPackage: pkgPath !== null && fs.existsSync(pkgPath),
   });
 });
 

@@ -34,8 +34,6 @@
     "broll:register": "ts-node --project tsconfig.scripts.json automation/register-broll-videos.ts",
     "broll:premium": "ts-node --project tsconfig.scripts.json automation/download-broll-premium.ts",
     "record:flow": "ts-node --project tsconfig.scripts.json automation/record-flow.ts",
-    "presenter:generate": "ts-node --project tsconfig.scripts.json automation/generate-presenter-video.ts",
-    "broll:did": "ts-node --project tsconfig.scripts.json automation/generate-broll-videos.ts",
     "music:fetch": "ts-node --project tsconfig.scripts.json automation/fetch-background-music.ts",
     "music:fetch:force": "ts-node --project tsconfig.scripts.json automation/fetch-background-music.ts -- --force",
     "config-ui": "ts-node --project tsconfig.scripts.json automation/config-server.ts",

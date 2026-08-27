@@ -35,6 +35,7 @@ import { spawnSync }    from 'child_process';
 import * as dotenv      from 'dotenv';
 import { OUT_DIR, ROOT } from './config';
 import { fetchBackgroundMusic, MUSIC_FILE } from './fetch-background-music';
+import { generateWithAzureOpenAI } from './utils/tts';
 
 // Load .env before reading process.env
 dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
@@ -392,42 +393,6 @@ function runFfmpeg(args: string[]): void {
 // ─────────────────────────────────────────────────────────────────────────────
 // TTS providers
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Provider A: Azure OpenAI TTS (premium quality).
- * Requires AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT in .env.
- * Optionally AZURE_OPENAI_TTS_DEPLOYMENT (defaults to "tts").
- * Voices: onyx, echo, alloy, fable, nova, shimmer.
- */
-async function generateWithAzureOpenAI(
-  text:    string,
-  outMp3:  string,
-  voice:   string,
-  model:   string,
-  speed:   number,
-): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { AzureOpenAI } = require('openai');
-
-  // Prefer dedicated TTS resource vars; fall back to main Azure vars
-  const endpoint    = (process.env['AZURE_OPENAI_TTS_ENDPOINT'] ?? process.env['AZURE_OPENAI_ENDPOINT']!).replace(/\/$/, '');
-  const apiKey      = process.env['AZURE_OPENAI_TTS_KEY'] ?? process.env['AZURE_OPENAI_API_KEY']!;
-  const apiVersion  = process.env['OPENAI_API_VERSION'] ?? '2025-01-01-preview';
-  // model param = the TTS deployment name (e.g. "tts-hd", "tts-1-hd")
-  const deployment  = model;
-
-  const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
-
-  const response = await client.audio.speech.create({
-    model:           deployment,   // Azure uses the deployment name here
-    voice:           voice as 'onyx' | 'echo' | 'alloy' | 'fable' | 'nova' | 'shimmer',
-    input:           text,
-    response_format: 'mp3',
-    speed:           speed,
-  });
-  const buffer = Buffer.from(await response.arrayBuffer());
-  fs.writeFileSync(outMp3, buffer);
-}
 
 /**
  * Provider B: OpenAI TTS (premium quality).
