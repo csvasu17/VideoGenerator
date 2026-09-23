@@ -212,6 +212,31 @@ const RECORDING_FIXES: Record<string, RecordingFixSet> = {
       ],
     },
   },
+  'clinivox': {
+    startOffsetSec: {
+      0: 12, // mr-scene-1 "OpenEMR Login" — starts on Clinivox's own Gateway/EHR-picker page
+             // (and a ~1.5s launch-transition) for ~12s before OpenEMR's actual login page
+             // appears; the scene's narration opens with "starts with a familiar login —
+             // OpenEMR", so offset lands directly on the OpenEMR login form instead.
+    },
+    // mr-scene-5 "Visit Details" is a single 106s real-footage window (new-visit form ->
+    // encounter saved -> dashboard reload with overdue reminders -> "SMART Enabled Apps"
+    // section -> Launch, Clinivox SMART App V2 -> "Connecting to EHR" handoff). The base
+    // narration (184 words, ~71s audio) was written to describe the WHOLE sequence
+    // including the Launch button and EHR handoff, but at that length + the pipeline's
+    // 3s buffer it only reached ~74s into the window — cutting the clip off in the middle
+    // of the new-encounter form, well before the SMART launch it narrates ever appears on
+    // screen. Rather than an offset (there's no dead time to skip — every beat the
+    // narration describes is real, sequential content), the fix was to rewrite
+    // mr-scene-5's narration in voice-script.json to be long enough (256 words, ~100.4s
+    // audio) that duration = min(106, audio+3) reaches ~103.4s, landing past the Launch
+    // button and into the "Connecting to EHR" transition. No RECORDING_FIXES field
+    // exists for "narration must be long enough to reach a payoff" — this is a content
+    // fix in voice-script.json itself, not a config value here. Noted for future re-runs:
+    // if mr-scene-5's narration is ever rewritten again, re-verify against real frames at
+    // recordingStartSec+~96s (the Launch button) and +~101s (EHR connecting) before
+    // trusting a shorter draft.
+  },
 };
 
 const ACTIVE_FIXES: RecordingFixSet = RECORDING_FIXES[APP_SLUG] ?? {};

@@ -342,10 +342,21 @@ interface TeaserClipPlan {
  * distinct top-level path segment, so three picks don't all land on
  * sub-pages of the same section (e.g. /field-service, /field-service/
  * firmware, /field-service/actions all being effectively the same screen).
+ *
+ * `skipRoleGrouping` bypasses all of the above (pool = every route) — for
+ * LOGIN_TYPE=0 apps, where there's no login/role concept at all, so the
+ * "must be reachable by the same logged-in role" premise doesn't apply.
+ * Without this, `extractPrimaryRole` misreads route labels that follow a
+ * "Feature Title — description" convention (rather than "Role — description")
+ * as each route having its own distinct single-member "role", and the
+ * largest-group selection then arbitrarily keeps only one route and drops
+ * the rest — confirmed on Clinivox, where this dropped "/assistant" (the
+ * actual ambient-documentation feature) and kept only "/" (Gateway Manager).
  */
 function selectDiverseFeatureRoutes(
   allRoutes: [string, string][],
   max: number,
+  skipRoleGrouping = false,
 ): [string, string][] {
   const groups: Map<string, [string, string][]> = new Map();
   const firstSeenIndex: Map<string, number> = new Map();
@@ -359,11 +370,11 @@ function selectDiverseFeatureRoutes(
   });
 
   const namedRoleGroups = [...groups.entries()].filter(([role]) => role !== '');
-  const pool = namedRoleGroups.length > 0
-    ? namedRoleGroups.sort((a, b) =>
+  const pool = skipRoleGrouping || namedRoleGroups.length === 0
+    ? allRoutes
+    : namedRoleGroups.sort((a, b) =>
         b[1].length - a[1].length || firstSeenIndex.get(a[0])! - firstSeenIndex.get(b[0])!,
-      )[0][1]
-    : allRoutes;
+      )[0][1];
 
   const bySegment: Map<string, [string, string]> = new Map();
   const leftovers: [string, string][] = [];
@@ -378,7 +389,7 @@ function selectDiverseFeatureRoutes(
 }
 
 function buildRecordingPlan(): TeaserClipPlan[] {
-  const routes = selectDiverseFeatureRoutes(Object.entries(routeMap), MAX_FEATURES);
+  const routes = selectDiverseFeatureRoutes(Object.entries(routeMap), MAX_FEATURES, LOGIN_TYPE === '0');
   const plan: TeaserClipPlan[] = LOGIN_TYPE === '0' ? [] : [
     { id: 'login', label: 'Login', targetUrl: LOGIN_URL, durationSec: LOGIN_SEC, needsAuth: false },
   ];
