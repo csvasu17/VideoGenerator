@@ -9,11 +9,22 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { useRemotionEnvironment } from 'remotion';
+import { useRemotionEnvironment, useVideoConfig } from 'remotion';
 import { ThemeCtx, type ThemeTokens, getApiBase } from './ConfigPage';
 
 const API = getApiBase();
 const DW  = 480; // dialog width
+
+// Friendly labels for the composition ids registered in src/Root.tsx.
+// Several compositions share one React component but load different data
+// files (see EDITABLE_COMPOSITIONS in automation/chat-service.ts) — showing
+// the active one here confirms to the user which video is actually in scope.
+const COMPOSITION_LABELS: Record<string, string> = {
+  DemoVideo:                      'Demo Video',
+  EnterpriseVideo:                'Enterprise Video',
+  ManualRecordingEnterpriseVideo: 'Manual Recording Enterprise Video',
+  TeaserVideo:                    'Teaser Video',
+};
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 // Chat-specific accents not present on the shared ConfigPage theme. `font` and
@@ -108,6 +119,7 @@ const UserAvatar = ({ C }: { C: ChatTheme }) => (
 // ── Main component ─────────────────────────────────────────────────────────────
 export const ChatWidget: React.FC = () => {
   const { isStudio } = useRemotionEnvironment();
+  const { id: compositionId } = useVideoConfig();
   const theme = React.useContext(ThemeCtx);
   const C: ChatTheme = { ...theme, ...CHAT_ACCENTS };
 
@@ -175,11 +187,11 @@ export const ChatWidget: React.FC = () => {
   useEffect(() => {
     if (!open) return;
     setConnected(null);
-    fetch(`${API}/api/chat/status`)
+    fetch(`${API}/api/chat/status?compositionId=${encodeURIComponent(compositionId)}`)
       .then(r => r.json())
       .then((d: { ok: boolean }) => setConnected(d.ok))
       .catch(() => setConnected(false));
-  }, [open]);
+  }, [open, compositionId]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }); }, [msgs, busy]);
   useEffect(() => { if (open && !minimized) setTimeout(() => taRef.current?.focus(), 120); }, [open, minimized]);
@@ -202,7 +214,7 @@ export const ChatWidget: React.FC = () => {
     try {
       const res  = await fetch(`${API}/api/chat`, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ message: t }),
+        body: JSON.stringify({ message: t, compositionId }),
       });
       const data = await res.json() as ChatResult;
       setMsgs(p => [...p, { id:`a${Date.now()}`, role:'assistant',
@@ -217,7 +229,7 @@ export const ChatWidget: React.FC = () => {
       setMsgs(p => [...p, { id:`e${Date.now()}`, role:'assistant',
         text:'Could not reach config server. Make sure npm run dev is running.' }]);
     } finally { setBusy(false); }
-  }, [busy, showToast, triggerFlash]);
+  }, [busy, showToast, triggerFlash, compositionId]);
 
   // Read actual DOM position at drag start — works regardless of CSS anchor mode
   const onDragStart = useCallback((e: React.MouseEvent) => {
@@ -347,8 +359,8 @@ export const ChatWidget: React.FC = () => {
 
             {/* Title + status */}
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ ...C.type.h3, color:C.text, lineHeight:1.2 }}>
-                Video Editor
+              <div style={{ ...C.type.h3, color:C.text, lineHeight:1.2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {COMPOSITION_LABELS[compositionId] ?? compositionId}
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:2 }}>
                 <div style={{ width:6, height:6, borderRadius:'50%', flexShrink:0, background:dotColor, boxShadow:`0 0 5px ${dotColor}` }}/>

@@ -1,0 +1,100 @@
+ffmpeg version n7.1 Copyright (c) 2000-2024 the FFmpeg developers
+  built with gcc 10-win32 (GCC) 20220113
+  configuration: --prefix=remotion --target-os=mingw32 --arch=x86_64 --cross-prefix=x86_64-w64-mingw32- --disable-w32threads --disable-os2threads --extra-cflags='-Iremotion/include -Iremotion/include/opus -Iremotion/include/lame -Iremotion/include/vpx' --extra-ldflags=-Lremotion/lib --enable-small --enable-shared --enable-libdav1d --enable-libzimg --enable-libfdk-aac --disable-static --disable-ffplay --disable-postproc --disable-filters --disable-libxcb --enable-filter=aformat --enable-filter=atrim --enable-filter=acopy --enable-filter=adelay --enable-filter=anullsrc --enable-filter=atempo --enable-filter=apad --enable-filter=amerge --enable-filter=amix --enable-filter=asetrate --enable-filter=asetpts --enable-filter=aresample --enable-filter=concat --enable-filter=loudnorm --enable-filter=colorspace --enable-filter=tinterlace --enable-filter=fieldorder --enable-filter=pan --enable-filter=volume --enable-filter=scale --enable-filter=sine --enable-filter=split --enable-filter=nullsrc --enable-filter=silencedetect --enable-filter=palettegen --enable-filter=paletteuse --enable-filter=zscale --enable-filter=tonemap --enable-filter=copy --disable-doc --enable-gpl --enable-nonfree --disable-encoders --enable-encoder=opus --enable-encoder=aac --enable-encoder=libfdk_aac --enable-encoder=png --enable-encoder=mjpeg --enable-encoder=pcm_s16le --enable-encoder=libx264 --enable-encoder=libx265 --enable-libvpx --enable-encoder=libvpx_vp8 --enable-encoder=libvpx_vp9 --enable-encoder=gif --enable-encoder=libmp3lame --enable-encoder=libopus --enable-encoder=prores_ks --enable-encoder=rawvideo --disable-muxers --enable-muxer='webm,opus,mp4,wav,mp3,mov,matroska,hevc,h264,gif,image2,image2pipe,adts,m4a,mpegts,null,avi' --enable-libx264 --enable-libx265 --enable-libmp3lame --enable-zlib --enable-libopus --disable-demuxers --disable-sdl2 --disable-xlib --enable-demuxer='aac,av1,avi,caf,concat,flac,flv,h264,hevc,image2,image2pipe,matroska,mov,mp3,ogg,pcm_f32le,pcm_f32be,pcm_f64le,pcm_f64be,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_u16be,pcm_u16le,pcm_u24le,pcm_u24be,pcm_u32be,pcm_u32le,wav,gif,hls,m4a,mpeg2_videotoolbox,mpeg4_videotoolbox' --disable-decoders --enable-decoder='aac,ac3,av1,flac,h264,hevc,libvpx_vp8,libvpx_vp9,vp8,vp9,mp3,mpeg4,opus,pcm_u8,pcm_f16le,pcm_f24le,pcm_f32le,pcm_f32be,pcm_f64le,pcm_f64be,pcm_s16be,pcm_s16le,pcm_s24be,pcm_s24le,pcm_s32be,pcm_s32le,pcm_s64be,pcm_s64le,pcm_u16be,pcm_u16le,pcm_u24le,pcm_u24be,pcm_u32be,pcm_u32le,prores,theora,vorbis,vp9,mjpeg,gif,png,libdav1d,hls,m4a,rawvideo'
+  libavutil      59. 39.100 / 59. 39.100
+  libavcodec     61. 19.100 / 61. 19.100
+  libavformat    61.  7.100 / 61.  7.100
+  libavdevice    61.  3.100 / 61.  3.100
+  libavfilter    10.  4.100 / 10.  4.100
+  libswscale      8.  3.100 /  8.  3.100
+  libswresample   5.  3.100 /  5.  3.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'out/clinivox/manual-recording/normalized.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    title           : Clinivox | Ambient Clinical Documentation — Mozilla Firefox
+    artist          : Microsoft Game DVR
+    encoder         : Lavf62.19.101
+  Duration: 00:11:23.47, start: 0.000000, bitrate: 392 kb/s
+  Stream #0:0[0x1](und): Video: h264 (avc1 / 0x31637661), yuv420p(progressive), 1920x1080 [SAR 1:1 DAR 16:9], 361 kb/s, 30 fps, 30 tbr, 15360 tbn (default)
+      Metadata:
+        handler_name    : VideoHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc62.36.101 libx264
+  Stream #0:1[0x2](und): Audio: aac (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 23 kb/s (default)
+      Metadata:
+        handler_name    : SoundHandler
+        vendor_id       : [0][0][0][0]
+Stream mapping:
+  Stream #0:1 -> #0:0 (aac (native) -> pcm_s16le (native))
+Press [q] to stop, [?] for help
+Output #0, null, to 'NUL':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    title           : Clinivox | Ambient Clinical Documentation — Mozilla Firefox
+    artist          : Microsoft Game DVR
+    encoder         : Lavf61.7.100
+  Stream #0:0(und): Audio: pcm_s16le, 44100 Hz, stereo, s16, 1411 kb/s (default)
+      Metadata:
+        handler_name    : SoundHandler
+        vendor_id       : [0][0][0][0]
+        encoder         : Lavc61.19.100 pcm_s16le
+[silencedetect @ 0000013901994cc0] silence_start: 0
+[silencedetect @ 0000013901994cc0] silence_end: 234.024263 | silence_duration: 234.024263
+[silencedetect @ 0000013901994cc0] silence_start: 235.365306
+[silencedetect @ 0000013901994cc0] silence_end: 236.471587 | silence_duration: 1.106281
+[silencedetect @ 0000013901994cc0] silence_start: 243.842812
+[silencedetect @ 0000013901994cc0] silence_end: 244.962902 | silence_duration: 1.120091
+[silencedetect @ 0000013901994cc0] silence_start: 246.112109
+[silencedetect @ 0000013901994cc0] silence_end: 247.775283 | silence_duration: 1.663175
+[silencedetect @ 0000013901994cc0] silence_start: 252.175986
+[silencedetect @ 0000013901994cc0] silence_end: 253.403628 | silence_duration: 1.227642
+[silencedetect @ 0000013901994cc0] silence_start: 254.666009
+[silencedetect @ 0000013901994cc0] silence_end: 256.348163 | silence_duration: 1.682154
+[silencedetect @ 0000013901994cc0] silence_start: 257.702041
+[silencedetect @ 0000013901994cc0] silence_end: 258.809773 | silence_duration: 1.107732
+[silencedetect @ 0000013901994cc0] silence_start: 260.999229
+[silencedetect @ 0000013901994cc0] silence_end: 262.68068 | silence_duration: 1.681451
+[silencedetect @ 0000013901994cc0] silence_start: 267.192063
+[silencedetect @ 0000013901994cc0] silence_end: 269.004512 | silence_duration: 1.812449
+[silencedetect @ 0000013901994cc0] silence_start: 269.269365
+[silencedetect @ 0000013901994cc0] silence_end: 270.414059 | silence_duration: 1.144694
+[silencedetect @ 0000013901994cc0] silence_start: 274.122222
+[silencedetect @ 0000013901994cc0] silence_end: 275.791542 | silence_duration: 1.66932
+[silencedetect @ 0000013901994cc0] silence_start: 281.833515
+[silencedetect @ 0000013901994cc0] silence_end: 283.553175 | silence_duration: 1.71966
+[silencedetect @ 0000013901994cc0] silence_start: 283.893424
+[silencedetect @ 0000013901994cc0] silence_end: 285.001474 | silence_duration: 1.10805
+[silencedetect @ 0000013901994cc0] silence_start: 288.59093
+[silencedetect @ 0000013901994cc0] silence_end: 289.712132 | silence_duration: 1.121202
+[silencedetect @ 0000013901994cc0] silence_start: 294.252857
+[silencedetect @ 0000013901994cc0] silence_end: 295.433855 | silence_duration: 1.180998
+[silencedetect @ 0000013901994cc0] silence_start: 296.814036
+[silencedetect @ 0000013901994cc0] silence_end: 298.48898 | silence_duration: 1.674943
+[silencedetect @ 0000013901994cc0] silence_start: 301.107007
+[silencedetect @ 0000013901994cc0] silence_end: 302.471361 | silence_duration: 1.364354
+[silencedetect @ 0000013901994cc0] silence_start: 304.800476
+[silencedetect @ 0000013901994cc0] silence_end: 306.570476 | silence_duration: 1.77
+[silencedetect @ 0000013901994cc0] silence_start: 307.965533
+[silencedetect @ 0000013901994cc0] silence_end: 309.075125 | silence_duration: 1.109592
+[silencedetect @ 0000013901994cc0] silence_start: 312.546531
+[silencedetect @ 0000013901994cc0] silence_end: 313.646553 | silence_duration: 1.100023
+[silencedetect @ 0000013901994cc0] silence_start: 316.675896
+[silencedetect @ 0000013901994cc0] silence_end: 317.799977 | silence_duration: 1.124082
+[silencedetect @ 0000013901994cc0] silence_start: 320.092517
+[silencedetect @ 0000013901994cc0] silence_end: 321.753265 | silence_duration: 1.660748
+[silencedetect @ 0000013901994cc0] silence_start: 322.234014
+[silencedetect @ 0000013901994cc0] silence_end: 323.463311 | silence_duration: 1.229297
+[silencedetect @ 0000013901994cc0] silence_start: 324.562268
+[silencedetect @ 0000013901994cc0] silence_end: 326.270658 | silence_duration: 1.70839
+[silencedetect @ 0000013901994cc0] silence_start: 327.098073
+[silencedetect @ 0000013901994cc0] silence_end: 328.206916 | silence_duration: 1.108844
+[silencedetect @ 0000013901994cc0] silence_start: 336.31449
+[silencedetect @ 0000013901994cc0] silence_end: 337.421837 | silence_duration: 1.107347
+[silencedetect @ 0000013901994cc0] silence_start: 339.673719
+[silencedetect @ 0000013901994cc0] silence_end: 683.386372 | silence_duration: 343.712653
+[out#0/null @ 000001390184b2c0] video:0KiB audio:117724KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
+size=N/A time=00:11:23.38 bitrate=N/A speed=2.04e+03x    

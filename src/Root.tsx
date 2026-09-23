@@ -419,6 +419,76 @@ export const RemotionRoot: React.FC = () => (
     />
 
     {/*
+      ── ManualRecordingTeaserVideo ───────────────────────────────────────────
+      Teaser-shaped cut of a Manual Recording: reuses the already-built
+      Enterprise bridge's curated real scenes + B-roll, re-cut into a short
+      hook → glimpse montage → benefit → outro teaser arc, with its own fresh
+      (much shorter) narration.
+      Data source: out/<slug>/manual-recording/demo-package-teaser.json +
+      manual-recording/teaser-voice-script.json — deliberately NOT the
+      root-level demo-package.json (belongs to the automated Teaser pipeline)
+      nor manual-recording/demo-package.json (belongs to the Enterprise bridge).
+      Produced by: automation/manual-recording-to-teaser.ts
+    */}
+    <Composition
+      id="ManualRecordingTeaserVideo"
+      component={TeaserVideo}
+      durationInFrames={240}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{
+        teaserBroll:    [],
+        teaserFeatures: [],
+        teaserOutro:    { from: 90, durationInFrames: 150, productName: 'Your Product', tagline: 'Run manual-recording-to-teaser.ts first' },
+      } as TeaserVideoProps}
+      calculateMetadata={async () => {
+        try {
+          const response = await fetch(staticFile('manual-recording/demo-package-teaser.json'));
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pkg = await response.json() as any;
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const teaserFeatures = (pkg.teaserFeatures ?? []).map((s: any) => ({
+            ...s,
+            screenshotPath: String(s.screenshotPath ?? '').replace(/\\/g, '/'),
+            recordingPath:  s.recordingPath ? String(s.recordingPath).replace(/\\/g, '/') : undefined,
+          }));
+
+          let voiceScript: VoiceScript | undefined;
+          try {
+            const ts = Date.now();
+            const vsRes = await fetch(staticFile('manual-recording/teaser-voice-script.json') + '?t=' + ts);
+            if (vsRes.ok) {
+              voiceScript = await vsRes.json() as VoiceScript;
+              voiceScript.loadedAt = ts;
+            }
+          } catch { /* voice-script.json is optional */ }
+
+          const loaded: TeaserVideoProps = {
+            teaserBroll:    pkg.teaserBroll ?? [],
+            teaserFeatures,
+            teaserOutro:    pkg.teaserOutro,
+            teaserMusic:    pkg.teaserMusic,
+            voiceScript,
+          } as unknown as TeaserVideoProps;
+
+          const durationInFrames =
+            loaded.teaserOutro.from + loaded.teaserOutro.durationInFrames;
+          return { props: loaded, durationInFrames };
+        } catch {
+          const stub: TeaserVideoProps = {
+            teaserBroll:    [],
+            teaserFeatures: [],
+            teaserOutro:    { from: 90, durationInFrames: 150, productName: 'Your Product', tagline: 'Run manual-recording-to-teaser.ts first' },
+          };
+          return { props: stub, durationInFrames: 240 };
+        }
+      }}
+    />
+
+    {/*
       ── RoleTransitionCard ─────────────────────────────────────────────────────
       Short title card rendered between each role's footage in the exhaustive
       Agent Recording walkthrough (automation/record-agent-exhaustive.ts).

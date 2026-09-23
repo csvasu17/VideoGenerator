@@ -15,7 +15,6 @@ automation/                 The pipeline (Playwright recording, AI content, TTS,
   render-demo.ts            Renders the final video (npm run render:demo)
   generate-voice.ts         TTS narration + background music (npm run voice)
   download-broll-videos.ts  Pexels stock footage matched to AI-generated queries
-  generate-presenter-video.ts  D-ID talking-head presenter overlay
   fetch-background-music.ts Pixabay background music
   config-server.ts          Express API (port 4001) behind the in-Studio Config UI
   e2e-test.ts               modern_saas-template pipeline (agent/DDD architecture)
@@ -83,7 +82,7 @@ Copy `.env.example` → `.env`. Key variables (see `.env.example` for the full c
 | `AZURE_OPENAI_API_KEY` / `_ENDPOINT` / `_DEPLOYMENT` | LLM used for narration, benefit copy, b-roll search queries, and screenshot vision analysis |
 | `VIDEO_TEMPLATE` | `modern_saas` (default) or `enterprise` — see below |
 | `SCREEN_FIT`, `SHOW_AVATAR` | Enterprise-template layout options |
-| `PEXELS_API_KEY`, `PIXABAY_API_KEY`, `D_ID_API_KEY` | Optional: b-roll footage, background music, presenter avatar |
+| `PEXELS_API_KEY`, `PIXABAY_API_KEY` | Optional: b-roll footage, background music |
 
 ### 2. Record + generate content
 
